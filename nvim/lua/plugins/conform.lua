@@ -15,6 +15,7 @@ require("conform").setup({
 		c = { "clang_format" },
 		lua = { "stylua" },
 		python = { "autopep8" },
+		java = { "google-java-format" },
 	},
 	formatters = {
 		clang_format = {

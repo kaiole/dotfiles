@@ -17,7 +17,7 @@ function displayPath(cwd: string): string {
 
 type UsageLimit = { reset: Date; percentUsed: number };
 
-type UsageLimits = { fiveHour?: UsageLimit; weekly?: UsageLimit };
+type UsageLimits = { weekly?: UsageLimit };
 
 function padBetween(left: string, right: string, width: number): string {
 	const leftWidth = visibleWidth(left);
@@ -83,7 +83,9 @@ function formatTime(date: Date): string {
 function formatReset(date: Date, preferDate: boolean): string {
 	const now = new Date();
 	const sameDay = date.toDateString() === now.toDateString();
-	return preferDate && !sameDay ? `${date.getMonth() + 1}/${date.getDate()}` : formatTime(date);
+	return preferDate && !sameDay
+		? `${(date.getMonth() + 1).toString().padStart(2, "0")}/${date.getDate().toString().padStart(2, "0")}`
+		: formatTime(date);
 }
 
 function formatUsageLimit(limit: UsageLimit | undefined, preferDate = false): string | undefined {
@@ -155,11 +157,12 @@ async function refreshOpenAIUsageLimits(usageLimits: UsageLimits): Promise<boole
 		if (!response.ok) return false;
 
 		const payload = (await response.json()) as { rate_limit?: { primary_window?: unknown; secondary_window?: unknown } };
-		const fiveHour = usageLimitFromCodexWindow(payload.rate_limit?.primary_window);
-		const weekly = usageLimitFromCodexWindow(payload.rate_limit?.secondary_window);
-		if (fiveHour) usageLimits.fiveHour = fiveHour;
+		// Codex now exposes only the weekly window. Prefer the legacy secondary
+		// position, but accept primary for the updated response shape.
+		const weekly = usageLimitFromCodexWindow(payload.rate_limit?.secondary_window)
+			?? usageLimitFromCodexWindow(payload.rate_limit?.primary_window);
 		if (weekly) usageLimits.weekly = weekly;
-		return Boolean(fiveHour || weekly);
+		return Boolean(weekly);
 	} catch {
 		return false;
 	}
@@ -185,11 +188,9 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("after_provider_response", async (event) => {
-		const fiveHour = parseUsageLimit(event.headers, [/5h/, /5-hour/, /five.?hour/, /hour/]);
 		const weekly = parseUsageLimit(event.headers, [/week/, /weekly/, /7d/]);
-		if (fiveHour) usageLimits.fiveHour = fiveHour;
 		if (weekly) usageLimits.weekly = weekly;
-		if (fiveHour || weekly) requestFooterRender?.();
+		if (weekly) requestFooterRender?.();
 
 		if (await refreshOpenAIUsageLimits(usageLimits)) requestFooterRender?.();
 	});
@@ -221,8 +222,9 @@ export default function (pi: ExtensionAPI) {
 				render(width: number): string[] {
 					const contextUsage = ctx.getContextUsage();
 					const contextWindow = contextUsage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
-					const percent = contextUsage?.percent == null ? "?" : contextUsage.percent.toFixed(1);
-					const usage = `${percent}%/${formatTokens(contextWindow)}`;
+					const contextPercent = contextUsage?.percent == null ? "?" : contextUsage.percent.toFixed(0);
+					const usedTokens = contextUsage?.tokens == null ? "?" : formatTokens(contextUsage.tokens);
+					const contextDisplay = `${contextPercent}% [${usedTokens}/${formatTokens(contextWindow)}]`;
 
 					let cwd = displayPath(ctx.sessionManager.getCwd());
 					const branch = footerData.getGitBranch();
@@ -234,8 +236,8 @@ export default function (pi: ExtensionAPI) {
 					const model = ctx.model;
 					const thinkingLevel = model?.reasoning ? pi.getThinkingLevel() : undefined;
 					const modelLine = `${model?.id ?? "no-model"}${thinkingLevel ? ` • ${thinkingLevel}` : ""}`;
-					const limitParts = [formatUsageLimit(usageLimits.fiveHour), formatUsageLimit(usageLimits.weekly, true)].filter(Boolean);
-					const usageAndModel = [modelLine, usage, ...limitParts].join(" | ");
+					const weeklyUsage = formatUsageLimit(usageLimits.weekly, true);
+					const usageAndModel = [modelLine, contextDisplay, weeklyUsage].filter(Boolean).join(" | ");
 
 					const firstLine = padBetween(theme.fg("thinkingLow", usageAndModel), theme.fg("thinkingLow", cwd), width);
 
