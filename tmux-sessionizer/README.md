@@ -14,8 +14,9 @@ diverged significantly since.
 tmux-sessionizer [path]
 ```
 
-No arg → fzf picker over `TS_SEARCH_PATHS` (plus a `[TMUX] name` row per
-existing session). With a path → jumps straight to / creates that session.
+No arg → fzf picker containing each `TS_SEARCH_PATHS` directory and its
+ descendants (plus a `[TMUX] name` row per existing session). With a path →
+jumps straight to / creates that session.
 
 ## Configuration
 
@@ -25,7 +26,7 @@ existing session). With a path → jumps straight to / creates that session.
 TS_SEARCH_PATHS=(~/)
 TS_EXTRA_SEARCH_PATHS=(~/ghq:3 ~/Git:3 ~/.config:2)   # :N = maxdepth override
 TS_IGNORE_PATHS=(~/Git/junk)
-TS_MAX_DEPTH=2
+TS_MAX_DEPTH=2             # descendant depth; the search path itself is depth 0
 TS_FZF_POPUP_WIDTH=80    # tmux popup columns
 TS_FZF_POPUP_HEIGHT=20   # tmux popup rows
 TS_FZF_POPUP_Y=0         # tmux popup top row; 0 = top, C = centered
