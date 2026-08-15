@@ -1,62 +1,38 @@
-vim.api.nvim_create_user_command("Init", function()
-	vim.fn.mkdir("include", "p")
-	vim.fn.mkdir("src", "p")
-	vim.fn.mkdir("tmp", "p")
+local competitive_programming_template = {
+    "#include <bits/stdc++.h>",
+    "using namespace std;",
+    "",
+    "int main() {",
+    "    ios::sync_with_stdio(false);",
+    "    cin.tie(0);",
+    "",
+    "    return 0;",
+    "}",
+}
 
-	if vim.fn.filereadable("CMakeLists.txt") == 0 then
-		vim.fn.writefile({}, "CMakeLists.txt")
-	end
+vim.api.nvim_create_user_command("CP", function(opts)
+    local directory = vim.fn.fnamemodify(vim.fn.expand(opts.args), ":p")
+    local main_cpp = directory .. "/main.cpp"
 
-	if vim.fn.filereadable(".gitignore") == 0 then
-		vim.fn.writefile({
-			"build/",
-			".cache/",
-			"tmp/",
-		}, ".gitignore")
-	end
-end, {})
+    if vim.fn.filereadable(main_cpp) == 1 then
+        vim.notify("main.cpp already exists: " .. main_cpp, vim.log.levels.ERROR)
+        return
+    end
 
-local function run(command)
-	vim.cmd("!" .. command)
-end
+    if vim.fn.mkdir(directory, "p") == 0 and vim.fn.isdirectory(directory) == 0 then
+        vim.notify("Could not create directory: " .. directory, vim.log.levels.ERROR)
+        return
+    end
 
-vim.api.nvim_create_user_command("Cmd", function(opts)
-	run("cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug " .. opts.args)
-end, { nargs = "*" })
+    local ok, error_message = pcall(vim.fn.writefile, competitive_programming_template, main_cpp)
+    if not ok then
+        vim.notify("Could not create main.cpp: " .. error_message, vim.log.levels.ERROR)
+        return
+    end
 
-vim.api.nvim_create_user_command("Cmdt", function(opts)
-	run("cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON " .. opts.args)
-end, { nargs = "*" })
-
-vim.api.nvim_create_user_command("Cmdtb", function(opts)
-	run("cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON -DBUILD_BENCH=ON " .. opts.args)
-end, { nargs = "*" })
-
-vim.api.nvim_create_user_command("Cmr", function(opts)
-	run("cmake -S . -B build -DCMAKE_BUILD_TYPE=Release " .. opts.args)
-end, { nargs = "*" })
-
-vim.api.nvim_create_user_command("Cmrt", function(opts)
-	run("cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON " .. opts.args)
-end, { nargs = "*" })
-
-vim.api.nvim_create_user_command("Cmrb", function(opts)
-	run("cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_BENCH=ON " .. opts.args)
-end, { nargs = "*" })
-
-vim.api.nvim_create_user_command("Cmrtb", function(opts)
-	run("cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DBUILD_BENCH=ON " .. opts.args)
-end, { nargs = "*" })
-
-vim.api.nvim_create_user_command("Cmb", function(opts)
-	local args = opts.args ~= "" and (" " .. opts.args) or ""
-	run("cmake --build build -j$(nproc)" .. args)
-end, { nargs = "*" })
-
-vim.api.nvim_create_user_command("Cmclean", function()
-	run("cmake --build build --target clean")
-end, {})
-
-vim.api.nvim_create_user_command("Cmt", function(opts)
-	run("ctest --test-dir build --output-on-failure " .. opts.args)
-end, { nargs = "*" })
+    vim.cmd.edit(vim.fn.fnameescape(main_cpp))
+end, {
+    nargs = 1,
+    complete = "dir",
+    desc = "Create a competitive programming problem directory and main.cpp",
+})

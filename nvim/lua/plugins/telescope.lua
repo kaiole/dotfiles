@@ -42,6 +42,10 @@ require("telescope").setup({
 			theme = "dropdown",
 			borderchars = square_borders,
 		},
+		git_files = {
+			theme = "dropdown",
+			borderchars = square_borders,
+		},
 		diagnostics = {
 			theme = "dropdown",
 			borderchars = square_borders,
@@ -59,5 +63,6 @@ require("telescope").setup({
 
 vim.keymap.set("n", "<leader>ff", ":Telescope find_files<CR>")
 vim.keymap.set("n", "<leader>gr", ":Telescope live_grep<CR>")
+vim.keymap.set("n", "<leader>gf", ":Telescope git_files<CR>")
 vim.keymap.set("n", "<leader>ht", ":Telescope help_tags<CR>")
 vim.keymap.set("n", "<leader>vd", ":Telescope diagnostics<CR>")

@@ -2,6 +2,9 @@ local color = require("lackluster").color
 
 require("lackluster").setup({
 	tweak_color = {
+		-- Replace Lackluster's slate-blue accents with neutral gray and muted red.
+		lack = "#7a7a7a",
+		blue = "#aa6666",
 		red = "#aa6666",
 	},
 	tweak_highlight = {

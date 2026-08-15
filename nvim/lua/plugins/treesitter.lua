@@ -18,7 +18,6 @@ local treesitter_languages = {
 	"toml",
 	"rust",
 	"python",
-	"java",
 }
 
 require("nvim-treesitter").setup({

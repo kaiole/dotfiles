@@ -36,7 +36,7 @@ return {
 	-- Minimal top-level project preamble.
 	s("cm", {
 		t("cmake_minimum_required(VERSION "),
-		i(1, "3.25"),
+		i(1, "3.20"),
 		t({ ")", "project(", "  " }),
 		i(2, "name"),
 		t({ "", "  VERSION " }),
