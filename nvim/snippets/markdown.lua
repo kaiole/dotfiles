@@ -13,20 +13,7 @@ local function currentDate()
 end
 
 return {
-	s("min", {
-		t("$"),
-		i(1),
-		t("$"),
-		i(0),
-	}),
-
-	s("mat", {
-		t({ "$$", "" }),
-		i(1),
-		t({ "", "$$" }),
-		i(0),
-	}),
-
+	-- Markdown snippets
 	s("ex", {
 		t("**Example"),
 		i(1),
@@ -130,6 +117,137 @@ return {
 		t({ "", "- Space: " }),
 		i(5),
 		t({ "", "" }),
+		i(0),
+	}),
+
+	-- LaTeX / MathJax snippets
+	-- Add new math snippets in this section.
+	s("min", {
+		t("$"),
+		i(1),
+		t("$"),
+		i(0),
+	}),
+
+	s("mat", {
+		t({ "$$", "" }),
+		i(1),
+		t({ "", "$$" }),
+		i(0),
+	}),
+
+	s("set", {
+		t("\\{"),
+		i(1),
+		t("\\}"),
+		i(0),
+	}),
+
+	s("setminus", {
+		t("\\setminus"),
+	}),
+
+	s("notin", {
+		t("\\notin"),
+	}),
+
+	s("neq", {
+		t("\\neq"),
+	}),
+
+	s("geq", {
+		t("\\geq"),
+	}),
+
+	s("leq", {
+		t("\\leq"),
+	}),
+
+	s("cap", {
+		t("\\cap"),
+	}),
+
+	s("cup", {
+		t("\\cup"),
+	}),
+
+	s("ldots", {
+		t("\\ldots"),
+	}),
+
+	s("cdots", {
+		t("\\cdots"),
+	}),
+
+	s("cdot", {
+		t("\\cdot"),
+	}),
+
+	s("quad", {
+		t("\\quad"),
+	}),
+
+	s("text", {
+		t("\\text{"),
+		i(1),
+		t("}"),
+		i(0),
+	}),
+
+	s("frac", {
+		t("\\frac{"),
+		i(1),
+		t("}{"),
+		i(2),
+		t("}"),
+		i(0),
+	}),
+
+	s("binom", {
+		t("\\binom{"),
+		i(1),
+		t("}{"),
+		i(2),
+		t("}"),
+		i(0),
+	}),
+
+	s("boxed", {
+		t("\\boxed{"),
+		i(1),
+		t("}"),
+		i(0),
+	}),
+
+	s("phantom", {
+		t("\\phantom{"),
+		i(1),
+		t("}"),
+		i(0),
+	}),
+
+	s("underbrace", {
+		t("\\underbrace{"),
+		i(1),
+		t("}_{"),
+		i(2),
+		t("}"),
+		i(0),
+	}),
+
+	s("overbrace", {
+		t("\\overbrace{"),
+		i(1),
+		t("}^{"),
+		i(2),
+		t("}"),
+		i(0),
+	}),
+
+	s("mathbb", {
+		t("\\mathbb{"),
+		i(1),
+		t("}"),
 		i(0),
 	}),
 }

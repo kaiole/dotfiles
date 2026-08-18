@@ -9,7 +9,9 @@
         "custom/cava_mviz",
     ],
     "modules-center": [
-        "hyprland/workspaces"
+        "hyprland/submap#left",
+        "hyprland/workspaces",
+        "hyprland/submap#right"
     ],
     "modules-right": [
         "tray",
@@ -35,6 +37,14 @@
     "custom/cava_mviz": {
       "exec": "$HOME/.local/bin/waybar_cava",
       "format": "{}"
+    },
+    "hyprland/submap#left": {
+        "format": "⸸",
+        "tooltip": false
+    },
+    "hyprland/submap#right": {
+        "format": "⸸",
+        "tooltip": false
     },
     "hyprland/workspaces": {
         "disable-scroll": true,

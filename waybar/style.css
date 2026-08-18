@@ -78,6 +78,13 @@ tooltip {
     padding: 5px 5px;
 }
 
+#submap {
+    margin: 0;
+    padding: 5px 0;
+    color: #dadada;
+    font-weight: bold;
+}
+
 #pulseaudio {
   color: @fg;
 }
