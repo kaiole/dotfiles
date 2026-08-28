@@ -179,7 +179,7 @@ if [[ "$selected" =~ ^\[TMUX\]\ (.+)$ ]]; then
 fi
 
 selected=$(realpath "$selected")
-tmux_running=$(pgrep tmux)
+tmux_running=$(pgrep -x tmux)
 
 if [[ -z $TMUX ]] && [[ -z $tmux_running ]]; then
     selected_name=$(unique_session_name "$selected")
