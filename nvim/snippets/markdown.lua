@@ -14,6 +14,37 @@ end
 
 return {
 	-- Markdown snippets
+	s("gamma", {
+		t("\\gamma"),
+	}),
+
+	s("subseteq", {
+		t("\\subseteq"),
+	}),
+
+	s("bold", {
+		t("**"),
+		i(1),
+		t("**"),
+		i(0),
+	}),
+
+	s("code", {
+		t("```"),
+		i(1),
+		t({ "", "" }),
+		i(2),
+		t({ "", "```", "" }),
+		i(0),
+	}),
+
+	s("cin", {
+		t("`"),
+		i(1),
+		t("`"),
+		i(0),
+	}),
+
 	s("ex", {
 		t("**Example"),
 		i(1),
@@ -132,7 +163,7 @@ return {
 	s("mat", {
 		t({ "$$", "" }),
 		i(1),
-		t({ "", "$$" }),
+		t({ "", "$$", "" }),
 		i(0),
 	}),
 
@@ -147,8 +178,16 @@ return {
 		t("\\setminus"),
 	}),
 
+	s("emptyset", {
+		t("\\emptyset"),
+	}),
+
 	s("notin", {
 		t("\\notin"),
+	}),
+
+	s("in", {
+		t("\\in"),
 	}),
 
 	s("neq", {
@@ -181,6 +220,18 @@ return {
 
 	s("cdot", {
 		t("\\cdot"),
+	}),
+
+	s("times", {
+		t("\\times"),
+	}),
+
+	s("therefore", {
+		t("\\therefore"),
+	}),
+
+	s("forall", {
+		t("\\forall"),
 	}),
 
 	s("quad", {
@@ -217,6 +268,31 @@ return {
 		i(1),
 		t("}"),
 		i(0),
+	}),
+
+	s("ceil", {
+		t("\\lceil "),
+		i(1),
+		t(" \\rceil"),
+		i(0),
+	}),
+
+	s("cardinality", {
+		t("\\left| "),
+		i(1),
+		t(" \\right|"),
+		i(0),
+	}),
+
+	s("sqrt", {
+		t("\\sqrt{"),
+		i(1),
+		t("}"),
+		i(0),
+	}),
+
+	s("square", {
+		t("\\square"),
 	}),
 
 	s("phantom", {

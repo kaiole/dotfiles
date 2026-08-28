@@ -17,7 +17,7 @@ function displayPath(cwd: string): string {
 
 type UsageLimit = { reset: Date; percentUsed: number };
 
-type UsageLimits = { weekly?: UsageLimit };
+type UsageLimits = { fiveHour?: UsageLimit; weekly?: UsageLimit };
 
 function padBetween(left: string, right: string, width: number): string {
 	const leftWidth = visibleWidth(left);
@@ -157,12 +157,11 @@ async function refreshOpenAIUsageLimits(usageLimits: UsageLimits): Promise<boole
 		if (!response.ok) return false;
 
 		const payload = (await response.json()) as { rate_limit?: { primary_window?: unknown; secondary_window?: unknown } };
-		// Codex now exposes only the weekly window. Prefer the legacy secondary
-		// position, but accept primary for the updated response shape.
-		const weekly = usageLimitFromCodexWindow(payload.rate_limit?.secondary_window)
-			?? usageLimitFromCodexWindow(payload.rate_limit?.primary_window);
+		const fiveHour = usageLimitFromCodexWindow(payload.rate_limit?.primary_window);
+		const weekly = usageLimitFromCodexWindow(payload.rate_limit?.secondary_window);
+		if (fiveHour) usageLimits.fiveHour = fiveHour;
 		if (weekly) usageLimits.weekly = weekly;
-		return Boolean(weekly);
+		return Boolean(fiveHour || weekly);
 	} catch {
 		return false;
 	}
@@ -188,9 +187,11 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("after_provider_response", async (event) => {
+		const fiveHour = parseUsageLimit(event.headers, [/5h/, /5-hour/, /5_hour/]);
 		const weekly = parseUsageLimit(event.headers, [/week/, /weekly/, /7d/]);
+		if (fiveHour) usageLimits.fiveHour = fiveHour;
 		if (weekly) usageLimits.weekly = weekly;
-		if (weekly) requestFooterRender?.();
+		if (fiveHour || weekly) requestFooterRender?.();
 
 		if (await refreshOpenAIUsageLimits(usageLimits)) requestFooterRender?.();
 	});
@@ -236,10 +237,15 @@ export default function (pi: ExtensionAPI) {
 					const model = ctx.model;
 					const thinkingLevel = model?.reasoning ? pi.getThinkingLevel() : undefined;
 					const modelLine = `${model?.id ?? "no-model"}${thinkingLevel ? ` • ${thinkingLevel}` : ""}`;
+					const fiveHourUsage = formatUsageLimit(usageLimits.fiveHour);
 					const weeklyUsage = formatUsageLimit(usageLimits.weekly, true);
-					const usageAndModel = [modelLine, contextDisplay, weeklyUsage].filter(Boolean).join(" | ");
+					const usageAndModel = [modelLine, contextDisplay, fiveHourUsage, weeklyUsage].filter(Boolean).join(" | ");
+					const styledUsageAndModel = theme.fg("thinkingLow", usageAndModel);
+					const sessionAndUsage = ctx.sessionManager.isPersisted()
+						? styledUsageAndModel
+						: `${theme.fg("warning", "⸸")} ${styledUsageAndModel}`;
 
-					const firstLine = padBetween(theme.fg("thinkingLow", usageAndModel), theme.fg("thinkingLow", cwd), width);
+					const firstLine = padBetween(sessionAndUsage, theme.fg("thinkingLow", cwd), width);
 
 					return [truncateToWidth(firstLine, width), ""];
 				},

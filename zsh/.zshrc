@@ -106,6 +106,7 @@ source $ZSH/oh-my-zsh.sh
 # - $ZSH_CUSTOM/aliases.zsh
 # - $ZSH_CUSTOM/macos.zsh
 # For a full list of active aliases, run `alias`.
+[[ -r ~/.local/state/pi/secrets.zsh ]] && source ~/.local/state/pi/secrets.zsh
 [[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
 alias vim="nvim"
 alias tree="tree -Ia 'build|target|.cargo|node_modules|dist|.git|.cache'"

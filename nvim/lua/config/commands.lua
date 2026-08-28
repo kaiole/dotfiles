@@ -10,7 +10,7 @@ local competitive_programming_template = {
     "}",
 }
 
-vim.api.nvim_create_user_command("CP", function(opts)
+vim.api.nvim_create_user_command("WB", function(opts)
     local directory = vim.fn.fnamemodify(vim.fn.expand(opts.args), ":p")
     local main_cpp = directory .. "/main.cpp"
 

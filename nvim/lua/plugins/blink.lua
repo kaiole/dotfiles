@@ -6,7 +6,7 @@ require("blink.cmp").setup({
 		default = { "snippets", "lsp", "path", "buffer", "obsidian" },
 		providers = {
 			snippets = {
-				score_offset = 100,
+				score_offset = 5,
 			},
 			obsidian = {
 				name = "Obsidian",

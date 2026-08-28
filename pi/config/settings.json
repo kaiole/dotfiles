@@ -1,0 +1,30 @@
+{
+  "lastChangelogVersion": "0.84.3",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.6-sol",
+  "defaultThinkingLevel": "high",
+  "packages": [
+    "~/dotfiles/pi/picosystem/pdf-reader",
+    "~/dotfiles/pi/picosystem/firecrawl",
+    "~/dotfiles/pi/picosystem/split-editor",
+    "~/dotfiles/pi/picosystem/footer",
+    "~/dotfiles/pi/picosystem/notifi",
+    "~/dotfiles/pi/picosystem/log"
+  ],
+  "skills": [
+    "~/dotfiles/pi/skills/"
+  ],
+  "themes": [
+    "~/dotfiles/pi/themes/lackluster.json"
+  ],
+  "theme": "lackluster",
+  "hideThinkingBlock": true,
+  "enableInstallTelemetry": false,
+  "subagents": {
+    "agentOverrides": {
+      "worker": {
+        "thinking": "low"
+      }
+    }
+  }
+}

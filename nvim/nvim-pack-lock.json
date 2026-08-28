@@ -1,9 +1,5 @@
 {
   "plugins": {
-    "99": {
-      "rev": "0172d3caae2d8b967c9d47aa7557295f1481e5df",
-      "src": "https://github.com/ThePrimeagen/99"
-    },
     "LuaSnip": {
       "rev": "dae4f5aaa3574bd0c2b9dd20fb9542a02c10471c",
       "src": "https://github.com/L3MON4D3/LuaSnip"

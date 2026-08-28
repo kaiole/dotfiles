@@ -1,0 +1,40 @@
+{
+  "name": "pi-firecrawl",
+  "version": "0.1.0",
+  "description": "Firecrawl-backed web search and page fetching tools for Pi.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "firecrawl",
+    "web-search",
+    "web-fetch"
+  ],
+  "files": [
+    "index.ts",
+    "src",
+    "README.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  },
+  "scripts": {
+    "test": "tsx --test test/**/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

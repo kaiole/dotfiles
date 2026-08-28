@@ -51,6 +51,18 @@ require("lackluster").setup({
 			overwrite = true,
 			bg = "NONE",
 		},
+		RenderMarkdownMath = {
+			overwrite = true,
+			fg = color.gray6,
+		},
+		["@markup.math"] = {
+			overwrite = true,
+			fg = color.gray6,
+		},
+		["@number.latex"] = {
+			overwrite = true,
+			fg = color.gray6,
+		},
 		["@markup.strong"] = {
 			overwrite = true,
 			fg = color.gray4,
