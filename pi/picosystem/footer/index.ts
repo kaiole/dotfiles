@@ -245,7 +245,8 @@ export default function (pi: ExtensionAPI) {
 						? styledUsageAndModel
 						: `${theme.fg("warning", "⸸")} ${styledUsageAndModel}`;
 
-					const firstLine = padBetween(sessionAndUsage, theme.fg("thinkingLow", cwd), width);
+					const contentWidth = Math.max(0, width - 1);
+					const firstLine = ` ${padBetween(sessionAndUsage, theme.fg("thinkingLow", cwd), contentWidth)}`;
 
 					return [truncateToWidth(firstLine, width), ""];
 				},

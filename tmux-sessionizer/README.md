@@ -39,7 +39,7 @@ On session creation, the script walks up from the selected dir looking for
 `.tmux-sessionizer`. If found, it runs the file as bash with `TS_SESSION` and
 `TS_PATH` exported, so the preset can lay out windows with explicit targets.
 
-`presets/` holds reusable layouts (`default`, `agent`, `yazi`, `read`). Symlink
+`presets/` holds reusable layouts (`default`, `agent`, `yazi`, `read`, `zsh`). Symlink
 the one you want into a project as `.tmux-sessionizer`, or drop into `~/`
 for a global default.
 

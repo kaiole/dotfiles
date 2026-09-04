@@ -1,3 +1,9 @@
+vim.filetype.add({
+	extension = {
+		mdx = "markdown.mdx",
+	},
+})
+
 require("conform").setup({
 	formatters_by_ft = {
 		javascript = { "prettier" },
@@ -5,6 +11,7 @@ require("conform").setup({
 		typescript = { "prettier" },
 		typescriptreact = { "prettier" },
 		markdown = { "prettier" },
+		["markdown.mdx"] = { "prettier" },
 		json = { "prettier" },
 		html = { "prettier" },
 		css = { "prettier" },
@@ -23,6 +30,11 @@ require("conform").setup({
 		prettier = {
 			command = vim.fn.expand("~/.npm-global/bin/prettier"),
 			prepend_args = { "--prose-wrap", "always", "--ignore-path", "/dev/null" },
+			options = {
+				ft_parsers = {
+					["markdown.mdx"] = "mdx",
+				},
+			},
 		},
 		autopep8 = {
 			prepend_args = { "--max-line-length=80", "--aggressive" },

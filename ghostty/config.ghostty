@@ -6,6 +6,7 @@ font-family = CaskaydiaCove Nerd Font Mono
 theme = lackluster
 
 font-thicken = false
+font-feature = -calt
 
 background = 000000
 background-opacity = 0.6

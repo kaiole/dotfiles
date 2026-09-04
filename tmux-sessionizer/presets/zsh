@@ -1,0 +1,2 @@
+tmux rename-window -t "$TS_SESSION:1" zsh
+tmux respawn-pane -k -t "$TS_SESSION:1.1" -c "$TS_PATH" zsh
