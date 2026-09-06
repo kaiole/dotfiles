@@ -1,2 +1,3 @@
-tmux rename-window -t "$TS_SESSION:1" zsh
-tmux respawn-pane -k -t "$TS_SESSION:1.1" -c "$TS_PATH" zsh
+pane=$(tmux display-message -p -t "$TS_SESSION:^" '#{pane_id}') || exit
+tmux rename-window -t "$pane" zsh
+tmux respawn-pane -k -t "$pane" -c "$TS_PATH" zsh

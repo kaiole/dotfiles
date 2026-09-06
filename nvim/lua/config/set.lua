@@ -35,6 +35,7 @@ vim.o.backup = false
 vim.o.undodir = os.getenv("HOME") .. "/.vim/undodir"
 vim.o.undofile = true
 vim.o.confirm = true
+vim.o.hidden = true
 
 vim.api.nvim_create_autocmd("TextYankPost", {
 	callback = function()

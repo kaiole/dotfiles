@@ -1,2 +1,1 @@
-REMOTE_HOST="blue@192.168.1.82"
 source "$(dirname "$(readlink -f "${(%):-%x}")")/.zshrc.local.shared"

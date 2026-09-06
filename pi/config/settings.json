@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.84.4",
+  "lastChangelogVersion": "0.85.1",
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.6-sol",
   "defaultThinkingLevel": "low",
@@ -9,7 +9,8 @@
     "~/dotfiles/pi/picosystem/split-editor",
     "~/dotfiles/pi/picosystem/footer",
     "~/dotfiles/pi/picosystem/notifi",
-    "~/dotfiles/pi/picosystem/log"
+    "~/dotfiles/pi/picosystem/log",
+    "../../dotfiles/pi/picosystem/woke"
   ],
   "skills": [
     "~/dotfiles/pi/skills/"

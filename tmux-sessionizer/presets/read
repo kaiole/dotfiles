@@ -1,5 +1,6 @@
-tmux send-keys -t "$TS_SESSION:1" "cd ~/vault && clear" C-m
+pane=$(tmux display-message -p -t "$TS_SESSION:^" '#{pane_id}') || exit
+tmux respawn-pane -k -t "$pane" -c "$HOME/vault"
 tmux new-window -t "$TS_SESSION:" -c ~/vault -n vim 'nvim; exec $SHELL'
 tmux new-window -t "$TS_SESSION:" -c ~/vault -n agent
-tmux new-window -t "$TS_SESSION:" -c "$TS_PATH" -n sioyek "pdf=\$(find . -maxdepth 1 -type f -name '*.pdf' -print -quit); if [[ -n \"\$pdf\" ]]; then sioyek \"\$pdf\"; fi; exec \$SHELL"
+tmux new-window -t "$TS_SESSION:" -c "$TS_PATH" -n sioyek "pdf=\$(find . -maxdepth 1 -type f -name '*.pdf' -print -quit); if [ -n \"\$pdf\" ]; then sioyek \"\$pdf\"; fi; exec \$SHELL"
 tmux select-window -t "$TS_SESSION:vim"
