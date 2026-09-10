@@ -1,0 +1,2 @@
+-- Hyprlang variables became ordinary Lua locals.
+-- Command paths now live beside the keybindings that use them.

@@ -1,4 +1,8 @@
-vim.lsp.enable({ "lua_ls", "ts_ls", "eslint", "rust_analyzer", "clangd", "pyright" })
+vim.lsp.enable({ "lua_ls", "ts_ls", "eslint", "rust_analyzer", "clangd", "pyright", "neocmake" })
+
+vim.lsp.config("neocmake", {
+	cmd = { "neocmakelsp", "stdio" },
+})
 
 vim.lsp.config("lua_ls", {
 	settings = {

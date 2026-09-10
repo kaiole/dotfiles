@@ -4,7 +4,8 @@ require("statusline")
 
 require("config.set")
 require("config.pack")
-require("config.commands")
+require("pi_manual")
+require("config.cmds")
 require("config.cpp")
 
 require("plugins.treesitter")
@@ -18,5 +19,6 @@ require("plugins.luasnip")
 require("plugins.blink")
 require("plugins.oil")
 require("plugins.conform")
+require("plugins.command_center")
 
 require("config.map")

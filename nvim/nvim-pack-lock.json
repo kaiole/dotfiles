@@ -50,6 +50,10 @@
       "rev": "b4da76be54691e854d3e0e02c36b0245f945c2c7",
       "src": "https://github.com/nvim-telescope/telescope.nvim"
     },
+    "tiny-cmdline.nvim": {
+      "rev": "e247d9ee4c980734f8f8bf616d31e0ab7c27485d",
+      "src": "https://github.com/rachartier/tiny-cmdline.nvim"
+    },
     "undotree": {
       "rev": "fe9a9d0645f0f5532360b5e5f5c550d7bb4f1869",
       "src": "https://github.com/mbbill/undotree"

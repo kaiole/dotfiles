@@ -99,6 +99,7 @@ git clone https://github.com/kyleqbnguyen/dotfiles ~/dotfiles
 ln -s ~/dotfiles/hypr ~/.config/hypr
 ln -s ~/dotfiles/nvim ~/.config/nvim
 ln -s ~/dotfiles/zsh/.zshrc ~/.zshrc
+ln -s ~/dotfiles/zsh/.zshenv ~/.zshenv
 # ...etc
 ```
 

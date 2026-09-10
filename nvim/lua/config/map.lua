@@ -12,38 +12,19 @@ vim.keymap.set({ "n", "v", "x" }, "<leader>y", [["+y]])
 vim.keymap.set("n", "<leader>Y", [["+Y]])
 vim.keymap.set({ "n", "v" }, "<leader>d", '"_d')
 
-local function wrap_in_callout()
+local markdown = require("config.actions.markdown")
+
+local function wrap_selection_in_blockquote()
 	vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
-
-	local first_line = vim.fn.line("'<")
-	local last_line = vim.fn.line("'>")
-	local selected = vim.api.nvim_buf_get_lines(0, first_line - 1, last_line, false)
-	local suffix = { "]", ">" }
-
-	for _, line in ipairs(selected) do
-		table.insert(suffix, line == "" and ">" or "> " .. line)
-	end
-	table.insert(suffix, "")
-	table.insert(suffix, "")
-
-	vim.api.nvim_buf_set_lines(0, first_line - 1, last_line, false, { "" })
-	vim.api.nvim_win_set_cursor(0, { first_line, 0 })
-
-	local ls = require("luasnip")
-	ls.snip_expand(ls.snippet("", {
-		ls.text_node("> [!"),
-		ls.insert_node(1),
-		ls.text_node(suffix),
-		ls.insert_node(0),
-	}))
+	markdown.wrap_in_blockquote(vim.fn.line("'<"), vim.fn.line("'>"))
 end
 
 vim.api.nvim_create_autocmd("FileType", {
 	pattern = "markdown",
 	callback = function(event)
-		vim.keymap.set("x", "<leader>c", wrap_in_callout, {
+		vim.keymap.set("x", "<C-g>", wrap_selection_in_blockquote, {
 			buffer = event.buf,
-			desc = "Wrap selection in a callout",
+			desc = "Wrap selection in a blockquote",
 		})
 	end,
 })

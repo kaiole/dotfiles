@@ -1,0 +1,1 @@
+/home/red/personal/pi-nvim/dev/pi_manual.lua
