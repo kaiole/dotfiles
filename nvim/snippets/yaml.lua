@@ -14,6 +14,7 @@ return {
       "UseTab: Never",
       "AccessModifierOffset: -4",
       "NamespaceIndentation: None",
+      "WrapNamespaceBodyWithEmptyLines: Always",
       "IndentCaseLabels: true",
       "",
       "ColumnLimit: 80",

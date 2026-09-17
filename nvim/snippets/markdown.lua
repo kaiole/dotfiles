@@ -12,6 +12,33 @@ local function currentDate()
 	return os.date("%m-%d-%Y")
 end
 
+local function tableNode()
+	local columns = math.max(1, math.floor(tonumber(vim.fn.input("Columns: ", "3")) or 3))
+	local rows = math.max(0, math.floor(tonumber(vim.fn.input("Data rows: ", "2")) or 2))
+	local nodes = {}
+	local position = 1
+
+	local function addEditableRow()
+		table.insert(nodes, t("| "))
+		for column = 1, columns do
+			table.insert(nodes, i(position))
+			position = position + 1
+			table.insert(nodes, t(column == columns and " |" or " | "))
+		end
+		table.insert(nodes, t({ "", "" }))
+	end
+
+	addEditableRow()
+	table.insert(nodes, t("|" .. string.rep(" --- |", columns)))
+	table.insert(nodes, t({ "", "" }))
+
+	for _ = 1, rows do
+		addEditableRow()
+	end
+
+	return sn(nil, nodes)
+end
+
 return {
 	-- Markdown snippets
 	s("gamma", {
@@ -44,6 +71,14 @@ return {
 				t("]]"),
 			}),
 		}),
+		i(0),
+	}),
+
+	s({
+		trig = "table",
+		docstring = "| header |\n| --- |\n| cell |",
+	}, {
+		d(1, tableNode, {}),
 		i(0),
 	}),
 

@@ -103,11 +103,13 @@ unique_session_name() {
 }
 
 find_dirs() {
-    local current='' i entry root depth path ignored skip
-    [[ -z "${TMUX:-}" ]] || current=$(tmux display-message -p '#{session_id}')
-    for ((i=0; i<${#SESSION_IDS[@]}; i++)); do
-        [[ "${SESSION_IDS[i]}" == "$current" ]] || printf '[TMUX] %s\n' "${SESSION_NAMES[i]}"
-    done
+    local current='' i entry root depth path ignored skip mode="${1:-normal}"
+    if [[ "$mode" == normal ]]; then
+        [[ -z "${TMUX:-}" ]] || current=$(tmux display-message -p '#{session_id}')
+        for ((i=0; i<${#SESSION_IDS[@]}; i++)); do
+            [[ "${SESSION_IDS[i]}" == "$current" ]] || printf '[TMUX] %s\n' "${SESSION_NAMES[i]}"
+        done
+    fi
     # Canonical roots collapse symlink aliases. awk removes overlapping search results.
     for entry in "${TS_SEARCH_PATHS[@]}"; do
         depth="$TS_MAX_DEPTH"; root="$entry"
@@ -116,7 +118,9 @@ find_dirs() {
         fi
         root=$(canonical_dir "$root") || continue
         while IFS= read -r path; do
-            find_session_by_path "$path" >/dev/null && continue
+            if [[ "$mode" == normal ]]; then
+                find_session_by_path "$path" >/dev/null && continue
+            fi
             skip=false
             for ignored in "${IGNORE_PATHS[@]}"; do
                 if is_within "$path" "$ignored"; then skip=true; break; fi
@@ -126,18 +130,78 @@ find_dirs() {
     done | awk '!seen[$0]++'
 }
 
+# Picker helpers run in separate Bash processes; input is always passed as arguments.
+picker_filter() {
+    local input="$1" query="$2"
+    if [[ "$query" == *:* ]]; then
+        query=${query%%:*}
+        fzf --filter="$query" < "$input.create" || [[ $? == 1 ]]
+    else
+        fzf --filter="$query" < "$input" || [[ $? == 1 ]]
+    fi
+}
+
+picker_preview() {
+    local query="$1" parent="$2"
+    if [[ "$query" == *:* ]]; then
+        [[ -n "$parent" ]] || { printf 'No matching parent directory\n'; return; }
+        printf 'Create: %s/%s\n' "$parent" "${query#*:}"
+    fi
+}
+
+create_directory() {
+    local parent="$1" child="$2" target ignored
+    [[ -n "$child" && "$child" != /* ]] || { error 'new directory must be a nonempty relative path'; return 1; }
+    case "/$child/" in
+        */../*|*/./*) error 'new directory cannot contain . or .. components'; return 1 ;;
+    esac
+    parent=$(canonical_dir "$parent") || { error 'parent is not an accessible directory'; return 1; }
+    # Resolve existing symlink components before creating anything. Do not allow
+    # a nested path to escape its parent or enter an ignored directory.
+    target="$parent"
+    local remaining="$child" part
+    while [[ -n "$remaining" ]]; do
+        part=${remaining%%/*}
+        if [[ "$remaining" == */* ]]; then remaining=${remaining#*/}; else remaining=''; fi
+        [[ -n "$part" ]] || continue
+        target="$target/$part"
+        if [[ -e "$target" || -L "$target" ]]; then
+            target=$(canonical_dir "$target") || { error 'target component is not an accessible directory'; return 1; }
+        fi
+        is_within "$target" "$parent" || { error 'new directory escapes its parent'; return 1; }
+        for ignored in "${IGNORE_PATHS[@]}"; do
+            if is_within "$target" "$ignored"; then error 'new directory is ignored'; return 1; fi
+        done
+    done
+    mkdir -p -- "$target" || return
+    canonical_dir "$target"
+}
+
 fzf_select() (
     # Subshell scopes cleanup traps to the picker, including cancellation/signals.
+    local temp command helper filter preview
+    temp=$(mktemp -d) || return
+    trap 'rm -rf -- "$temp"' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM HUP
+    find_dirs > "$temp/input"
+    find_dirs create > "$temp/input.create"
+    helper="$(canonical_dir "$(dirname "${BASH_SOURCE[0]}")")/$(basename "${BASH_SOURCE[0]}")"
+    printf -v filter 'bash %q --picker-filter %q {q}' "$helper" "$temp/input"
+    printf -v preview 'bash %q --picker-preview {q} {}' "$helper"
+    local options=(--height=100% --border="${TS_FZF_BORDER:-bold}"
+        --disabled --print-query --no-multi --with-shell='bash -c'
+        --header='' --no-header-first --header-border=none
+        --bind="change:reload($filter)+transform-header($preview)"
+        --bind="focus:transform-header($preview),result:transform-header($preview)"
+        --bind='ctrl-p:up,ctrl-n:down')
     if [[ -z "${TMUX:-}" ]]; then
-        find_dirs | fzf --height=100% --border="${TS_FZF_BORDER:-bold}"
+        fzf "${options[@]}" < "$temp/input"
     else
-        local temp command
-        temp=$(mktemp -d) || return
-        trap 'rm -rf -- "$temp"' EXIT
-        trap 'exit 130' INT
-        trap 'exit 143' TERM HUP
-        find_dirs > "$temp/input"
-        printf -v command 'fzf --height=100%% --border=%q < %q > %q' "${TS_FZF_BORDER:-bold}" "$temp/input" "$temp/output"
+        printf -v command 'fzf'
+        local option
+        for option in "${options[@]}"; do printf -v command '%s %q' "$command" "$option"; done
+        printf -v command '%s < %q > %q' "$command" "$temp/input" "$temp/output"
         tmux display-popup -B -x C -y "${TS_FZF_POPUP_Y:-0}" \
             -w "${TS_FZF_POPUP_WIDTH:-75}" -h "${TS_FZF_POPUP_HEIGHT:-16}" -E "$command" || return
         [[ ! -f "$temp/output" ]] || printf '%s' "$(<"$temp/output")"
@@ -151,17 +215,39 @@ switch_to() {
 
 main() {
     case "${1:-}" in
-        -h|--help) printf 'Usage: tmux-sessionizer [directory]\n'; return 0 ;;
+        -h|--help) printf 'Usage: tmux-sessionizer [directory]\n       tmux-sessionizer --new <parent-directory> <relative-name>\n\nPicker: parent-search:new-directory creates under the highlighted directory.\n'; return 0 ;;
+        --picker-filter) picker_filter "$2" "$3"; return ;;
+        --picker-preview) picker_preview "$2" "$3"; return ;;
     esac
-    [[ $# -le 1 ]] || { error 'expected at most one directory'; return 1; }
+    local creating=false
+    if [[ "${1:-}" == --new ]]; then
+        [[ $# -eq 3 ]] || { error 'usage: --new <parent-directory> <relative-name>'; return 1; }
+        creating=true
+    else
+        [[ $# -le 1 ]] || { error 'expected at most one directory'; return 1; }
+    fi
     command -v tmux >/dev/null || { error 'tmux is required'; return 1; }
     load_config || return
     snapshot_sessions
-    local selected session name preset i
-    if [[ $# -eq 1 ]]; then selected="$1"
+    local selected session name preset i query parent candidates
+    if "$creating"; then
+        parent=$(canonical_dir "$2") || { error 'parent is not an accessible directory'; return 1; }
+        candidates=$(find_dirs create)
+        printf '%s\n' "$candidates" | grep -Fx -- "$parent" >/dev/null || {
+            error 'parent must be an eligible directory in the picker'; return 1;
+        }
+        selected=$(create_directory "$parent" "$3") || return
+    elif [[ $# -eq 1 ]]; then selected="$1"
     else
         command -v fzf >/dev/null || { error 'fzf is required for the picker'; return 1; }
         selected=$(fzf_select) || return 0
+        [[ "$selected" == *$'\n'* ]] || return 0
+        query=${selected%%$'\n'*}
+        selected=${selected#*$'\n'}
+        if [[ "$query" == *:* && -n "$selected" ]]; then
+            [[ "$selected" != '[TMUX] '* ]] || { error 'select a directory, not a session'; return 1; }
+            selected=$(create_directory "$selected" "${query#*:}") || return
+        fi
     fi
     [[ -n "$selected" ]] || return 0
     if [[ $# -eq 0 && "$selected" == '[TMUX] '* ]]; then

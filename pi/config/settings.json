@@ -19,7 +19,7 @@
     "~/dotfiles/pi/themes/lackluster.json"
   ],
   "theme": "lackluster",
-  "hideThinkingBlock": true,
+  "hideThinkingBlock": false,
   "enableInstallTelemetry": false,
   "subagents": {
     "agentOverrides": {

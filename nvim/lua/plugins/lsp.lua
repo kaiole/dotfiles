@@ -4,6 +4,14 @@ vim.lsp.config("neocmake", {
 	cmd = { "neocmakelsp", "stdio" },
 })
 
+-- Used only when clangd cannot find a compile command for the file.
+-- A project's compile_commands.json still takes precedence.
+vim.lsp.config("clangd", {
+	init_options = {
+		fallbackFlags = { "-std=c++23" },
+	},
+})
+
 vim.lsp.config("lua_ls", {
 	settings = {
 		Lua = {
