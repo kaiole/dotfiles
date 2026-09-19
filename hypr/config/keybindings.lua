@@ -97,7 +97,7 @@ hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO
 hl.bind("XF86AudioMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"), repeating_locked)
 hl.bind("XF86AudioMicMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"), repeating_locked)
 hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("brightnessctl s 5%+"), repeating_locked)
-hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl s 5%-"), repeating_locked)
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl --min-value=1200 s 5%-"), repeating_locked)
 
 local locked = { locked = true }
 hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next"), locked)

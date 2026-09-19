@@ -78,6 +78,7 @@
     },
     "backlight": {
       "device": "intel_backlight",
+      "min-brightness": 1,
       "format": "{icon} {percent}%",
       "format-icons": ["", ""]
     },
