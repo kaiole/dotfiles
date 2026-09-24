@@ -29,5 +29,5 @@ hl.device({
 
 hl.device({
 	name = "at-translated-set-2-keyboard",
-	-- enabled = false,
+	enabled = false,
 })

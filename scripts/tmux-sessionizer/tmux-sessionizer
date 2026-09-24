@@ -3,14 +3,25 @@
 
 error() { printf 'tmux-sessionizer: %s\n' "$*" >&2; }
 
-canonical_dir() {
-    local path="$1"
-    case "$path" in
-        '~') path="$HOME" ;;
-        '~/'*) path="$HOME/${path#\~/}" ;;
-    esac
-    (CDPATH= cd -P -- "$path" 2>/dev/null && pwd -P)
-}
+canonical_dir() (
+    # Batch resolution uses one subshell. Missing paths get an empty line so
+    # callers can associate each result with its input; single-path calls still
+    # fail as before. Neither the caller's cwd nor its CDPATH is changed.
+    local path base="$PWD" status=0
+    for path in "$@"; do
+        case "$path" in
+            '~') path="$HOME" ;;
+            '~/'*) path="$HOME/${path#\~/}" ;;
+        esac
+        CDPATH= cd -- "$base" || return
+        if CDPATH= cd -P -- "$path" 2>/dev/null; then
+            printf '%s\n' "$PWD"
+        else
+            printf '\n'; status=1
+        fi
+    done
+    return "$status"
+)
 
 is_within() {
     [[ "$1" == "$2" || "$2" == / || "$1" == "$2/"* ]]
@@ -30,20 +41,24 @@ load_config() {
     [[ "$TS_MAX_DEPTH" =~ ^[0-9]+$ ]] || { error 'TS_MAX_DEPTH must be a nonnegative integer'; return 1; }
 
     RULE_PATHS=(); RULE_PRESETS=(); IGNORE_PATHS=()
-    local rule path preset
+    local rule path preset i=0 paths=() presets=()
     for rule in "${TS_PRESET_RULES[@]}"; do
         [[ "$rule" == *'|'* ]] || { error "invalid preset rule: $rule"; return 1; }
         path=${rule%|*}; preset=${rule##*|}
         validate_preset "$preset" || return
-        # Missing directories are normal on a freshly provisioned machine.
-        path=$(canonical_dir "$path") || continue
-        RULE_PATHS+=("$path"); RULE_PRESETS+=("$preset")
+        paths+=("$path"); presets+=("$preset")
     done
     validate_preset "$TS_DEFAULT_PRESET" || return
-    for path in "${TS_IGNORE_PATHS[@]}"; do
-        path=$(canonical_dir "$path") || continue
-        IGNORE_PATHS+=("$path")
-    done
+    # Missing directories are normal on a freshly provisioned machine.
+    while IFS= read -r path; do
+        if [[ -n "$path" ]]; then
+            RULE_PATHS+=("$path"); RULE_PRESETS+=("${presets[i]}")
+        fi
+        i=$((i+1))
+    done < <(canonical_dir "${paths[@]}")
+    while IFS= read -r path; do
+        [[ -z "$path" ]] || IGNORE_PATHS+=("$path")
+    done < <(canonical_dir "${TS_IGNORE_PATHS[@]}")
 }
 
 validate_preset() {
@@ -102,35 +117,66 @@ unique_session_name() {
     printf '%s\n' "$name"
 }
 
-find_dirs() {
-    local current='' i entry root depth path ignored skip mode="${1:-normal}"
-    if [[ "$mode" == normal ]]; then
-        [[ -z "${TMUX:-}" ]] || current=$(tmux display-message -p '#{session_id}')
-        for ((i=0; i<${#SESSION_IDS[@]}; i++)); do
-            [[ "${SESSION_IDS[i]}" == "$current" ]] || printf '[TMUX] %s\n' "${SESSION_NAMES[i]}"
-        done
-    fi
-    # Canonical roots collapse symlink aliases. awk removes overlapping search results.
+scan_dirs() {
+    # Batch canonicalization and run one find per distinct depth, not per root.
+    local entry root depth i=0 group found
+    local paths=() roots=() depths=() groups=() batch=()
     for entry in "${TS_SEARCH_PATHS[@]}"; do
         depth="$TS_MAX_DEPTH"; root="$entry"
         if [[ "$entry" =~ ^(.+):([0-9]+)$ ]]; then
             root=${BASH_REMATCH[1]}; depth=${BASH_REMATCH[2]}
         fi
-        root=$(canonical_dir "$root") || continue
-        while IFS= read -r path; do
-            if [[ "$mode" == normal ]]; then
-                find_session_by_path "$path" >/dev/null && continue
-            fi
-            skip=false
-            for ignored in "${IGNORE_PATHS[@]}"; do
-                if is_within "$path" "$ignored"; then skip=true; break; fi
-            done
-            "$skip" || printf '%s\n' "$path"
-        done < <(find "$root" -maxdepth "$depth" -name .git -prune -o -type d -print)
-    done | awk '!seen[$0]++'
+        paths+=("$root"); depths+=("$depth")
+    done
+    while IFS= read -r root; do roots+=("$root"); done < <(canonical_dir "${paths[@]}")
+    for ((i=0; i<${#roots[@]}; i++)); do
+        [[ -n "${roots[i]}" ]] || continue
+        depth=${depths[i]}; found=false
+        for group in "${groups[@]}"; do
+            [[ "$group" != "$depth" ]] || { found=true; break; }
+        done
+        "$found" || groups+=("$depth")
+    done
+    for group in "${groups[@]}"; do
+        batch=()
+        for ((i=0; i<${#roots[@]}; i++)); do
+            [[ -z "${roots[i]}" || "${depths[i]}" != "$group" ]] || batch+=("${roots[i]}")
+        done
+        find "${batch[@]}" -maxdepth "$group" -name .git -prune -o -type d -print
+    done
 }
 
-# Picker helpers run in separate Bash processes; input is always passed as arguments.
+session_candidates() {
+    local current='' i path session_path
+    [[ -z "${TMUX:-}" ]] || current=$(tmux display-message -p '#{session_id}')
+    for ((i=0; i<${#SESSION_IDS[@]}; i++)); do
+        [[ "${SESSION_IDS[i]}" == "$current" ]] || printf '[TMUX] %s\n' "${SESSION_NAMES[i]}"
+    done
+    while IFS= read -r path; do
+        for session_path in "${SESSION_PATHS[@]}"; do
+            [[ "$path" != "$session_path" ]] || continue 2
+        done
+        printf '%s\n' "$path"
+    done
+}
+
+find_dirs() {
+    if [[ "${1:-normal}" == normal ]]; then
+        find_dirs create | session_candidates
+        return
+    fi
+    local path ignored skip
+    # Canonical roots collapse symlink aliases. awk removes overlapping results.
+    while IFS= read -r path; do
+        skip=false
+        for ignored in "${IGNORE_PATHS[@]}"; do
+            if is_within "$path" "$ignored"; then skip=true; break; fi
+        done
+        "$skip" || printf '%s\n' "$path"
+    done < <(scan_dirs) | awk '!seen[$0]++'
+}
+
+# Picker helpers run in fzf's Bash callbacks; input is always passed as arguments.
 picker_filter() {
     local input="$1" query="$2"
     if [[ "$query" == *:* ]]; then
@@ -179,16 +225,17 @@ create_directory() {
 
 fzf_select() (
     # Subshell scopes cleanup traps to the picker, including cancellation/signals.
-    local temp command helper filter preview
+    local temp command filter preview
     temp=$(mktemp -d) || return
     trap 'rm -rf -- "$temp"' EXIT
     trap 'exit 130' INT
     trap 'exit 143' TERM HUP
-    find_dirs > "$temp/input"
     find_dirs create > "$temp/input.create"
-    helper="$(canonical_dir "$(dirname "${BASH_SOURCE[0]}")")/$(basename "${BASH_SOURCE[0]}")"
-    printf -v filter 'bash %q --picker-filter %q {q}' "$helper" "$temp/input"
-    printf -v preview 'bash %q --picker-preview {q} {}' "$helper"
+    session_candidates < "$temp/input.create" > "$temp/input"
+    # fzf already starts Bash for callbacks. Define the helper in that shell
+    # instead of starting another Bash and re-reading this entire script.
+    printf -v filter '%s; picker_filter %q {q}' "$(declare -f picker_filter)" "$temp/input"
+    printf -v preview '%s; picker_preview {q} {}' "$(declare -f picker_preview)"
     local options=(--height=100% --border="${TS_FZF_BORDER:-bold}"
         --disabled --print-query --no-multi --with-shell='bash -c'
         --header='' --no-header-first --header-border=none
