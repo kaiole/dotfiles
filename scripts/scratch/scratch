@@ -1,12 +1,14 @@
-scratch() {
+#!/usr/bin/env zsh
+
+main() {
   if (( $# > 1 )); then
     echo "Usage: scratch [file]" >&2
     return 1
   fi
-  
+
   local scratch_dir="/tmp/scratch-${USER:-$(id -un)}"
   mkdir -p -- "$scratch_dir" || return 1
-  
+
   local file suffix
   if (( $# == 0 )); then
     file="$scratch_dir/$(date +%Y%m%d-%H%M%S).md"
@@ -27,19 +29,8 @@ scratch() {
       return 1
     fi
   fi
-  
+
   command "${EDITOR:-nvim}" -- "$file"
 }
 
-_scratch() {
-  local scratch_dir="/tmp/scratch-${USER:-$(id -un)}"
-  local file
-  local -a files
-  
-  for file in "$scratch_dir"/*.md(NOm); do
-    files+=("${file:t}")
-  done
-  _describe 'scratch file' files
-}
-
-compdef _scratch scratch
+main "$@"

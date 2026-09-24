@@ -9,6 +9,7 @@ require("config.cmds")
 require("config.cpp")
 
 require("plugins.treesitter")
+require("plugins.treesitter_context")
 require("plugins.lsp")
 require("plugins.telescope")
 require("plugins.undotree")

@@ -1,0 +1,28 @@
+#!/usr/bin/env zsh
+
+source "${0:A:h}/common.zsh" || exit 1
+
+main() {
+  if [ "$#" -eq 0 ]; then
+    echo "Usage: pcpy <path> [...]"
+    return 1
+  fi
+
+  mkdir -p ~/portal || return 1
+  local src
+  for src in "$@"; do
+    if [ ! -e "$src" ]; then
+      echo "pcpy: not found: $src"
+      return 1
+    fi
+
+    if portal_should_ignore "$src"; then
+      echo "pcpy: skipped ignored path: $src"
+      continue
+    fi
+
+    cp -R -- "$src" ~/portal/ || return 1
+  done
+}
+
+main "$@"

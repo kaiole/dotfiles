@@ -27,7 +27,8 @@ hl.window_rule({
 
 hl.window_rule({
 	match = { class = "md.obsidian.Obsidian" },
-	opacity = "0.60",
+	-- Work around opaque-region rendering with CSS background transparency.
+	opacity = "0.99 override 0.99 override 0.99 override",
 })
 
 hl.window_rule({

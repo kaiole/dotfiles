@@ -1,6 +1,7 @@
-typeset _zsh_functions_dir="${${(%):-%x}:A:h}/functions"
-source "$_zsh_functions_dir/clang.zsh"
-source "$_zsh_functions_dir/pdf.zsh"
-source "$_zsh_functions_dir/portal.zsh"
-source "$_zsh_functions_dir/scratch.zsh"
-unset _zsh_functions_dir
+# Standalone commands are installed by ../scripts/install.
+# Remove legacy functions when reloading an existing shell.
+unfunction cfmt tidy scratch rip pcpy pmv pclear portal_should_ignore _scratch 2>/dev/null
+
+fpath=("${${(%):-%x}:A:h}/completions" ${fpath:#${${(%):-%x}:A:h}/completions})
+autoload -Uz _scratch
+compdef _scratch scratch

@@ -1,0 +1,27 @@
+#!/usr/bin/env zsh
+# Install command symlinks without replacing regular files or unrelated links.
+emulate -L zsh
+setopt err_exit
+
+root="${0:A:h}"
+bin="${HOME}/.local/bin"
+mkdir -p -- "$bin"
+entries=(clang/cfmt clang/tidy pdf/rip portal/pcpy portal/pmv portal/pclear scratch/scratch tmux-sessionizer/tmux-sessionizer)
+
+# Validate all destinations before changing any links.
+for entry in "${entries[@]}"; do
+  target="$root/$entry"
+  link="$bin/${entry:t}"
+  if [[ -e "$link" || -L "$link" ]]; then
+    if [[ ! -L "$link" || "${link:A}" != "$target" ]]; then
+      print -u2 -- "install: refusing to replace $link"
+      exit 1
+    fi
+  fi
+done
+
+for entry in "${entries[@]}"; do
+  link="$bin/${entry:t}"
+  [[ -L "$link" ]] || ln -s -- "$root/$entry" "$link"
+  print -- "$link -> $root/$entry"
+done

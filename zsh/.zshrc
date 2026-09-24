@@ -1,6 +1,3 @@
-# If you come from bash you might have to change your $PATH.
-export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
-
 export PATH="$HOME/.cargo/bin:$PATH"
 
 #pyenv
@@ -113,6 +110,6 @@ source $ZSH/oh-my-zsh.sh
 alias vim="nvim"
 alias tree="tree -Ia 'build|target|.cargo|node_modules|dist|.git|.cache'"
 alias ls="ls -CA --color=auto"
-alias qpi="pi --no-session --provider openai-codex --model gpt-5.6-sol --thinking low"
+alias qpi="pi --no-session --provider openai-codex --model gpt-6-astra --thinking low"
 
 bindkey -s ^f "tmux-sessionizer\n"

@@ -1,12 +1,16 @@
-rip() {
+#!/usr/bin/env zsh
+
+main() {
   if [ "$#" -ne 3 ]; then
     echo "Usage: rip <input.pdf> <pages> <output.pdf>"
     return 1
   fi
-  
+
   local input="$1"
   local pages="$2"
   local output="$3"
-  
+
   qpdf "$input" --pages "$input" "$pages" -- "$output"
 }
+
+main "$@"

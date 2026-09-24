@@ -1,0 +1,8 @@
+#!/usr/bin/env zsh
+
+main() {
+  mkdir -p ~/portal || return 1
+  rm -rf -- ~/portal/*(N) ~/portal/.[!.]*(N) ~/portal/..?*(N)
+}
+
+main "$@"

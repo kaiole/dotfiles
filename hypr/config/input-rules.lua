@@ -24,9 +24,10 @@ hl.device({
 	sensitivity = 0.0,
 	scroll_factor = 0.1,
 	tap_to_click = false,
+	disable_while_typing = true,
 })
 
 hl.device({
 	name = "at-translated-set-2-keyboard",
-	enabled = false,
+	-- enabled = false,
 })

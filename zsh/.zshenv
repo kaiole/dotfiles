@@ -1,5 +1,2 @@
-# npm executables must also be available to non-interactive launchers (e.g. tmux).
-case ":$PATH:" in
-  *":$HOME/.npm-global/bin:"*) ;;
-  *) export PATH="$HOME/.npm-global/bin:$PATH" ;;
-esac
+# User executables must also be available to non-interactive launchers.
+export PATH="$HOME/bin:$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"

@@ -12,6 +12,7 @@ vim.keymap.set("v", "K", "<Esc><Cmd>'<,'>move '<-2<CR>gv=gv")
 vim.keymap.set({ "n", "v", "x" }, "<leader>y", [["+y]])
 vim.keymap.set("n", "<leader>Y", [["+Y]])
 vim.keymap.set({ "n", "v" }, "<leader>d", '"_d')
+vim.keymap.set("n", "<leader>c", ":!", { desc = "Run shell command" })
 
 local markdown = require("config.actions.markdown")
 

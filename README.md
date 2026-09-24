@@ -34,10 +34,10 @@ Personal config. Linux (Hyprland) + macOS. Symlink each subdir into `~/.config/`
 | ------------------- | --------------------------------------------------------------------- | ---------------------------------------------------- |
 | `nvim/`             | [Neovim](https://neovim.io/)                                          | Editor                                               |
 | `tmux/`             | [tmux](https://github.com/tmux/tmux)                                  | Terminal multiplexer                                 |
-| `tmux-sessionizer/` | Custom — see [tmux-sessionizer/README.md](tmux-sessionizer/README.md) | Fuzzy project → tmux session launcher                |
+| `scripts/tmux-sessionizer/` | Custom | Fuzzy project → tmux session launcher |
 | `zsh/`              | zsh                                                                   | Shell config (`.zshrc` + platform splits)            |
 | `yazi/`             | [Yazi](https://github.com/sxyazi/yazi)                                | TUI file manager                                     |
-| `sioyek/`           | [Sioyek](https://sioyek.info/)                                        | PDF reader (used by `tmux-sessionizer/presets/read`) |
+| `sioyek/`           | [Sioyek](https://sioyek.info/)                                        | PDF reader (used by `scripts/tmux-sessionizer/presets/read`) |
 | `claude/`           | Claude Code                                                           | CLAUDE.md + scripts                                  |
 
 ## Required packages
@@ -58,7 +58,7 @@ Personal config. Linux (Hyprland) + macOS. Symlink each subdir into `~/.config/`
 - `playerctl` (media keys)
 - `hyprpicker` (color picker)
 - `grim`, `slurp`, `wl-clipboard` (screenshots — bound in
-  `hypr/config/keybindings.conf`)
+  `hypr/config/keybindings.lua`)
 - `swww` or `awww` (wallpaper daemon — `awww-daemon` referenced in autostart)
 - A Wayland-compatible browser referenced as `helium-browser` in autostart —
   substitute as needed
@@ -103,13 +103,26 @@ ln -s ~/dotfiles/zsh/.zshenv ~/.zshenv
 # ...etc
 ```
 
+Standalone commands live under `scripts/`, grouped by tool. Keep their executable
+symlinks in `~/.local/bin`, which is already on the configured Zsh PATH.
+
+To install tmux-sessionizer, or update its links after moving from the old layout:
+
+```bash
+mkdir -p ~/.local/bin ~/.config
+ln -sfn ~/dotfiles/scripts/tmux-sessionizer/tmux-sessionizer ~/.local/bin/tmux-sessionizer
+ln -sfn ~/dotfiles/scripts/tmux-sessionizer ~/.config/tmux-sessionizer
+```
+
+The configuration link includes its presets. Existing tmux, Neovim, Ghostty, and
+shell bindings continue to use the same installed command path.
+
 No bootstrap script — pick what you want per machine.
 
 ## Credits
 
-- `tmux-sessionizer/` derived from
-  [ThePrimeagen/tmux-sessionizer](https://github.com/ThePrimeagen/tmux-sessionizer);
-  see its README for the diff.
+- `scripts/tmux-sessionizer/` derived from
+  [ThePrimeagen/tmux-sessionizer](https://github.com/ThePrimeagen/tmux-sessionizer).
 - `hypr/scripts/wall_select` — wallpaper selector by
   [gh0stzk](https://github.com/gh0stzk), picked up via
   [Abhra00/Matuprland](https://github.com/Abhra00/Matuprland). GPL-3.0.

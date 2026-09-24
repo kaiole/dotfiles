@@ -1,0 +1,10 @@
+#compdef scratch
+
+local scratch_dir="/tmp/scratch-${USER:-$(id -un)}"
+local file
+local -a files
+
+for file in "$scratch_dir"/*.md(NOm); do
+  files+=("${file:t}")
+done
+_describe 'scratch file' files

@@ -8,6 +8,7 @@ vim.pack.add({
 	{ src = "https://github.com/slugbyte/lackluster.nvim" },
 	{ src = "https://github.com/ThePrimeagen/harpoon" },
 	{ src = "https://github.com/nvim-treesitter/nvim-treesitter", version = "main", build = ":TSUpdate" },
+	{ src = "https://github.com/nvim-treesitter/nvim-treesitter-context" },
 	{ src = "https://github.com/L3MON4D3/LuaSnip" },
 	{ src = "https://github.com/saghen/blink.cmp", version = vim.version.range("1.*") },
 	{ src = "https://github.com/stevearc/oil.nvim" },
