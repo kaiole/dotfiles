@@ -1,7 +1,0 @@
-PROMPT="%B%(?:%F{#555555}➜ :%F{#7a7a7a}➜ ) %F{#444444}%c%f%b"
-PROMPT+=' $(git_prompt_info)'
-
-ZSH_THEME_GIT_PROMPT_PREFIX="%B%F{#555555}git:(%F{#7a7a7a}"
-ZSH_THEME_GIT_PROMPT_SUFFIX="%f%b "
-ZSH_THEME_GIT_PROMPT_DIRTY="%F{#555555}) %F{#aaaaaa}✗"
-ZSH_THEME_GIT_PROMPT_CLEAN="%F{#555555})"

@@ -1,4 +1,4 @@
-local color = require("lackluster").color
+local p = require("config.theme").palette()
 
 require("render-markdown").setup({
 	completions = { lsp = { enabled = true } },
@@ -25,8 +25,10 @@ require("render-markdown").setup({
 	},
 })
 
+-- render-markdown links these to ColorColumn by default; clearing them in the
+-- colorscheme alone isn't enough, so re-clear once the plugin has loaded.
 vim.schedule(function()
 	vim.api.nvim_set_hl(0, "RenderMarkdownCode", { bg = "NONE" })
-	vim.api.nvim_set_hl(0, "RenderMarkdownCodeInline", { fg = color.gray6, bg = "NONE" })
+	vim.api.nvim_set_hl(0, "RenderMarkdownCodeInline", { fg = p.fg_muted, bg = "NONE" })
 	vim.api.nvim_set_hl(0, "RenderMarkdownCodeBorder", { bg = "NONE" })
 end)

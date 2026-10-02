@@ -5,7 +5,6 @@ vim.pack.add({
 	{ src = "https://github.com/nvim-telescope/telescope-fzf-native.nvim", build = "make" },
 	{ src = "https://github.com/mbbill/undotree" },
 	{ src = "https://github.com/MeanderingProgrammer/render-markdown.nvim" },
-	{ src = "https://github.com/slugbyte/lackluster.nvim" },
 	{ src = "https://github.com/ThePrimeagen/harpoon" },
 	{ src = "https://github.com/nvim-treesitter/nvim-treesitter", version = "main", build = ":TSUpdate" },
 	{ src = "https://github.com/nvim-treesitter/nvim-treesitter-context" },

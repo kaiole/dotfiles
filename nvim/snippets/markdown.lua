@@ -113,11 +113,11 @@ return {
 
 	s("hd", {
 		c(1, {
-      sn(nil, {
-        t("## **"),
-        r(1, "heading", i(1)),
-        t("**"),
-      }),
+			sn(nil, {
+				t("## **"),
+				r(1, "heading", i(1)),
+				t("**"),
+			}),
 			sn(nil, {
 				t("### **"),
 				r(1, "heading", i(1)),
@@ -135,7 +135,7 @@ return {
 		t({ "---", "# " }),
 		c(1, {
 			t("note"),
-      t("leetcode"),
+			t("leetcode"),
 		}),
 		t({ "", "" }),
 		d(2, function(args)

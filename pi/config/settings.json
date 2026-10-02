@@ -16,9 +16,9 @@
     "~/dotfiles/pi/skills/"
   ],
   "themes": [
-    "~/dotfiles/pi/themes/lackluster.json"
+    "~/dotfiles/pi/themes/palette.json"
   ],
-  "theme": "lackluster",
+  "theme": "palette",
   "hideThinkingBlock": true,
   "enableInstallTelemetry": false,
   "subagents": {

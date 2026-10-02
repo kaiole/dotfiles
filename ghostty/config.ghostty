@@ -3,7 +3,7 @@ config-file = ?~/dotfiles/ghostty/mac.ghostty
 
 font-family = CaskaydiaCove Nerd Font Mono
 
-theme = lackluster
+theme = palette
 
 font-thicken = false
 font-feature = -calt

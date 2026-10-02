@@ -39,6 +39,8 @@ Personal config. Linux (Hyprland) + macOS. Symlink each subdir into `~/.config/`
 | `yazi/`             | [Yazi](https://github.com/sxyazi/yazi)                                | TUI file manager                                     |
 | `sioyek/`           | [Sioyek](https://sioyek.info/)                                        | PDF reader (used by `scripts/tmux-sessionizer/presets/read`) |
 | `claude/`           | Claude Code                                                           | `settings.json`, status line script                  |
+| `theme/`            | Custom (see [Theming](#theming))                                      | Switchable palettes for every app's colors           |
+| `btop/`             | [btop](https://github.com/aristocratos/btop)                          | Theme only (`themes/` → `~/.config/btop/themes`)     |
 
 ## Required packages
 
@@ -118,6 +120,28 @@ The configuration link includes its presets. Existing tmux, Neovim, Ghostty, and
 shell bindings continue to use the same installed command path.
 
 No bootstrap script — pick what you want per machine.
+
+## Theming
+
+Colors come from the active palette in `theme/palettes/` (default: `lackluster-red`).
+`theme/build.lua` renders every file under `theme/templates/<path>` to `<path>`
+in the repo. The rendered files are gitignored, so run `theme` once after cloning
+(`scripts/install` does this).
+
+```bash
+theme                 # rebuild with the current palette
+theme list            # * marks the active palette
+theme set <name>      # switch, rebuild, reload tmux / ghostty / running nvims
+```
+
+- **Change a color:** edit the active palette in `theme/palettes/`, then run `theme`.
+- **New palette:** copy that file to `theme/palettes/<name>.lua`. Every key is required.
+- **Theme another app:** move its config to `theme/templates/<repo path>`, replace
+  hex values with `{{key}}` (`#rrggbb`), `{{key:hex}}` (`rrggbb`) or `{{key:rgb}}`
+  (`r;g;b`), and add the output path to `.gitignore`.
+- **nvim** uses this repo's own colorscheme, `nvim/colors/palette.lua`, which
+  reads the palette directly (no template, no colorscheme plugin).
+- **Not themed yet:** waybar, rofi, dunst and the Hyprland border.
 
 ## Credits
 

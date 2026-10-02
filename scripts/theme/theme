@@ -1,0 +1,54 @@
+#!/usr/bin/env zsh
+# Central theme: render theme/templates with a palette and reload running apps.
+#   theme              rebuild with the current palette
+#   theme list         list palettes (* = current)
+#   theme set <name>   switch palette, rebuild, reload
+emulate -L zsh
+setopt err_exit
+
+dir="${0:A:h:h:h}/theme"
+
+build() { nvim -l "$dir/build.lua" "$@"; }
+
+current() { [[ -s "$dir/current" ]] && print -r -- "$(<"$dir/current")" || print lackluster-red; }
+
+reload() {
+  local to=() s
+  (( $+commands[timeout] )) && to=(timeout 2)
+
+  if tmux info &>/dev/null; then
+    tmux source-file "$dir/../tmux/colors.conf" && print "reloaded: tmux"
+  fi
+  if pkill -USR2 -x ghostty 2>/dev/null; then
+    print "reloaded: ghostty"
+  fi
+  local n=0
+  for s in ${XDG_RUNTIME_DIR:-/nonexistent}/nvim.*(N=) ${TMPDIR:-/tmp}/nvim.$USER/*/nvim.*(N=); do
+    $to nvim --server "$s" --remote-expr 'luaeval("require(\"config.theme\").reload()")' &>/dev/null && (( ++n ))
+  done
+  (( n )) && print "reloaded: nvim ($n)"
+  print "next launch: yazi, pi, btop, fastfetch, zsh prompt/fzf/dircolors"
+}
+
+case "${1:-}" in
+  "")
+    build
+    ;;
+  list)
+    local cur="$(current)" p
+    for p in "$dir"/palettes/*.lua; do
+      [[ ${p:t:r} == $cur ]] && print "* ${p:t:r}" || print "  ${p:t:r}"
+    done
+    ;;
+  set)
+    [[ -n "${2:-}" ]] || { print -u2 "usage: theme set <name>"; exit 1; }
+    [[ -f "$dir/palettes/$2.lua" ]] || { print -u2 "theme: no palette '$2' (see: theme list)"; exit 1; }
+    build "$2"
+    print -r -- "$2" > "$dir/current"
+    reload
+    ;;
+  *)
+    print -u2 "usage: theme [list | set <name>]"
+    exit 1
+    ;;
+esac

@@ -17,10 +17,6 @@
       "rev": "1bc17e3e42ea3c46b33c0bbad6a880792692a1b3",
       "src": "https://github.com/ThePrimeagen/harpoon"
     },
-    "lackluster.nvim": {
-      "rev": "b247a6f51cb43e49f3f753f4a59553b698bf5438",
-      "src": "https://github.com/slugbyte/lackluster.nvim"
-    },
     "nvim-lspconfig": {
       "rev": "d89f4891f0720cd2598e4bdd60010d8784b2ac8a",
       "src": "https://github.com/neovim/nvim-lspconfig"
@@ -53,10 +49,6 @@
     "telescope.nvim": {
       "rev": "b4da76be54691e854d3e0e02c36b0245f945c2c7",
       "src": "https://github.com/nvim-telescope/telescope.nvim"
-    },
-    "tiny-cmdline.nvim": {
-      "rev": "e247d9ee4c980734f8f8bf616d31e0ab7c27485d",
-      "src": "https://github.com/rachartier/tiny-cmdline.nvim"
     },
     "undotree": {
       "rev": "fe9a9d0645f0f5532360b5e5f5c550d7bb4f1869",

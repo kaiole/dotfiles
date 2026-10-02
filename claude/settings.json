@@ -1,12 +1,19 @@
 {
-  "theme": "dark",
-  "modelSettings": {
-    "claude-opus-5-5": {
-      "effortLevel": "low"
-    }
-  },
+  "model": "opus",
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh"
-  }
+  },
+  "enabledPlugins": {
+    "clangd-lsp@claude-plugins-official": true
+  },
+  "modelSettings": {
+    "claude-opus-5-5": {
+      "effortLevel": "high"
+    },
+    "claude-sonnet-5-5": {
+      "effortLevel": "high"
+    }
+  },
+  "theme": "dark"
 }

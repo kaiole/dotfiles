@@ -6,7 +6,7 @@ require("luasnip").setup({
 	update_events = "InsertLeave",
 })
 
-require("luasnip.loaders.from_lua").load({ paths = "~/.config/nvim/snippets/" })
+require("luasnip.loaders.from_lua").load({ paths = vim.fn.stdpath("config") .. "/snippets" })
 
 local ls = require("luasnip")
 

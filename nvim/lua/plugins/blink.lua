@@ -12,9 +12,9 @@ require("blink.cmp").setup({
 				name = "Obsidian",
 				module = "blink_obsidian",
 				score_offset = 12,
-        opts = {
-          include_unresolved_wiki_links = true,
-        },
+				opts = {
+					include_unresolved_wiki_links = true,
+				},
 			},
 		},
 	},

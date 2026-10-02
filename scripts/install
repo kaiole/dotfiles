@@ -6,7 +6,7 @@ setopt err_exit
 root="${0:A:h}"
 bin="${HOME}/.local/bin"
 mkdir -p -- "$bin"
-entries=(clang/cfmt clang/tidy pdf/rip portal/pcpy portal/pmv portal/pclear scratch/scratch tmux-sessionizer/tmux-sessionizer)
+entries=(clang/cfmt clang/tidy pdf/rip portal/pcpy portal/pmv portal/pclear scratch/scratch tmux-sessionizer/tmux-sessionizer theme/theme)
 
 # Validate all destinations before changing any links.
 for entry in "${entries[@]}"; do
@@ -25,3 +25,6 @@ for entry in "${entries[@]}"; do
   [[ -L "$link" ]] || ln -s -- "$root/$entry" "$link"
   print -- "$link -> $root/$entry"
 done
+
+# Render theme templates (generated files are gitignored).
+"$root/theme/theme"
