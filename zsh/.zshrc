@@ -110,6 +110,7 @@ source $ZSH/oh-my-zsh.sh
 alias vim="nvim"
 alias tree="tree -Ia 'build|target|.cargo|node_modules|dist|.git|.cache'"
 alias ls="ls -CA --color=auto"
-alias qpi="pi --no-session --provider openai-codex --model gpt-6-astra --thinking low"
+alias qpi="pi --no-session --provider openai-codex --model gpt-6.1-sol --thinking low"
+alias wb="g++ -std=c++23 -O2 -Wall main.cpp -o test"
 
 bindkey -s ^f "tmux-sessionizer\n"

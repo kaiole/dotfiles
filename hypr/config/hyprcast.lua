@@ -1,1 +1,0 @@
-../../../personal/hyprcast/plugin/dev/hyprcast.lua

@@ -1,1 +1,3 @@
 source "$(dirname "$(readlink -f "${(%):-%x}")")/.zshrc.local.shared"
+
+[[ -r ~/.config/zsh/media-save.zsh ]] && source ~/.config/zsh/media-save.zsh

@@ -13,6 +13,9 @@ hl.bind(main_mod .. " + W", hl.dsp.exec_cmd(wall_select))
 hl.bind(main_mod .. " + F", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(main_mod .. " + P", hl.dsp.exec_cmd("hyprpicker -a"))
 hl.bind(main_mod .. " + Z", hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/toggle_zen"))
+-- Development build; replace this path when Hyprcast is installed.
+hl.bind(main_mod .. " + D", hl.dsp.exec_cmd(home .. "/personal/hyprcast/build/debug/overlay/hyprcast-overlay toggle"))
+hl.bind(main_mod .. " + V", hl.dsp.exec_cmd(home .. "/personal/hyprcast/build/debug/overlay/hyprcast-overlay restart"))
 
 -- Notifications.
 hl.bind(main_mod .. " + N", hl.dsp.exec_cmd("dunstctl close"))

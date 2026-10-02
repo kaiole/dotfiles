@@ -1,0 +1,139 @@
+# Hyprcast overlay configuration (current Qt Quick overlay).
+# Save to reload most settings. CLI flags explicitly supplied override this file.
+# Invalid/unknown settings reject the entire update, leaving the last valid config active.
+# Reference: ~/personal/hyprcast/docs/overlay.md
+# Active values preserve your current look; commented lines are alternatives.
+# The app controls the Wayland surface; themes decide which shared appearance values they use.
+# Held-key feedback is NOT a global setting: select the optional text-held theme to show it.
+
+[window]
+# monitor = "eDP-1" # Output name from `hyprctl monitors`; omit for primary. Changing requires restart.
+anchor = "bottom-right" # top, bottom, left, right, or a corner such as bottom-right.
+# anchor = "top" # Alternative placement; enable only one anchor.
+margins = [24, 24, 24, 24] # Left, top, right, bottom in logical pixels.
+width = 600 # Maximum surface and visible-panel width (1–8192).
+height = 60 # Maximum surface and visible-panel height (1–8192).
+dynamic_size = false # Keep the visible panel at width x height in themes that honor this setting.
+# dynamic_size = true # Alternative: let the theme resize the panel between min/max bounds.
+min_width = 240 # Minimum visible width if dynamic_size=true; <= width.
+min_height = 60 # Minimum visible height if dynamic_size=true; <= height.
+click_through = true # Pass pointer clicks through the surface; changing requires restart.
+# click_through = false # Alternative: allow pointer interaction; restart to change.
+
+[appearance]
+# Shared styling values. The bundled text theme honors them; other themes may use a subset.
+# Colors accept Qt names, #RRGGBB, or #AARRGGBB (alpha in the color is independent of fill opacity).
+background_color = "#0e1116" # Panel fill color.
+background_opacity = 0.78 # Panel fill opacity, 0–1; does not affect border or text.
+corner_radius = 0 # Panel rounding in logical pixels; zero gives square corners.
+panel_border_width = 3 # Outer panel border in logical pixels (0–64); zero hides it.
+panel_border_color = "#ffffff" # Outer border color, including optional color alpha.
+foreground_color = "#ffffff" # Default/history text color.
+font_family = "CaskaydiaCove Nerd Font" # History text font family.
+font_size = 30 # History font size in logical pixels (1–256).
+font_weight = "medium" # normal, medium, demibold, or bold.
+history_padding_x = 16 # Horizontal inset around history content.
+text_extra_padding_x = 4 # Additional inset inside the bundled text viewport.
+
+[display]
+panel_visibility = "with-content" # Show decoration when history or its fade is visible.
+# panel_visibility = "always" # Alternative: keep panel decoration visible even when empty.
+# panel_visibility = "never" # Alternative: hide only panel fill/border, not input visuals.
+
+[history]
+backspace = "delete" # Plain Backspace erases one grapheme or a whole key/chord entry.
+# backspace = "symbol" # Alternative: show Backspace as an input label instead of deleting.
+max_retained_utf16_code_units = 4096 # Raw formatted history budget (1–1048576); not screen width.
+
+[repeat]
+enabled = false # Do not generate repeats while a key is held; separate taps still count.
+# enabled = true # Alternative: generate held-key repeats using Hyprland's rate and delay.
+presentation = "counted" # Group adjacent equivalent input after count_threshold.
+# presentation = "expanded" # Alternative: show all occurrences separately; not a theme selector.
+count_threshold = 4 # Grouping starts at this total occurrence, including first (2–10000).
+
+[expiration]
+after_ms = 3000 # Clear history after this many idle milliseconds (0 disables expiration).
+fade_duration_ms = 250 # Fade expired history in milliseconds (0 removes it immediately).
+
+[theme]
+# id = "builtin:default" # Bundled text theme; needs no installation.
+# id = "ledger" # Alternative: install/select the ledger example theme.
+# id = "keycaps" # Alternative: install/select the keycaps example theme.
+id = "text-held" # Alternative: install/select text with held-key feedback.
+# Example packages: ~/personal/hyprcast/overlay/examples/themes/{ledger,keycaps,text-held}/
+# Install a package directory at ~/.local/share/hyprcast/themes/<id>/ (or via CMake install).
+# Theme discovery happens at startup; restart after installing/editing a theme package.
+# builtin:default uses no theme.options table. For an example theme, uncomment
+# ONLY its matching options below (or omit them to use its defaults). Unknown
+# options reject the whole config; only one [theme.options] table can be active.
+
+# Ledger-specific options (enable with id = "ledger"):
+# [theme.options]
+# accent = "#72d6b0" # Timeline accent color.
+# item_spacing = 5 # Spacing between actions (0–24 logical pixels).
+
+# Keycaps-specific options (enable with id = "keycaps"; use only one options table):
+# [theme.options]
+# font_size = 19 # Cap label size (1–256); separate from appearance.font_size.
+# height = 40 # Cap height (1–512); separate from window.height.
+# padding_x = 9 # Horizontal cap padding (0–512).
+# radius = 7 # Cap corner radius (0–256).
+# spacing = 6 # Gap between action caps (0–128).
+# inner_spacing = 3 # Gap between caps making up a chord (0–128).
+# text_background = "#2b3546" # Printable-text cap fill.
+# key_background = "#39475c" # Special-key/chord cap fill.
+# border_color = "#66758c" # Cap border color.
+# border_width = 1 # Cap border width (0–64); zero hides it.
+# text_color = "#ffffff" # Cap label color.
+
+# Text-with-held-keys options (enable with id = "text-held"; use only one options table):
+# [theme.options]
+# show_held_keys = true # Toggle the row for this theme only.
+# held_font_size = 14 # Held label size (1–256).
+# held_key_height = 22 # Chip height (1–512).
+# held_key_padding_x = 7 # Chip horizontal padding (0–512).
+# held_key_radius = 5 # Chip corner radius (0–256).
+# held_key_spacing = 5 # Space between chips (0–128).
+# held_row_padding_x = 16 # Horizontal row inset (0–512).
+# held_row_padding_bottom = 10 # Inset beneath row (0–512).
+# held_key_background = "#46536a" # Chip fill.
+# held_key_text_color = "#ffffff" # Chip text.
+# held_key_border_width = 0 # Chip outline width (0–64).
+# held_key_border_color = "#66758c" # Chip outline color.
+
+[symbols]
+font_family = "" # Empty inherits appearance.font_family; glyph availability depends on installed fonts.
+# font_family = "Symbols Nerd Font" # Alternative font for key/modifier labels; install it first.
+space = " " # Keep typed spaces visually literal (default).
+# space = "␣" # Alternative: show typed spaces visibly; stored input stays literal.
+
+[symbols.keys]
+# Display substitutions for exact canonical key names, not input identity; add others as needed.
+# Navigation:
+Left = "←"
+Right = "→"
+Up = "↑"
+Down = "↓"
+Home = "↖"
+End = "↘"
+"Page Up" = "Pg↑"
+"Page Down" = "Pg↓"
+
+# Editing and other keys. To see ⌫ for plain Backspace, set history.backspace="symbol".
+# Backspace = "⌫" # Optional mapping; not active while plain Backspace deletes.
+Enter = "↵"
+Tab = "⇥"
+Delete = "⌦"
+Insert = "Ins"
+"Caps Lock" = "Caps" # Must match the canonical name reported for your layout.
+Esc = "Esc"
+"Print Screen" = "PrtSc"
+
+[symbols.modifiers]
+# Exact canonical modifier names used in chords and standalone modifier feedback.
+Shift = "⇧"
+Super = "Cmd"
+AltGr = "AltGr"
+# Ctrl = "⌃" # Optional alternative label for Ctrl.
+# Alt = "⌥" # Optional alternative label for Alt.

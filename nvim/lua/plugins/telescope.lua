@@ -25,6 +25,7 @@ require("telescope").setup({
       "%.png$",
       "%.jpg$",
       "%.gif$",
+      "%.gz$",
 		},
 	},
 	pickers = {

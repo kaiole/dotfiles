@@ -1,0 +1,79 @@
+# Cascade demo, centered on eDP-1 (1920x1080 logical pixels).
+# Bottom anchoring centers horizontally; bottom margin = (1080 - height) / 2.
+# Fixed stage fits six large receding rows. Newest input stays at its bottom.
+[window]
+monitor = "eDP-1"
+anchor = "bottom"
+margins = [0, 0, 0, 210]
+width = 1000
+height = 660
+dynamic_size = false
+min_width = 240
+min_height = 64
+click_through = true
+
+[appearance]
+background_color = "#080808"
+background_opacity = 0.94
+corner_radius = 16
+panel_border_width = 0
+panel_border_color = "#444444"
+foreground_color = "#cccccc"
+font_family = "CaskaydiaCove Nerd Font"
+font_size = 48
+font_weight = "medium"
+history_padding_x = 32
+text_extra_padding_x = 8
+
+[display]
+panel_visibility = "never" # Floating caps: no large panel behind the stack.
+
+[history]
+backspace = "delete"
+max_retained_utf16_code_units = 4096
+
+[repeat]
+enabled = false
+presentation = "counted"
+count_threshold = 4
+
+[expiration]
+after_ms = 1500
+fade_duration_ms = 350
+
+[theme]
+id = "cascade"
+
+[theme.options]
+font_size = 48
+height = 96
+padding_x = 28
+radius = 12
+edge_depth = 6
+edge_color = "#101010"
+border_width = 1
+border_color = "#444444"
+text_color = "#cccccc"
+text_background = "#191919"
+key_background = "#2a2a2a"
+inner_spacing = 6
+visible_groups = 6
+row_spacing = 12
+depth_scale = 0.9
+depth_opacity = 0.7
+group_alignment = "center"
+motion = "full"
+transition_ms = 180
+
+[symbols.keys]
+Left = "←"
+Right = "→"
+Up = "↑"
+Down = "↓"
+Enter = "↵"
+Tab = "⇥"
+Delete = "⌦"
+
+[symbols.modifiers]
+Shift = "⇧"
+Super = "Cmd"

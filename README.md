@@ -38,7 +38,7 @@ Personal config. Linux (Hyprland) + macOS. Symlink each subdir into `~/.config/`
 | `zsh/`              | zsh                                                                   | Shell config (`.zshrc` + platform splits)            |
 | `yazi/`             | [Yazi](https://github.com/sxyazi/yazi)                                | TUI file manager                                     |
 | `sioyek/`           | [Sioyek](https://sioyek.info/)                                        | PDF reader (used by `scripts/tmux-sessionizer/presets/read`) |
-| `claude/`           | Claude Code                                                           | CLAUDE.md + scripts                                  |
+| `claude/`           | Claude Code                                                           | `settings.json`, status line script                  |
 
 ## Required packages
 
