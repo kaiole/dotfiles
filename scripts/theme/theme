@@ -14,12 +14,27 @@ current() { [[ -s "$dir/current" ]] && print -r -- "$(<"$dir/current")" || print
 
 reload() {
   local to=() s
-  (( $+commands[timeout] )) && to=(timeout 2)
+  if (( $+commands[timeout] )); then
+    to=(timeout 2)
+  elif (( $+commands[gtimeout] )); then
+    to=(gtimeout 2)
+  fi
 
   if tmux info &>/dev/null; then
     tmux source-file "$dir/../tmux/colors.conf" && print "reloaded: tmux"
   fi
-  if pkill -USR2 -x ghostty 2>/dev/null; then
+  if [[ "$OSTYPE" == darwin* ]]; then
+    # macOS uses Ghostty's scripting API, not the Linux SIGUSR2 handler.
+    if pgrep -x ghostty &>/dev/null; then
+      if [[ "$(osascript -e 'with timeout of 2 seconds' \
+          -e 'tell application "Ghostty" to perform action "reload_config" on first terminal' \
+          -e 'end timeout' 2>/dev/null)" == true ]]; then
+        print "reloaded: ghostty"
+      else
+        print "ghostty: reload with Cmd+Shift+, (or allow Automation access)"
+      fi
+    fi
+  elif pkill -USR2 -x ghostty 2>/dev/null; then
     print "reloaded: ghostty"
   fi
   local n=0
@@ -27,7 +42,8 @@ reload() {
     $to nvim --server "$s" --remote-expr 'luaeval("require(\"config.theme\").reload()")' &>/dev/null && (( ++n ))
   done
   (( n )) && print "reloaded: nvim ($n)"
-  print "next launch: yazi, pi, btop, fastfetch, zsh prompt/fzf/dircolors"
+  print "pi: active palette theme hot-reloads; otherwise select palette in /settings"
+  print "next launch: yazi, btop, fastfetch, zsh prompt/fzf/dircolors"
 }
 
 case "${1:-}" in

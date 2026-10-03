@@ -68,6 +68,7 @@ Personal config. Linux (Hyprland) + macOS. Symlink each subdir into `~/.config/`
 **macOS:**
 
 - `aerospace` (via Homebrew)
+- `ghostty` (shared terminal config and palette)
 
 **Both:**
 
@@ -141,6 +142,31 @@ theme set <name>      # switch, rebuild, reload tmux / ghostty / running nvims
   (`r;g;b`), and add the output path to `.gitignore`.
 - **nvim** uses this repo's own colorscheme, `nvim/colors/palette.lua`, which
   reads the palette directly (no template, no colorscheme plugin).
+### macOS setup
+
+Run `./scripts/install` from the repo root to install `theme` and render the
+shared palettes. Existing `~/.config/{ghostty,tmux,nvim,yazi,fastfetch}` links
+continue to work. Zsh loads its generated prompt/fzf colors from the repo.
+GNU dircolors is optional (`gdircolors` from Homebrew coreutils is supported);
+macOS ls otherwise follows the terminal's ANSI palette.
+
+For btop, keep its writable config and link only the generated theme:
+
+```bash
+mkdir -p ~/.config/btop/themes
+ln -s ~/dotfiles/btop/themes/palette.theme ~/.config/btop/themes/palette.theme
+# Set color_theme = "palette" in ~/.config/btop/btop.conf.
+```
+
+For Pi, link `~/dotfiles/pi/themes` to `~/.pi/agent/themes` and select `palette`
+in `/settings`, without replacing your other Pi settings. The active theme
+file hot-reloads on subsequent palette changes.
+
+`theme set <name>` reloads tmux, running Neovims, and Ghostty. On macOS, Ghostty
+uses AppleScript; allow Automation access if prompted. If unavailable, press
+**Cmd+Shift+,** in Ghostty to reload manually. Open a new shell for prompt/fzf
+changes; yazi, btop and fastfetch pick up colors on their next launch.
+
 - **Not themed yet:** waybar, rofi, dunst and the Hyprland border.
 
 ## Credits
