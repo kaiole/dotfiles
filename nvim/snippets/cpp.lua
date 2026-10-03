@@ -27,17 +27,17 @@ local function constructor_choice()
 	return c(2, {
 		t(""),
 		generated_lines(function(name)
-			return { "", "  " .. name .. "() = default;" }
+			return { "", "    " .. name .. "() = default;" }
 		end),
 		sn(nil, {
-			t({ "", "  " }),
+			t({ "", "    " }),
 			class_name(),
 			t("("),
 			r(1, "constructor_arguments", i(1)),
 			t(");"),
 		}),
 		sn(nil, {
-			t({ "", "  explicit " }),
+			t({ "", "    explicit " }),
 			class_name(),
 			t("("),
 			r(1, "constructor_arguments", i(1)),
@@ -50,11 +50,11 @@ local function defaulted_rule_of_five(name)
 	return {
 		"",
 		"",
-		"  ~" .. name .. "() = default;",
-		"  " .. name .. "(const " .. name .. "&) = default;",
-		"  " .. name .. "& operator=(const " .. name .. "&) = default;",
-		"  " .. name .. "(" .. name .. "&&) noexcept = default;",
-		"  " .. name .. "& operator=(" .. name .. "&&) noexcept = default;",
+		"    ~" .. name .. "() = default;",
+		"    " .. name .. "(const " .. name .. "&) = default;",
+		"    " .. name .. "& operator=(const " .. name .. "&) = default;",
+		"    " .. name .. "(" .. name .. "&&) noexcept = default;",
+		"    " .. name .. "& operator=(" .. name .. "&&) noexcept = default;",
 	}
 end
 
@@ -62,11 +62,11 @@ local function move_only(name)
 	return {
 		"",
 		"",
-		"  ~" .. name .. "() = default;",
-		"  " .. name .. "(const " .. name .. "&) = delete;",
-		"  " .. name .. "& operator=(const " .. name .. "&) = delete;",
-		"  " .. name .. "(" .. name .. "&&) noexcept = default;",
-		"  " .. name .. "& operator=(" .. name .. "&&) noexcept = default;",
+		"    ~" .. name .. "() = default;",
+		"    " .. name .. "(const " .. name .. "&) = delete;",
+		"    " .. name .. "& operator=(const " .. name .. "&) = delete;",
+		"    " .. name .. "(" .. name .. "&&) noexcept = default;",
+		"    " .. name .. "& operator=(" .. name .. "&&) noexcept = default;",
 	}
 end
 
@@ -74,18 +74,18 @@ local function custom_rule_of_five(name)
 	return {
 		"",
 		"",
-		"  ~" .. name .. "();",
-		"  " .. name .. "(const " .. name .. "& other);",
-		"  " .. name .. "& operator=(const " .. name .. "& other);",
-		"  " .. name .. "(" .. name .. "&& other) noexcept;",
-		"  " .. name .. "& operator=(" .. name .. "&& other) noexcept;",
+		"    ~" .. name .. "();",
+		"    " .. name .. "(const " .. name .. "& other);",
+		"    " .. name .. "& operator=(const " .. name .. "& other);",
+		"    " .. name .. "(" .. name .. "&& other) noexcept;",
+		"    " .. name .. "& operator=(" .. name .. "&& other) noexcept;",
 	}
 end
 
 return {
 	s({
 		trig = "class",
-		docstring = "class ClassName { ... };",
+		docstring = "class class_name { ... };",
 	}, {
 		t("class "),
 		i(1, "class_name", { key = "class_name" }),
@@ -97,7 +97,7 @@ return {
 			generated_lines(move_only),
 			generated_lines(custom_rule_of_five),
 		}),
-		t({ "", "", "private:", "  " }),
+		t({ "", "", "private:", "    " }),
 		i(4),
 		t({ "", "};" }),
 		i(0),
