@@ -51,7 +51,7 @@ rl() { # key date-format
   [[ -z $p ]] && return 1
   t=$(j ".rate_limits.$1.resets_at // empty")
   out+="${sep}$(color "${p%.*}")"
-  [[ -n $t ]] && out+=" ${d}[${r}󰜉 $(date -d "@$t" +"$2" | tr 'APM' 'apm')${d}]${r}"
+  [[ -n $t ]] && out+=" ${d}[${r}󰜉 $( (date -d "@$t" +"$2" 2>/dev/null || date -r "$t" +"$2") | tr 'APM' 'apm')${d}]${r}"
 }
 shown=0
 rl five_hour '%-I:%M%p' && shown=1
