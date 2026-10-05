@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "1.0.0",
+  "lastChangelogVersion": "1.0.2",
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-6.1-sol",
   "defaultThinkingLevel": "low",
@@ -10,22 +10,16 @@
     "~/dotfiles/pi/picosystem/footer",
     "~/dotfiles/pi/picosystem/notifi",
     "~/dotfiles/pi/picosystem/log",
-    "../../dotfiles/pi/picosystem/woke"
+    "~/dotfiles/pi/picosystem/sub-agents",
+    "~/dotfiles/pi/picosystem/woke"
   ],
-  "skills": [
-    "~/dotfiles/pi/skills/"
-  ],
-  "themes": [
-    "~/dotfiles/pi/themes/palette.json"
-  ],
+  "skills": ["~/dotfiles/pi/skills/"],
+  "themes": ["~/dotfiles/pi/themes/palette.json"],
   "theme": "palette",
+  "tuiMode": "regular",
   "hideThinkingBlock": true,
   "enableInstallTelemetry": false,
   "subagents": {
-    "agentOverrides": {
-      "worker": {
-        "thinking": "low"
-      }
-    }
+    "maxConcurrent": 4
   }
 }

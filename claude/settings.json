@@ -5,15 +5,17 @@
     "command": "~/.claude/statusline.sh"
   },
   "enabledPlugins": {
-    "clangd-lsp@claude-plugins-official": true
+    "clangd-lsp@claude-plugins-official": true,
+    "lua-lsp@claude-plugins-official": true
   },
   "modelSettings": {
     "claude-opus-5-5": {
       "effortLevel": "high"
     },
     "claude-sonnet-5-5": {
-      "effortLevel": "low"
+      "effortLevel": "high"
     }
   },
+  "skipWorkflowUsageWarning": true,
   "theme": "dark"
 }

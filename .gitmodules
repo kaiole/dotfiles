@@ -10,3 +10,6 @@
 [submodule "pi/skills"]
 	path = pi/skills
 	url = git@github.com:kaiole/skills.git
+[submodule "pi/picosystem/sub-agents"]
+	path = pi/picosystem/sub-agents
+	url = git@github.com:kaiole/sub-agents.git
