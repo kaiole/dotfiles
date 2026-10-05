@@ -20,5 +20,6 @@ require("plugins.blink")
 require("plugins.oil")
 require("plugins.conform")
 require("plugins.command_center")
+require("plugins.pi")
 
 require("config.map")
