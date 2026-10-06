@@ -24,7 +24,7 @@ lua/plugins/<name>.lua   setup + keymaps for one plugin each
 ```
 
 Plugins: lspconfig, treesitter (`main` branch), treesitter-context, telescope
-(+ fzf-native), blink.cmp, LuaSnip, conform, oil, harpoon (v1 API), undotree,
+(+ fzf-native), blink.cmp, LuaSnip, conform, oil, undotree,
 render-markdown.
 
 LSP servers are enabled in `plugins/lsp.lua`. They aren't installed by this

@@ -13,7 +13,7 @@
       "effortLevel": "high"
     },
     "claude-sonnet-5-5": {
-      "effortLevel": "high"
+      "effortLevel": "low"
     }
   },
   "skipWorkflowUsageWarning": true,

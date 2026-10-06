@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 function formatTokens(count: number): string {
@@ -88,9 +88,10 @@ function formatReset(date: Date, preferDate: boolean): string {
 		: formatTime(date);
 }
 
-function formatUsageLimit(limit: UsageLimit | undefined, preferDate = false): string | undefined {
+function formatUsageLimit(limit: UsageLimit | undefined, theme: Theme, preferDate = false): string | undefined {
 	if (!limit) return undefined;
-	return `${limit.percentUsed.toFixed(0)}% [󰜉 ${formatReset(limit.reset, preferDate)}]`;
+	return theme.fg("thinkingLow", `${limit.percentUsed.toFixed(0)}%`)
+		+ theme.fg("muted", ` [󰜉 ${formatReset(limit.reset, preferDate)}]`);
 }
 
 function authPath(): string | undefined {
@@ -171,6 +172,52 @@ export default function (pi: ExtensionAPI) {
 	let requestFooterRender: (() => void) | undefined;
 	let usagePoll: ReturnType<typeof setInterval> | undefined;
 	const usageLimits: UsageLimits = {};
+	let firecrawlPoll: ReturnType<typeof setInterval> | undefined;
+	let firecrawlRequest: AbortController | undefined;
+	let firecrawlCredits: number | undefined;
+	let firecrawlStale = false;
+	let lastFirecrawlRefresh = 0;
+
+	async function refreshFirecrawlCredits() {
+		const apiKey = process.env.FIRECRAWL_API_KEY;
+		if (!apiKey || firecrawlRequest) return;
+		const controller = new AbortController();
+		firecrawlRequest = controller;
+		const timeout = setTimeout(() => controller.abort(), 10_000);
+		lastFirecrawlRefresh = Date.now();
+		try {
+			const baseUrl = process.env.FIRECRAWL_API_URL || "https://api.firecrawl.dev";
+			const url = new URL(`${baseUrl.replace(/\/$/, "")}/v2/team/credit-usage`);
+			if (!["https:", "http:"].includes(url.protocol)) throw new Error("Invalid Firecrawl API URL");
+			const response = await fetch(url, {
+				headers: { Authorization: `Bearer ${apiKey}` },
+				signal: controller.signal,
+			});
+			if (!response.ok) throw new Error("Credit refresh failed");
+			const payload = await response.json() as { success?: boolean; data?: { remainingCredits?: unknown } };
+			const credits = payload.data?.remainingCredits;
+			if (!payload.success || typeof credits !== "number" || !Number.isFinite(credits) || credits < 0) {
+				throw new Error("Invalid credit balance");
+			}
+			if (controller.signal.aborted) return;
+			firecrawlCredits = credits;
+			firecrawlStale = false;
+		} catch {
+			if (!controller.signal.aborted || firecrawlRequest === controller) firecrawlStale = true;
+		} finally {
+			clearTimeout(timeout);
+			if (firecrawlRequest === controller) {
+				firecrawlRequest = undefined;
+				requestFooterRender?.();
+			}
+		}
+	}
+
+	pi.on("tool_result", async (event) => {
+		if (firecrawlPoll && ["web_search", "web_fetch"].includes(event.toolName) && Date.now() - lastFirecrawlRefresh >= 10_000) {
+			void refreshFirecrawlCredits();
+		}
+	});
 
 	pi.on("thinking_level_select", async () => {
 		requestFooterRender?.();
@@ -184,6 +231,10 @@ export default function (pi: ExtensionAPI) {
 		requestFooterRender = undefined;
 		if (usagePoll) clearInterval(usagePoll);
 		usagePoll = undefined;
+		if (firecrawlPoll) clearInterval(firecrawlPoll);
+		firecrawlPoll = undefined;
+		firecrawlRequest?.abort();
+		firecrawlRequest = undefined;
 	});
 
 	pi.on("after_provider_response", async (event) => {
@@ -209,6 +260,12 @@ export default function (pi: ExtensionAPI) {
 			});
 		}, 60_000);
 
+		if (firecrawlPoll) clearInterval(firecrawlPoll);
+		if (process.env.FIRECRAWL_API_KEY) {
+			void refreshFirecrawlCredits();
+			firecrawlPoll = setInterval(() => void refreshFirecrawlCredits(), 180_000);
+		}
+
 		ctx.ui.setFooter((tui, theme, footerData) => {
 			const render = () => tui.requestRender();
 			requestFooterRender = render;
@@ -225,28 +282,32 @@ export default function (pi: ExtensionAPI) {
 					const contextWindow = contextUsage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
 					const contextPercent = contextUsage?.percent == null ? "?" : contextUsage.percent.toFixed(0);
 					const usedTokens = contextUsage?.tokens == null ? "?" : formatTokens(contextUsage.tokens);
-					const contextDisplay = `${contextPercent}% [${usedTokens}/${formatTokens(contextWindow)}]`;
+					const contextDisplay = theme.fg("thinkingLow", `${contextPercent}%`)
+						+ theme.fg("muted", ` [${usedTokens}/${formatTokens(contextWindow)}]`);
 
-					let cwd = displayPath(ctx.sessionManager.getCwd());
+					let cwd = theme.fg("thinkingLow", displayPath(ctx.sessionManager.getCwd()));
 					const branch = footerData.getGitBranch();
-					if (branch) cwd += ` (${branch})`;
+					if (branch) cwd += theme.fg("muted", ` (${branch})`);
 
 					const sessionName = ctx.sessionManager.getSessionName();
-					if (sessionName) cwd += ` • ${sessionName}`;
+					if (sessionName) cwd += theme.fg("muted", ` • ${sessionName}`);
 
 					const model = ctx.model;
 					const thinkingLevel = model?.reasoning ? pi.getThinkingLevel() : undefined;
-					const modelLine = `${model?.id ?? "no-model"}${thinkingLevel ? ` • ${thinkingLevel}` : ""}`;
-					const fiveHourUsage = formatUsageLimit(usageLimits.fiveHour);
-					const weeklyUsage = formatUsageLimit(usageLimits.weekly, true);
-					const usageAndModel = [modelLine, contextDisplay, fiveHourUsage, weeklyUsage].filter(Boolean).join(" | ");
-					const styledUsageAndModel = theme.fg("thinkingLow", usageAndModel);
-					const sessionAndUsage = ctx.sessionManager.isPersisted()
+					const modelLine = theme.fg("muted", `${model?.id ?? "no-model"}${thinkingLevel ? ` • ${thinkingLevel}` : ""}`);
+					const fiveHourUsage = formatUsageLimit(usageLimits.fiveHour, theme);
+					const weeklyUsage = formatUsageLimit(usageLimits.weekly, theme, true);
+					const firecrawlDisplay = process.env.FIRECRAWL_API_KEY
+						? `${theme.fg("thinkingLow", " 󰍉")} ${theme.fg("muted", `[${firecrawlCredits == null ? "?" : formatTokens(firecrawlCredits)}${firecrawlStale ? " stale" : ""}]`)}`
+						: "";
+					const styledUsageAndModel = [modelLine, `${contextDisplay}${firecrawlDisplay}`, fiveHourUsage, weeklyUsage]
+						.filter(Boolean).join(theme.fg("thinkingLow", " | "));
+					const sessionAndUsage = ctx.sessionManager.getSessionFile() !== undefined
 						? styledUsageAndModel
 						: `${theme.fg("warning", "⸸")} ${styledUsageAndModel}`;
 
 					const contentWidth = Math.max(0, width - 1);
-					const firstLine = ` ${padBetween(sessionAndUsage, theme.fg("thinkingLow", cwd), contentWidth)}`;
+					const firstLine = ` ${padBetween(sessionAndUsage, cwd, contentWidth)}`;
 
 					return [truncateToWidth(firstLine, width), ""];
 				},

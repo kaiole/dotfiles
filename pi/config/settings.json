@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "1.0.2",
+  "lastChangelogVersion": "1.0.4",
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-6.1-sol",
   "defaultThinkingLevel": "low",
@@ -13,8 +13,12 @@
     "~/dotfiles/pi/picosystem/sub-agents",
     "~/dotfiles/pi/picosystem/woke"
   ],
-  "skills": ["~/dotfiles/pi/skills/"],
-  "themes": ["~/dotfiles/pi/themes/palette.json"],
+  "skills": [
+    "~/dotfiles/pi/skills/"
+  ],
+  "themes": [
+    "~/dotfiles/pi/themes/palette.json"
+  ],
   "theme": "palette",
   "tuiMode": "regular",
   "hideThinkingBlock": true,

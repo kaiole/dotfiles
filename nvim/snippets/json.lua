@@ -5,7 +5,7 @@ local i = ls.insert_node
 local c = ls.choice_node
 local f = ls.function_node
 
--- These options are implemented by cmopts and project_build_options(target).
+-- Sanitizer/profiling options require cmopts; tidy uses built-in CMake variables.
 local profiles = {
 	["asan-ubsan"] = {
 		inherits = "base",
@@ -24,6 +24,13 @@ local profiles = {
 	profile = {
 		inherits = "release",
 		cacheVariables = { PROJECT_FRAME_POINTERS = true },
+	},
+	tidy = {
+		inherits = "debug",
+		cacheVariables = {
+			CMAKE_C_CLANG_TIDY = "clang-tidy",
+			CMAKE_CXX_CLANG_TIDY = "clang-tidy",
+		},
 	},
 }
 
@@ -58,15 +65,20 @@ local function optional_configure(names)
 	return t(lines)
 end
 
--- Read the selected configure fragment, keeping only the optional entries linked.
+-- Read the selected configure fragments, keeping only the optional entries linked.
 -- Whitespace may change with snippet indentation, so decode JSON rather than
 -- matching rendered text or tracking a second, potentially divergent choice.
 local function optional_entries(args, _, kind)
-	local fragment = table.concat(args[1], "\n")
-	if fragment:match("^%s*$") then
+	local selected = {}
+	for _, argument in ipairs(args) do
+		local fragment = table.concat(argument, "\n")
+		if not fragment:match("^%s*$") then
+			vim.list_extend(selected, vim.json.decode("[" .. fragment:gsub("^%s*,", "", 1) .. "]"))
+		end
+	end
+	if #selected == 0 then
 		return ""
 	end
-	local selected = vim.json.decode("[" .. fragment:gsub("^%s*,", "", 1) .. "]")
 	local lines = { "," }
 	for index, profile in ipairs(selected) do
 		local name = vim.json.encode(profile.name)
@@ -86,7 +98,7 @@ end
 return {
 	s({
 		trig = "cmpresets",
-		dscr = "Fixed debug/release presets; optional ASan+UBSan / concurrency / profiling (requires cmopts)",
+		dscr = "Fixed debug/release; optional sanitizers/profiling (requires cmopts), independent clang-tidy",
 	}, {
 		t({
 			"{",
@@ -129,6 +141,7 @@ return {
 			optional_configure({ "asan-ubsan", "tsan" }),
 			optional_configure({ "profile" }),
 		}),
+		c(3, { optional_configure({}), optional_configure({ "tidy" }) }),
 		t({
 			"",
 			"  ],",
@@ -142,7 +155,7 @@ return {
 			'      "configurePreset": "release"',
 			"    }",
 		}),
-		f(optional_entries, { 2 }, { user_args = { "build" } }),
+		f(optional_entries, { 2, 3 }, { user_args = { "build" } }),
 		t({
 			"",
 			"  ],",
@@ -168,7 +181,7 @@ return {
 			'      "inherits": "test-base"',
 			"    }",
 		}),
-		f(optional_entries, { 2 }, { user_args = { "test" } }),
+		f(optional_entries, { 2, 3 }, { user_args = { "test" } }),
 		t({ "", "  ]", "}" }),
 		i(0),
 	}),
