@@ -31,7 +31,7 @@ end, "Pi: attach buffer diagnostics")
 map("n", "<leader>pq", function()
 	vim.cmd.PiAttachQuickfix()
 end, "Pi: attach quickfix list")
-map("x", "<leader>ps", function()
+map("x", "<leader>pv", function()
 	-- Capture while Visual mode is still active, before changing mode/focus.
 	local ok, err = pcall(function()
 		app:attach_selection()

@@ -31,6 +31,11 @@ require("telescope").setup({
 			"%.bin$",
 			"%.o$",
 			"%.a$",
+      ".astro",
+      ".claude",
+      ".pi",
+      ".netlify",
+      "dist/",
 		},
 	},
 	pickers = {

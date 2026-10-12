@@ -24,18 +24,22 @@
     ],
     // Modules configuration
     "custom/spotify": {
+      "tooltip": false,
       "exec": "python ~/.config/waybar/mediaplayer.py --player spotify",
       "format": "{}",
       "max-length": 35,
       "return-type": "json",
-      "on-click": "playerctl previous",
-      "on-click-right": "playerctl next",
-      "on-click-middle": "playerctl play-pause",
+      "escape": true,
+      "on-click": "playerctl --player=spotify previous",
+      "on-click-right": "playerctl --player=spotify next",
+      "on-click-middle": "playerctl --player=spotify play-pause",
       "on-scroll-up": "playerctl --player=spotify volume 0.05+",
       "on-scroll-down": "playerctl --player=spotify volume 0.05-"
     },
     "custom/cava_mviz": {
       "exec": "$HOME/.local/bin/waybar_cava",
+      "restart-interval": 2,
+      "tooltip": false,
       "format": "{}"
     },
     "hyprland/submap#left": {
@@ -77,25 +81,30 @@
       "max-length": 25
     },
     "backlight": {
+      "tooltip": false,
       "device": "intel_backlight",
       "min-brightness": 1,
       "format": "{icon} {percent}%",
       "format-icons": ["", ""]
     },
     "cpu": {
+      "tooltip": false,
       "interval": 10,
       "format": "{}%",
       "max-length": 10
     },
     "memory": {
+      "tooltip": false,
       "interval": 30,
       "format": "{avail}G"
     },
     "clock": {
+        "tooltip": false,
         "interval": 1,
         "format": "{:%m/%d %I:%M}",
     },
     "pulseaudio": {
+        "tooltip": false,
         "scroll-step": 2,
         "format": "{icon} {volume}%",
         "format-muted": "󰝟 Muted",           // Icon for mute (you can also use "" or "")

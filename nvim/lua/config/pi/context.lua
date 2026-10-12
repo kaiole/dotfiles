@@ -32,6 +32,68 @@ function M.file(path, workspace)
 	}
 end
 
+local function source_line_count(snapshot)
+	local count = #snapshot.lines
+	-- Range capture includes an empty sentinel at an end-exclusive line boundary.
+	if snapshot.range and snapshot.range["end"].col == 0 and count > 1 then
+		return count - 1
+	end
+	return count
+end
+
+-- Model-facing context deliberately omits editor bookkeeping; the original
+-- snapshot remains attached for freshness checks and refresh.
+local function snapshot_text(snapshot, name)
+	local output = {
+		string.format(
+			"Editor snapshot: %q, filetype %q (%s text; may differ from disk).",
+			name,
+			snapshot.source.filetype,
+			snapshot.inclusion == "none" and "no source" or snapshot.inclusion
+		),
+	}
+	local row, col = 0, 0
+	if snapshot.range then
+		local first, last = snapshot.range.start, snapshot.range["end"]
+		row, col = first.row, first.col
+		output[#output + 1] = string.format(
+			"Range [%d:%d, %d:%d), zero-based bytes, end-exclusive.",
+			first.row,
+			first.col,
+			last.row,
+			last.col
+		)
+	end
+	if snapshot.lines then
+		output[#output + 1] = "Source positions are zero-based bytes:"
+		for i = 1, source_line_count(snapshot) do
+			output[#output + 1] = string.format("[%d:%d] | %s", row + i - 1, i == 1 and col or 0, snapshot.lines[i])
+		end
+	end
+	if snapshot.diagnostics then
+		output[#output + 1] = "Diagnostics (publication freshness unknown; positions are zero-based bytes):"
+		for _, diagnostic in ipairs(snapshot.diagnostics) do
+			local fields = { "severity=" .. (vim.diagnostic.severity[diagnostic.severity] or "unknown") }
+			if diagnostic.source and diagnostic.source ~= "" then
+				fields[#fields + 1] = string.format("source=%q", diagnostic.source)
+			end
+			if diagnostic.code ~= nil and diagnostic.code ~= "" then
+				fields[#fields + 1] = string.format("code=%q", tostring(diagnostic.code))
+			end
+			output[#output + 1] = string.format(
+				"[%d:%d, %d:%d) %s: %s",
+				diagnostic.lnum,
+				diagnostic.col,
+				diagnostic.end_lnum or diagnostic.lnum,
+				diagnostic.end_col or diagnostic.col,
+				table.concat(fields, " "),
+				diagnostic.message
+			)
+		end
+	end
+	return table.concat(output, "\n")
+end
+
 local function captured(snapshot, kind, spec, workspace)
 	local name = snapshot.source.name
 	name = name ~= "" and M.path(name, workspace) or "[unnamed buffer]"
@@ -39,7 +101,7 @@ local function captured(snapshot, kind, spec, workspace)
 	if snapshot.range then
 		local range = snapshot.range
 		local last = range["end"].row + (range["end"].col > 0 and 1 or 0)
-		detail = string.format(":%d–%d · %d lines", range.start.row + 1, last, #snapshot.lines)
+		detail = string.format(":%d–%d · %d lines", range.start.row + 1, last, source_line_count(snapshot))
 	elseif snapshot.diagnostics then
 		detail = " · " .. #snapshot.diagnostics .. " diagnostics"
 	elseif snapshot.lines then
@@ -50,7 +112,7 @@ local function captured(snapshot, kind, spec, workspace)
 		spec = spec,
 		capture = snapshot,
 		label = string.format("%-12s %s%s", kind, name, detail),
-		text = pi.format.context(snapshot),
+		text = snapshot_text(snapshot, name),
 	}
 end
 
@@ -119,22 +181,23 @@ function M.quickfix(workspace, id)
 		if item.bufnr > 0 and api.nvim_buf_is_loaded(item.bufnr) then
 			sources[item.bufnr] = api.nvim_buf_get_changedtick(item.bufnr)
 		end
-		text[#text + 1] = string.format(
-			"%d. file=%q location=%d:%d–%d:%d column=%s type=%q valid=%s pattern=%q module=%q nr=%s\n%s",
-			i,
-			path ~= "" and M.path(path, workspace) or "[no file]",
-			item.lnum,
-			item.col,
-			item.end_lnum or 0,
-			item.end_col or 0,
-			item.vcol == 1 and "display" or "byte",
-			item.type,
-			tostring(item.valid),
-			item.pattern or "",
-			item.module or "",
-			tostring(item.nr),
-			item.text
-		)
+		local fields = { string.format("%d. file=%q", i, path ~= "" and M.path(path, workspace) or "[no file]") }
+		if item.lnum > 0 or item.col > 0 then
+			local location = string.format("location=%d:%d", item.lnum, item.col)
+			if (item.end_lnum or 0) > 0 or (item.end_col or 0) > 0 then
+				location = location .. string.format("–%d:%d", item.end_lnum or 0, item.end_col or 0)
+			end
+			fields[#fields + 1] = location
+			if item.col > 0 or (item.end_col or 0) > 0 then
+				fields[#fields + 1] = "column=" .. (item.vcol == 1 and "display" or "byte")
+			end
+		end
+		for _, key in ipairs({ "type", "pattern", "module" }) do
+			if item[key] and item[key] ~= "" then
+				fields[#fields + 1] = string.format("%s=%q", key, item[key])
+			end
+		end
+		text[#text + 1] = table.concat(fields, " ") .. "\n" .. item.text
 	end
 	return {
 		kind = "Quickfix",
@@ -209,11 +272,8 @@ function M.refresh(item, workspace)
 	end
 end
 
-function M.prompt(question, attachments, workspace)
-	local parts = {
-		"Workspace: " .. string.format("%q", workspace),
-		"User question:\n" .. question,
-	}
+function M.prompt(question, attachments)
+	local parts = { "User question:\n" .. question }
 	for i, item in ipairs(attachments) do
 		parts[#parts + 1] = string.format("Attachment %d:\n%s", i, item.text)
 	end

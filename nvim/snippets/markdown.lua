@@ -50,9 +50,45 @@ return {
 	}),
 
 	s("bold", {
-		t("**"),
-		i(1),
-		t("**"),
+		c(1, {
+			sn(nil, {
+				t("**"),
+				r(1, "text", i(1)),
+				t("**"),
+			}),
+			sn(nil, {
+				t("***"),
+				r(1, "text", i(1)),
+				t("***"),
+			}),
+			sn(nil, {
+				t("*"),
+				r(1, "text", i(1)),
+				t("*"),
+			}),
+		}),
+		i(0),
+	}),
+
+	s("footer", {
+		t("**<u>["),
+		i(1, "label"),
+		t("](#user-content-fn-"),
+		i(2, "1"),
+		t(")</u>**[^"),
+		f(function(args)
+			return args[1][1]
+		end, { 2 }),
+		t("]"),
+		i(0),
+	}),
+
+	s("hyperlink", {
+		t("["),
+		i(1, "label"),
+		t("]("),
+		i(2, "url"),
+		t(")"),
 		i(0),
 	}),
 
@@ -135,45 +171,19 @@ return {
 		t({ "---", "# " }),
 		c(1, {
 			t("note"),
-			t("leetcode"),
+			t("tutoring"),
 		}),
 		t({ "", "" }),
 		d(2, function(args)
-			local mode = args[1][1] or "leetcode"
+			local mode = args[1][1] or "note"
 
-			if mode == "leetcode" then
+			if mode == "tutoring" then
 				return sn(nil, {
-					t('pattern: "[['),
-					i(1),
-					t({ ']]"', 'problem: "[' }),
-					i(2, "#"),
-					t(". "),
-					i(3, "name"),
-					t("]("),
-					i(7, "link"),
-					t({ ')"', "confidence: " }),
-					c(4, {
-						t("Amazing"),
-						t("Good"),
-						t("Mid"),
-						t("Bad"),
-					}),
-					t({ "", "tags: [" }),
-					c(5, {
-						t("easy"),
-						t("medium"),
-						t("hard"),
-					}),
-					t(", leetcode, "),
-					i(6),
-					t({ "]", "date: " }),
-					f(currentDate, {}),
-					t({ "", "---", "", "" }),
-					t({ "# Problem & Constraints", "", "> desc", "", "" }),
-					t({ "**Constraints:**", "", "- ", "", "---", "", "" }),
-					t({ "# Optimal", "", "" }),
-					t({ "---", "", "" }),
-					t({ "# Sub-optimal", "", "" }),
+					t("title: "),
+					i(1, "Title"),
+					t({ "", "noteId: " }),
+					i(2, "note-id"),
+					t({ "", "---", "" }),
 				})
 			else
 				return sn(nil, {

@@ -18,7 +18,7 @@ local notices, apps, clients, tests, failures = {}, {}, {}, {}, {}
 local base_win = api.nvim_get_current_win()
 local directory, source_buf
 vim.notify = function(message, level)
-	notices[#notices + 1] = { message = tostring(message), level = level }
+	notices[#notices + 1] = { message = tostring(message), level = level, mode = vim.fn.mode() }
 end
 
 local function eq(actual, expected, message)
@@ -30,6 +30,10 @@ end
 
 local function has(text, part, message)
 	assert(text:find(part, 1, true), (message or "missing text") .. ": " .. part .. " in " .. text)
+end
+
+local function lacks(text, part)
+	assert(not text:find(part, 1, true), "unexpected text: " .. part .. " in " .. text)
 end
 
 local function wait_for(predicate, message)
@@ -120,7 +124,8 @@ test("construction, preview, and draft are inert; frozen workspace", function()
 	app:preview_prompt()
 	has(text(app.view.preview_buf), "Explain this\nwithout changing it")
 	has(text(app.view.preview_buf), "Attachment 1:")
-	has(text(app.view.preview_buf), directory)
+	has(text(app.view.preview_buf), 'Editor snapshot: "source.lua"')
+	lacks(text(app.view.preview_buf), "Workspace:")
 	eq(calls(), 0)
 	eq(records(log, "start"), {})
 	eq(vim.fn.readfile(directory .. "/source.lua"), { "disk source", "second line" })
@@ -128,6 +133,45 @@ test("construction, preview, and draft are inert; frozen workspace", function()
 	vim.cmd("lcd " .. vim.fn.fnameescape(root))
 	eq(app:workspace_for_source(), directory, "workspace must not follow later cwd changes")
 	vim.cmd("lcd " .. vim.fn.fnameescape(vim.fn.fnamemodify(peer, ":h:h")))
+end)
+
+test("session directory follows cwd at first use and PiNew, not source Git roots", function()
+	local starting_cwd = vim.fn.getcwd()
+	local project = directory .. "/project"
+	local working = project .. "/nested"
+	vim.fn.mkdir(project .. "/.git", "p")
+	vim.fn.mkdir(working, "p")
+	vim.fn.writefile({ "project source" }, project .. "/file.lua")
+	local buf = vim.fn.bufadd(project .. "/file.lua")
+	vim.fn.bufload(buf)
+	source(buf)
+	vim.cmd("lcd " .. vim.fn.fnameescape(working))
+	local app, log = fixture("normal", { cwd = false })
+	eq(app.workspace, working, "cwd must win over the source Git root")
+	vim.cmd("lcd " .. vim.fn.fnameescape(directory))
+	eq(app:workspace_for_source(), working, "an existing conversation must stay pinned")
+	app.view:set_text({ "check directory" })
+	app:send()
+	settled(app)
+	eq(records(log, "start")[1].cwd, working)
+	source(buf)
+	app.view:set_text({ "unfinished draft" })
+	local ok = pcall(function()
+		app:new_conversation()
+	end)
+	eq(ok, false, "implicit cwd changes also require an empty draft")
+	eq(app.workspace, working)
+	eq(draft(app), "unfinished draft")
+	app:clear_draft()
+	app:new_conversation()
+	eq(app.workspace, directory, "PiNew must capture the current cwd again")
+	eq(app.client, nil, "changing conversations is inert")
+	app.view:set_text({ "check new directory" })
+	app:send()
+	settled(app)
+	eq(records(log, "start")[2].cwd, directory)
+	source()
+	vim.cmd("lcd " .. vim.fn.fnameescape(starting_cwd))
 end)
 
 test("Pi views wrap at word boundaries without rewriting text", function()
@@ -150,12 +194,94 @@ end)
 
 test("outgoing messages contain question/context without repeated system instructions", function()
 	local context = require("config.pi.context")
-	local prefix = "Workspace: " .. string.format("%q", directory) .. "\n\nUser question:\nExplain this"
-	eq(context.prompt("Explain this", {}, directory), prefix)
+	local prefix = "User question:\nExplain this"
+	eq(context.prompt("Explain this", {}), prefix)
 	eq(
-		context.prompt("Explain this", { { text = "captured context" } }, directory),
+		context.prompt("Explain this", { { text = "captured context" } }),
 		prefix .. "\n\nAttachment 1:\ncaptured context"
 	)
+end)
+
+test("editor context is lean while original snapshots retain freshness metadata", function()
+	local app = fixture()
+	vim.bo[source_buf].filetype = "lua"
+	app:attach_buffer()
+	local item = app.attachments[1]
+	has(item.text, 'Editor snapshot: "source.lua", filetype "lua"')
+	has(item.text, "full text; may differ from disk")
+	has(item.text, "[0:0] | disk source")
+	assert(item.capture.id and item.capture.source.changedtick and item.capture.source.format)
+	for _, field in ipairs({ item.capture.id, "buffer " .. source_buf, "changedtick", "Format:", "encoding", "BOM" }) do
+		lacks(item.text, field)
+	end
+	app:attach_selection({ start = { row = 0, col = 2 }, ["end"] = { row = 1, col = 0 } })
+	local selection = app.attachments[2]
+	has(selection.text, "Range [0:2, 1:0), zero-based bytes, end-exclusive.")
+	has(selection.text, "[0:2] | sk source")
+	lacks(selection.text, "[1:0] |")
+	has(selection.label, ":1–1 · 1 lines")
+	eq(selection.capture.lines, { "sk source", "" }, "formatting must not mutate the capture")
+	local ns = api.nvim_create_namespace("pi-test-lean-diagnostics")
+	vim.diagnostic.set(ns, source_buf, {
+		{ lnum = 0, col = 2, end_lnum = 0, end_col = 4, message = "bad call", severity = 2, source = "lsp", code = 42 },
+		{ lnum = 1, col = 0, message = "note", severity = 3 },
+	})
+	app:attach_diagnostics(false)
+	local diagnostic = app.attachments[3]
+	has(diagnostic.text, '[0:2, 0:4) severity=WARN source="lsp" code="42": bad call')
+	has(diagnostic.text, "severity=INFO")
+	has(diagnostic.text, "publication freshness unknown")
+	lacks(diagnostic.text, "namespace=")
+	lacks(diagnostic.text, 'source=""')
+	lacks(diagnostic.text, 'code=""')
+	lacks(diagnostic.text, "disk source")
+	assert(diagnostic.capture.diagnostics[1].namespace)
+	local context = require("config.pi.context")
+	eq(context.freshness(item), "unchanged")
+	api.nvim_buf_set_lines(source_buf, 0, -1, false, { "changed source" })
+	eq(context.freshness(item), "changed")
+end)
+
+test("every attachment produces a command-line confirmation", function()
+	local app = fixture()
+	app:attach_file("source.lua")
+	app:attach_buffer()
+	app:attach_selection({ start = { row = 0, col = 0 }, ["end"] = { row = 0, col = 4 } })
+	local ns = api.nvim_create_namespace("pi-test-notifications")
+	vim.diagnostic.set(ns, source_buf, { { lnum = 0, col = 0, end_col = 4, message = "error", severity = 1 } })
+	api.nvim_win_set_cursor(base_win, { 1, 0 })
+	app:attach_diagnostics(false)
+	app:attach_diagnostics(true)
+	vim.fn.setqflist({}, " ", { title = "build", items = { { text = "failure" } } })
+	app:attach_quickfix()
+	eq(#app.attachments, 6)
+	wait_for(function()
+		return #notices == 6
+	end, "all attachment confirmations")
+	for i, item in ipairs(app.attachments) do
+		eq(notices[i].message, "Pi: Attached " .. item.label)
+		eq(notices[i].level, vim.log.levels.INFO)
+	end
+end)
+
+test("Visual mapping confirmation arrives after leaving Visual mode", function()
+	local app = dofile(vim.fn.fnamemodify(peer, ":h:h") .. "/lua/plugins/pi.lua")
+	apps[#apps + 1] = app
+	api.nvim_win_set_cursor(base_win, { 1, 0 })
+	vim.cmd("normal! v")
+	api.nvim_win_set_cursor(base_win, { 1, 3 })
+	local mapping = vim.fn.maparg("<leader>pv", "x", false, true)
+	assert(type(mapping.callback) == "function")
+	mapping.callback()
+	eq(vim.fn.mode(), "n")
+	eq(#app.attachments, 1)
+	eq(app.attachments[1].capture.lines, { "disk" })
+	wait_for(function()
+		return notice("Attached Selection")
+	end, "Visual confirmation")
+	eq(#notices, 1)
+	eq(notices[1].mode, "n", "confirmation must not be erased by the subsequent Visual-mode exit")
+	eq(app.client, nil)
 end)
 
 test("draft hide/reopen preserves buffer, text, cursor, and undo", function()
@@ -212,6 +338,7 @@ test("explicit and active Visual selections include complete multibyte character
 	api.nvim_buf_set_lines(source_buf, 0, -1, false, { "aé中z", "tail" })
 	app:attach_selection({ start = { row = 0, col = 1 }, ["end"] = { row = 0, col = 6 } })
 	eq(app.attachments[1].capture.lines, { "é中" })
+	has(app.attachments[1].text, "[0:1] | é中")
 	api.nvim_win_set_cursor(base_win, { 1, 1 })
 	vim.cmd("normal! v")
 	api.nvim_win_set_cursor(base_win, { 1, 3 })
@@ -323,6 +450,11 @@ test("quickfix captures paths, fileless messages, list metadata, and freezes", f
 	has(item.text, 'file="[no file]"')
 	has(item.text, "global build failure")
 	has(item.text, "location=1:3")
+	has(item.text, 'type="E"')
+	for _, field in ipairs({ "valid=", "nr=", 'pattern=""', 'module=""', 'type=""', "–0:0", "location=0:0" }) do
+		lacks(item.text, field)
+	end
+	eq(item.list.items[2].valid, 0, "bookkeeping must remain internal")
 	local frozen = item.text
 	vim.fn.setqflist({}, "r", { title = "new errors", items = { { text = "new failure" } } })
 	eq(item.text, frozen)
@@ -331,6 +463,23 @@ test("quickfix captures paths, fileless messages, list metadata, and freezes", f
 	eq(app.client, nil)
 	app:refresh_attachment(1)
 	has(app.attachments[1].text, "new failure")
+end)
+
+test("quickfix preserves populated range, column, pattern and module context", function()
+	local app = fixture()
+	vim.fn.setqflist({}, " ", {
+		title = "search results",
+		items = {
+			{ bufnr = source_buf, lnum = 1, col = 2, end_lnum = 2, end_col = 4, vcol = 1, text = "span", type = "W" },
+			{ bufnr = source_buf, pattern = "^target", module = "parser", text = "pattern match" },
+		},
+	})
+	app:attach_quickfix()
+	local body = app.attachments[1].text
+	has(body, 'location=1:2–2:4 column=display type="W"')
+	has(body, 'pattern="^target" module="parser"')
+	has(body, "pattern match")
+	lacks(body, "valid=")
 end)
 
 test("changed source rejects send; refresh captures new text and permits send", function()

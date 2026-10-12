@@ -32,8 +32,7 @@ function M.new(options)
 
 	function app:workspace_for_source()
 		if not self.workspace then
-			local name = api.nvim_buf_get_name(0)
-			self.workspace = vim.fs.normalize(options.cwd or vim.fs.root(name, { ".git" }) or vim.fn.getcwd())
+			self.workspace = vim.fs.normalize(options.cwd or vim.fn.getcwd())
 		end
 		return self.workspace
 	end
@@ -102,7 +101,14 @@ function M.new(options)
 		item.attachment_id = self.attachment_serial
 		self.attachments[#self.attachments + 1] = item
 		self.view:refresh_attachments()
-		notify("Attached " .. item.label)
+		-- Visual mappings exit their selection after capture. Publish the message
+		-- after the mapping returns so that <Esc> cannot immediately erase it.
+		local message = "Attached " .. item.label
+		vim.schedule(function()
+			if not self.disposed then
+				notify(message)
+			end
+		end)
 	end
 
 	function app:source_buffer()
@@ -224,7 +230,7 @@ function M.new(options)
 		self:workspace_for_source()
 		self.view:show_preview(
 			"Exact outgoing prompt",
-			context.prompt(table.concat(self.view:get_text(), "\n"), self.attachments, self.workspace)
+			context.prompt(table.concat(self.view:get_text(), "\n"), self.attachments)
 		)
 	end
 
@@ -372,7 +378,7 @@ function M.new(options)
 			generation = self.draft_generation,
 			awaiting_ack = true,
 		}
-		task.prompt = context.prompt(question, task.attachments, self.workspace)
+		task.prompt = context.prompt(question, task.attachments)
 		if #task.prompt > (options.max_prompt_bytes or 1024 * 1024) then
 			notify(
 				"Prompt exceeds 1 MiB (or configured limit); remove large attachments. Nothing was sent.",
@@ -525,19 +531,20 @@ function M.new(options)
 			notify("Abort or wait for Pi before starting a new conversation", vim.log.levels.WARN)
 			return
 		end
-		local workspace = self:workspace_for_source()
+		self:workspace_for_source()
+		local workspace = vim.fs.normalize(options.cwd or vim.fn.getcwd())
 		if directory and directory ~= "" then
 			workspace = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(directory), ":p")):gsub("/$", "")
 			if workspace == "" then
 				workspace = "/"
 			end
-			assert(vim.fn.isdirectory(workspace) == 1, "Not a directory: " .. workspace)
-			assert(
-				workspace == self.workspace
-					or (#self.attachments == 0 and not table.concat(self.view:get_text(), ""):match("%S")),
-				"Clear the draft with :PiClear before changing workspace"
-			)
 		end
+		assert(vim.fn.isdirectory(workspace) == 1, "Not a directory: " .. workspace)
+		assert(
+			workspace == self.workspace
+				or (#self.attachments == 0 and not table.concat(self.view:get_text(), ""):match("%S")),
+			"Clear the draft with :PiClear before changing workspace"
+		)
 		if self.unsubscribe then
 			self.unsubscribe()
 		end
