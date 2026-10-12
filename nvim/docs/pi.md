@@ -11,8 +11,11 @@ model; **sending a question can incur charges**.
 2. `:PiAsk` (or `<leader>pa`) opens the floating Markdown draft with attachments
    underneath. Closing it hides both panes, retaining text, cursor and undo.
 3. Write your question. Use normal-mode `<Tab>` to switch between the panes.
-4. In the attachment pane: `<Enter>` previews exactly that attachment, `d` removes
-   it, and `r` refreshes it from its original source. Changed sources are marked.
+4. Refer to attachments in your question using their stable IDs, e.g.
+   `Explain @1 and compare it with @2`. In the attachment pane, `i` inserts the
+   selected reference before your preserved draft cursor and returns to the
+   draft in Normal mode. `<Enter>` previews it, `d` removes it, and `r` refreshes
+   it from its original source. Changed sources are marked.
 5. `:PiPreview` (draft normal-mode `gP`) previews the outgoing user message
    (question and attachments, not system instructions or conversation history).
 6. `:PiSend` or draft-local `<C-s>` sends. Enter inserts a newline as usual.
@@ -49,8 +52,8 @@ disk reference, or cancel. Buffers are never silently saved.
 Outgoing messages contain the question and explicit attachments, without a
 repeated workspace header. Editor snapshots include paths, filetypes, text and
 zero-based byte positions; diagnostics include readable severity and nonempty
-source/code fields. Snapshot IDs, buffer numbers, changedticks, namespaces and
-encoding/EOL/BOM details stay internal. Quickfix omits unused fields.
+source/code fields. Toolkit snapshot IDs, buffer numbers, changedticks, namespaces
+and encoding/EOL/BOM details stay internal. Quickfix omits unused fields.
 
 Selections, diagnostics and quickfix are frozen when attached. Sending refuses
 changed attachments until you refresh/remove them. Refreshing a selection uses
@@ -59,6 +62,34 @@ structural edits. A refreshed single diagnostic must still uniquely cover its
 original position. Diagnostic publication can lag behind edits; freshness checks
 are not proof that the LSP's diagnostic is up to date. Quickfix includes entry
 messages/paths/locations, not the contents of every referenced file.
+
+## Attachment references
+
+Attachments have stable references (`@1`, `@2`, etc.) shown in confirmations,
+attachment lists, previews, outgoing messages and conversation summaries.
+Deleting an attachment doesn't renumber the remaining ones. IDs aren't recycled
+when sending, clearing a draft or starting another conversation.
+
+Single diagnostic labels show path, one-based line/byte column, severity and a
+message excerpt. Selection labels show line ranges; buffers are editor snapshots
+and files are disk references. A reference names the entire attachment: for a
+bundle, say e.g. `the second diagnostic in @3`, or attach diagnostics separately.
+
+Standalone `@<digits>` tokens in the question are attachment references (including
+inside Markdown backticks); email/identifier suffixes aren't. An unknown or
+removed unsent reference refuses sending and warns on preview. Remove the token
+or reattach the context under its new ID. Previously accepted attachments remain
+referenceable within the same conversation. Referencing one includes its original
+serialized context again, even if its source has since changed. A disk reference
+still only identifies a file; tools read current disk contents, not archived bytes.
+
+Refreshing an unsent attachment retains its ID. Once accepted, its ID identifies
+the original attachment. Refreshing a restored attachment with changed contents
+assigns a new ID and notifies you; an unchanged refresh retains the ID. Pending
+acknowledgements also reserve IDs. Refresh never rewrites your draft: update its
+references to use the new snapshot, or name both IDs to compare them. `:PiNew`
+clears access to previously sent attachments; unfinished current attachments are
+preserved when the directory stays the same.
 
 ## Conversation and recovery
 

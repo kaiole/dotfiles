@@ -7,6 +7,23 @@ local function notify(message, level)
 	vim.notify("Pi: " .. message, level or vim.log.levels.INFO)
 end
 
+local function submission_text(sent)
+	local parts = { sent.question }
+	for _, group in ipairs({
+		{ title = "Attachments:", items = sent.attachments },
+		{ title = "Previously sent attachments:", items = sent.referenced },
+	}) do
+		if group.items and #group.items > 0 then
+			local labels = { group.title }
+			for _, item in ipairs(group.items) do
+				labels[#labels + 1] = context.label(item)
+			end
+			parts[#parts + 1] = table.concat(labels, "\n")
+		end
+	end
+	return table.concat(parts, "\n\n")
+end
+
 local function close_timer(task)
 	if task and task.timer then
 		task.timer:stop()
@@ -49,11 +66,11 @@ function M.new(options)
 				local text = type(message.content) == "string" and message.content or "[user content omitted]"
 				-- Render submitted drafts, not serialized attachment bodies, in conversation UI.
 				if self.task and self.task.prompt == text then
-					text = self.task.question .. string.format("\n\n[%d attachments]", #self.task.attachments)
+					text = submission_text(self.task)
 				end
 				for _, sent in ipairs(self.archive) do
 					if sent.prompt == text then
-						text = sent.question .. string.format("\n\n[%d attachments]", #sent.attachments)
+						text = submission_text(sent)
 						break
 					end
 				end
@@ -93,17 +110,65 @@ function M.new(options)
 		end, 40)
 	end
 
+	function app:assign_reference(item)
+		self.attachment_serial = self.attachment_serial + 1
+		item.attachment_id = self.attachment_serial
+	end
+
+	function app:sent_attachment(reference)
+		for _, sent in ipairs(self.archive) do
+			for _, item in ipairs(sent.attachments) do
+				if context.reference(item) == reference then
+					return item
+				end
+			end
+		end
+	end
+
+	function app:frozen_attachment(reference)
+		local sent = self:sent_attachment(reference)
+		if sent then
+			return sent
+		end
+		-- Reserve identities even while acknowledgement is pending. A refresh
+		-- must not reuse an ID whose original contents may already be executing.
+		if self.task and self.task.awaiting_ack then
+			for _, item in ipairs(self.task.attachments) do
+				if context.reference(item) == reference then
+					return item
+				end
+			end
+		end
+	end
+
+	function app:resolve_references(question)
+		local current, referenced, missing = {}, {}, {}
+		for _, item in ipairs(self.attachments) do
+			current[context.reference(item)] = true
+		end
+		for _, reference in ipairs(context.references(question)) do
+			if not current[reference] then
+				local sent = self:sent_attachment(reference)
+				if sent then
+					referenced[#referenced + 1] = sent
+				else
+					missing[#missing + 1] = reference
+				end
+			end
+		end
+		return referenced, missing
+	end
+
 	function app:add_attachment(item)
 		if self.disposed then
 			return
 		end
-		self.attachment_serial = self.attachment_serial + 1
-		item.attachment_id = self.attachment_serial
+		self:assign_reference(item)
 		self.attachments[#self.attachments + 1] = item
 		self.view:refresh_attachments()
 		-- Visual mappings exit their selection after capture. Publish the message
 		-- after the mapping returns so that <Esc> cannot immediately erase it.
-		local message = "Attached " .. item.label
+		local message = "Attached " .. context.label(item)
 		vim.schedule(function()
 			if not self.disposed then
 				notify(message)
@@ -211,9 +276,28 @@ function M.new(options)
 		end
 		local ok, refreshed = pcall(context.refresh, item, self.workspace)
 		if ok then
-			refreshed.attachment_id = item.attachment_id
+			local reference = context.reference(item)
+			local frozen = self:frozen_attachment(reference)
+			if frozen and not context.same_content(frozen, refreshed) then
+				self:assign_reference(refreshed)
+			else
+				refreshed.attachment_id = item.attachment_id
+			end
 			self.attachments[index] = refreshed
 			self.view:refresh_attachments()
+			if refreshed.attachment_id ~= item.attachment_id then
+				notify(
+					"Refreshed "
+						.. reference
+						.. " as "
+						.. context.reference(refreshed)
+						.. "; "
+						.. reference
+						.. " still means the original snapshot. Use "
+						.. context.reference(refreshed)
+						.. " for refreshed context."
+				)
+			end
 		else
 			notify(tostring(refreshed), vim.log.levels.ERROR)
 		end
@@ -222,16 +306,24 @@ function M.new(options)
 	function app:preview_attachment(index)
 		local item = self.attachments[index]
 		if item then
-			self.view:show_preview(item.label .. " · " .. context.freshness(item), item.text)
+			self.view:show_preview(
+				context.label(item) .. " · " .. context.freshness(item),
+				string.format("Attachment %s:\n%s", context.reference(item), item.text)
+			)
 		end
 	end
 
 	function app:preview_prompt()
 		self:workspace_for_source()
-		self.view:show_preview(
-			"Exact outgoing prompt",
-			context.prompt(table.concat(self.view:get_text(), "\n"), self.attachments)
-		)
+		local question = table.concat(self.view:get_text(), "\n")
+		local referenced, missing = self:resolve_references(question)
+		self.view:show_preview("Exact outgoing prompt", context.prompt(question, self.attachments, referenced))
+		if #missing > 0 then
+			notify(
+				"Unknown attachment references: " .. table.concat(missing, ", ") .. ". Sending will be refused.",
+				vim.log.levels.WARN
+			)
+		end
 	end
 
 	function app:clear_draft()
@@ -355,10 +447,20 @@ function M.new(options)
 			return
 		end
 		self:workspace_for_source()
+		local referenced, missing = self:resolve_references(question)
+		if #missing > 0 then
+			notify(
+				"Unknown attachment references: "
+					.. table.concat(missing, ", ")
+					.. ". Update your draft or reattach the context; nothing was sent.",
+				vim.log.levels.WARN
+			)
+			return
+		end
 		local changed = {}
-		for i, item in ipairs(self.attachments) do
+		for _, item in ipairs(self.attachments) do
 			if context.freshness(item) ~= "unchanged" then
-				changed[#changed + 1] = tostring(i)
+				changed[#changed + 1] = context.reference(item)
 			end
 		end
 		if #changed > 0 then
@@ -375,10 +477,11 @@ function M.new(options)
 			lines = vim.deepcopy(lines),
 			question = question,
 			attachments = vim.deepcopy(self.attachments),
+			referenced = vim.deepcopy(referenced),
 			generation = self.draft_generation,
 			awaiting_ack = true,
 		}
-		task.prompt = context.prompt(question, task.attachments)
+		task.prompt = context.prompt(question, task.attachments, task.referenced)
 		if #task.prompt > (options.max_prompt_bytes or 1024 * 1024) then
 			notify(
 				"Prompt exceeds 1 MiB (or configured limit); remove large attachments. Nothing was sent.",
@@ -440,6 +543,7 @@ function M.new(options)
 					lines = task.lines,
 					question = task.question,
 					attachments = task.attachments,
+					referenced = task.referenced,
 					prompt = task.prompt,
 				}
 				-- Never erase edits/attachments the user added while awaiting acknowledgement.

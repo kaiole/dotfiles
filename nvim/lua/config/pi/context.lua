@@ -3,6 +3,43 @@ local pi = require("pi")
 local api = vim.api
 local M = {}
 
+function M.reference(item)
+	assert(item.attachment_id, "Attachment has no reference ID")
+	return "@" .. item.attachment_id
+end
+
+function M.label(item)
+	return M.reference(item) .. "  " .. item.label
+end
+
+-- Standalone @<digits> tokens, not email addresses or identifier suffixes.
+-- Keep the spelling intact: @01 must not silently alias @1.
+function M.references(text)
+	local references, seen = {}, {}
+	for start, digits, finish in text:gmatch("()@(%d+)()") do
+		local before, after = text:sub(start - 1, start - 1), text:sub(finish, finish)
+		if not before:match("[%w_@\128-\255]") and not after:match("[%w_@\128-\255]") then
+			local reference = "@" .. digits
+			if not seen[reference] then
+				seen[reference] = true
+				references[#references + 1] = reference
+			end
+		end
+	end
+	return references
+end
+
+function M.same_content(first, second)
+	return first.kind == second.kind
+		and first.text == second.text
+		and (first.kind ~= "file" or vim.deep_equal(first.baseline, second.baseline))
+end
+
+local function excerpt(message)
+	local text = message:gsub("%c", " "):gsub("%s+", " ")
+	return vim.fn.strchars(text) > 80 and vim.fn.strcharpart(text, 0, 80) .. "…" or text
+end
+
 function M.path(path, workspace)
 	path = vim.fs.normalize(path)
 	local prefix = workspace:gsub("/$", "") .. "/"
@@ -27,7 +64,7 @@ function M.file(path, workspace)
 		path = path,
 		spec = { kind = "file", path = path },
 		baseline = stat(path),
-		label = "File         " .. name,
+		label = "File         " .. name .. " · disk reference",
 		text = string.format("File reference (disk, not unsaved editor text): %q\nAbsolute path: %q", name, path),
 	}
 end
@@ -103,7 +140,18 @@ local function captured(snapshot, kind, spec, workspace)
 		local last = range["end"].row + (range["end"].col > 0 and 1 or 0)
 		detail = string.format(":%d–%d · %d lines", range.start.row + 1, last, source_line_count(snapshot))
 	elseif snapshot.diagnostics then
-		detail = " · " .. #snapshot.diagnostics .. " diagnostics"
+		if #snapshot.diagnostics == 1 then
+			local diagnostic = snapshot.diagnostics[1]
+			detail = string.format(
+				":%d:%d · %s: %s",
+				diagnostic.lnum + 1,
+				diagnostic.col + 1,
+				vim.diagnostic.severity[diagnostic.severity] or "unknown",
+				excerpt(diagnostic.message)
+			)
+		else
+			detail = " · " .. #snapshot.diagnostics .. " diagnostics"
+		end
 	elseif snapshot.lines then
 		detail = " · " .. #snapshot.lines .. " lines (unsaved snapshot)"
 	end
@@ -272,10 +320,15 @@ function M.refresh(item, workspace)
 	end
 end
 
-function M.prompt(question, attachments)
+function M.prompt(question, attachments, referenced)
 	local parts = { "User question:\n" .. question }
-	for i, item in ipairs(attachments) do
-		parts[#parts + 1] = string.format("Attachment %d:\n%s", i, item.text)
+	for _, item in ipairs(attachments) do
+		parts[#parts + 1] = string.format("Attachment %s:\n%s", M.reference(item), item.text)
+	end
+	-- Explicit references to sent attachments carry their original context again,
+	-- so follow-ups don't depend on the model retaining an unabridged transcript.
+	for _, item in ipairs(referenced or {}) do
+		parts[#parts + 1] = string.format("Previously sent attachment %s:\n%s", M.reference(item), item.text)
 	end
 	return table.concat(parts, "\n\n")
 end

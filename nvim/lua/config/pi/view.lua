@@ -140,6 +140,15 @@ function View:_restore_cursor()
 		local lines = self:get_text()
 		local row = math.min(self._draft_cursor[1], #lines)
 		local col = math.min(self._draft_cursor[2], #lines[row])
+		-- Restoring/replacing text can put a saved byte column inside a new
+		-- multibyte character. Snap backward before any cursor-based insertion.
+		while col > 0 do
+			local byte = lines[row]:byte(col + 1)
+			if not byte or byte < 128 or byte >= 192 then
+				break
+			end
+			col = col - 1
+		end
 		vim.api.nvim_win_set_cursor(self.draft_win, { row, col })
 	end
 end
@@ -160,6 +169,38 @@ function View:set_text(lines)
 		self:_replace(self.draft_buf, self._draft_lines, false)
 		self:_restore_cursor()
 	end
+end
+
+function View:insert_reference(reference)
+	if self._disposed or type(reference) ~= "string" or not reference:match("^@%d+$") then
+		return
+	end
+	self:_check_composer()
+	if self:_window("draft_win", "draft_buf") and vim.api.nvim_get_current_win() == self.draft_win then
+		self:_save_cursor()
+	end
+	if not self:_window("draft_win", "draft_buf") then
+		self:open_draft()
+	end
+	self:_check_composer()
+	if not self:_window("draft_win", "draft_buf") then
+		return
+	end
+	vim.api.nvim_set_current_win(self.draft_win)
+	self:_check_composer()
+	if not self:_window("draft_win", "draft_buf") or vim.api.nvim_get_current_win() ~= self.draft_win then
+		return
+	end
+	self:_restore_cursor()
+	local cursor = vim.api.nvim_win_get_cursor(self.draft_win)
+	local row, col = cursor[1], cursor[2]
+	local line = vim.api.nvim_buf_get_lines(self.draft_buf, row - 1, row, false)[1]
+	-- Treat non-ASCII neighbors as words too, without splitting their UTF-8 bytes.
+	local before = line:sub(col, col):match("[%w_@\128-\255]") and " " or ""
+	local after = line:sub(col + 1, col + 1):match("[%w_@\128-\255]") and " " or ""
+	vim.api.nvim_buf_set_text(self.draft_buf, row - 1, col, row - 1, col, { before .. reference .. after })
+	self._draft_cursor = { row, col + #before + #reference - 1 }
+	self:_restore_cursor()
 end
 
 function View:_draft_buffer()
@@ -184,6 +225,7 @@ function View:_draft_buffer()
 	self:_map(buf, "n", "<Tab>", function()
 		self:_check_composer()
 		if self:_window("attachment_win", "attachment_buf") then
+			self:_save_cursor()
 			vim.api.nvim_set_current_win(self.attachment_win)
 		end
 	end, "focus attachments")
@@ -203,6 +245,13 @@ function View:_attachment_buffer()
 			end
 		end, method)
 	end
+	self:_map(buf, "n", "i", function()
+		local index = vim.api.nvim_win_get_cursor(0)[1]
+		local attachment = (self.owner.attachments or {})[index]
+		if attachment then
+			self:insert_reference(require("config.pi.context").reference(attachment))
+		end
+	end, "insert attachment reference")
 	self:_map(buf, "n", "<Tab>", function()
 		self:_check_composer()
 		if self:_window("draft_win", "draft_buf") then
@@ -248,7 +297,7 @@ function View:_geometry()
 		height = attachment_height,
 		row = row + draft_height + 2,
 		col = col,
-		footer = fit(" Attachments (" .. count .. ") · Enter preview / d remove / r refresh ", width),
+		footer = fit(" Attachments (" .. count .. ") · i reference / Enter preview / d remove / r refresh ", width),
 		zindex = 50,
 	}
 	return draft, attachments
@@ -260,16 +309,14 @@ function View:refresh_attachments()
 	end
 	self:_check_composer()
 	local lines = {}
-	local available, context = pcall(require, "config.pi.context")
+	local context = require("config.pi.context")
 	for index, attachment in ipairs(self.owner.attachments or {}) do
 		local suffix = ""
-		if available then
-			local ok, freshness = pcall(context.freshness, attachment)
-			if ok and freshness and freshness ~= "unchanged" then
-				suffix = " [" .. freshness .. "]"
-			end
+		local ok, freshness = pcall(context.freshness, attachment)
+		if ok and freshness and freshness ~= "unchanged" then
+			suffix = " [" .. freshness .. "]"
 		end
-		lines[index] = single_line(index .. ". " .. tostring(attachment.label) .. suffix)
+		lines[index] = single_line(context.label(attachment) .. suffix)
 	end
 	if #lines == 0 then
 		lines = { "(no attachments)" }
