@@ -3,20 +3,15 @@ import test from "node:test";
 
 import { FirecrawlApiError, FirecrawlClient, createFirecrawlClient } from "../src/client";
 
-function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
-	return new Response(JSON.stringify(body), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-		...init,
-	});
-}
+import { jsonResponse, privateStateDir } from "./support";
 
-test("search sends an authenticated v2 request without scraping results", async () => {
+test("search sends an authenticated v2 request without scraping results", async (t) => {
 	let requestUrl = "";
 	let requestInit: RequestInit | undefined;
 	const client = new FirecrawlClient({
 		apiKey: "fc-test",
 		apiUrl: "https://firecrawl.test/",
+		rateLimit: { stateDir: privateStateDir(t) },
 		fetchImpl: async (input, init) => {
 			requestUrl = String(input);
 			requestInit = init;
@@ -35,10 +30,11 @@ test("search sends an authenticated v2 request without scraping results", async 
 	assert.equal(body.scrapeOptions, undefined);
 });
 
-test("fetchPage requests Markdown and strips base64 images", async () => {
+test("fetchPage requests Markdown and strips base64 images", async (t) => {
 	let body: Record<string, unknown> = {};
 	const client = new FirecrawlClient({
 		apiKey: "fc-test",
+		rateLimit: { stateDir: privateStateDir(t) },
 		fetchImpl: async (_input, init) => {
 			body = JSON.parse(String(init?.body));
 			return jsonResponse({ success: true, data: { markdown: "hello" } });
@@ -52,9 +48,11 @@ test("fetchPage requests Markdown and strips base64 images", async () => {
 	assert.equal(body.removeBase64Images, true);
 });
 
-test("API failures include status and retry guidance", async () => {
+test("API failures include status and retry guidance", async (t) => {
 	const client = new FirecrawlClient({
 		apiKey: "fc-test",
+		maxAttempts: 1,
+		rateLimit: { stateDir: privateStateDir(t) },
 		fetchImpl: async () => jsonResponse(
 			{ success: false, error: "Rate limit exceeded" },
 			{ status: 429, headers: { "content-type": "application/json", "retry-after": "7" } },
@@ -70,6 +68,6 @@ test("API failures include status and retry guidance", async () => {
 	);
 });
 
-test("missing credentials fail before a network request", () => {
-	assert.throws(() => createFirecrawlClient({}), /FIRECRAWL_API_KEY is not set/);
+test("missing credentials fail before a network request", (t) => {
+	assert.throws(() => createFirecrawlClient({ FIRECRAWL_RATE_LIMIT_DIR: privateStateDir(t) }), /FIRECRAWL_API_KEY is not set/);
 });

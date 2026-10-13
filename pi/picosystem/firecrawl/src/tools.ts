@@ -115,7 +115,7 @@ export function registerWebTools(pi: ExtensionAPI, clientFactory: ClientFactory 
 				limit: params.limit ?? 5,
 				includeDomains: params.includeDomains?.map((domain) => domain.trim()),
 				excludeDomains: params.excludeDomains?.map((domain) => domain.trim()),
-			}, signal);
+			}, signal, (text) => onUpdate?.({ content: [{ type: "text", text }], details: {} }));
 			const results = data.web ?? [];
 			const bounded = await boundWebOutput(formatSearchResults(query, results));
 			return {
@@ -146,7 +146,8 @@ export function registerWebTools(pi: ExtensionAPI, clientFactory: ClientFactory 
 			onUpdate?.({ content: [{ type: "text", text: `Fetching: ${url}` }], details: {} });
 
 			const client = clientFactory();
-			const document = await client.fetchPage(url, params.onlyMainContent ?? true, signal);
+			const document = await client.fetchPage(url, params.onlyMainContent ?? true, signal,
+				(text) => onUpdate?.({ content: [{ type: "text", text }], details: {} }));
 			const bounded = await boundWebOutput(formatFetchedPage(url, document));
 			return {
 				content: [{ type: "text", text: bounded.text }],

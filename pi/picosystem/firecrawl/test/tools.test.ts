@@ -49,6 +49,37 @@ test("web_search returns cited results without fetching each page", async () => 
 	assert.equal(result.details.resultCount, 1);
 });
 
+test("both tools forward cancellation and publish client wait/retry progress", async () => {
+	const mock = mockPi();
+	const signal = new AbortController().signal;
+	let factories = 0;
+	registerWebTools(mock.pi, () => {
+		factories++;
+		return {
+			async search(_query, _options, receivedSignal, onProgress) {
+				assert.equal(receivedSignal, signal);
+				onProgress?.("Waiting for Firecrawl shared cooldown (7s).");
+				onProgress?.("Sending Firecrawl request (attempt 2/4).");
+				return { web: [] };
+			},
+			async fetchPage(_url, _mainContent, receivedSignal, onProgress) {
+				assert.equal(receivedSignal, signal);
+				onProgress?.("Waiting for Firecrawl request pacing (1s).");
+				return { markdown: "page" };
+			},
+		};
+	});
+	for (const [name, params] of [["web_search", { query: "test" }], ["web_fetch", { url: "https://example.com" }]] as const) {
+		const updates: string[] = [];
+		const result = await mock.tools.get(name).execute("id", params, signal,
+			(update: any) => updates.push(update.content[0].text), context);
+		assert.match(updates[1]!, /Waiting for Firecrawl/);
+		if (name === "web_search") assert.match(updates[2]!, /attempt 2\/4/);
+		assert.match(result.content[0].text, /untrusted web data/);
+	}
+	assert.equal(factories, 2);
+});
+
 test("web_search rejects conflicting domain filters", async () => {
 	const mock = mockPi();
 	registerWebTools(mock.pi, () => ({ search: async () => ({}), fetchPage: async () => ({}) }));
