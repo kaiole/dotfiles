@@ -17,6 +17,13 @@ sequence = 0
 pending = []
 count = 0
 active = None
+models = [
+    {"provider": "offline-fixture", "id": "reasoner", "name": "Reasoner", "reasoning": True},
+    {"provider": "offline-fixture", "id": "plain", "name": "Plain", "reasoning": False},
+]
+model = models[0]
+thinking = "medium"
+state_reads = 0
 
 
 def record(value):
@@ -25,6 +32,9 @@ def record(value):
 
 
 def emit(value):
+    global active
+    if value.get("type") == "agent_settled":
+        active = None
     record({"direction": "out", "record": value})
     sys.stdout.write(json.dumps(value, ensure_ascii=False) + "\n")
     sys.stdout.flush()
@@ -91,9 +101,37 @@ while True:
         record({"direction": "in", "record": request})
         kind = request["type"]
         if kind == "get_state":
-            emit(response(request, {"sessionId": "fixture-%d" % os.getpid(),
-                                   "isStreaming": active is not None, "messageCount": count * 2}))
+            state_reads += 1
+            if mode == "readback_error" and state_reads > 1:
+                emit(response(request, error="fixture state readback failed"))
+            else:
+                emit(response(request, {"sessionId": "fixture-%d" % os.getpid(),
+                                       "model": model, "thinkingLevel": thinking,
+                                       "isStreaming": active is not None, "messageCount": count * 2}))
+        elif kind == "get_available_models":
+            if mode == "discovery_error":
+                emit(response(request, error="fixture discovery failed"))
+            else:
+                emit(response(request, {"models": [] if mode == "empty_models" else models}))
+        elif kind == "get_available_thinking_levels":
+            levels = ["off", "minimal", "low", "medium", "high", "xhigh"] if model["reasoning"] else ["off"]
+            emit(response(request, {"levels": levels}))
+        elif kind in ("set_model", "set_thinking_level"):
+            if mode == "settings_reject":
+                emit(response(request, error="fixture settings rejected"))
+            else:
+                if kind == "set_model":
+                    model = next(m for m in models if m["id"] == request["modelId"] and m["provider"] == request["provider"])
+                    thinking = "medium" if model["reasoning"] else "off"
+                else:
+                    thinking = request["level"] if model["reasoning"] else "off"
+                reply = response(request, model if kind == "set_model" else None)
+                if mode in ("settings_timeout", "settings_slow"):
+                    later(0.4, reply)
+                else:
+                    emit(reply)
         elif kind == "prompt":
+            record({"direction": "prompt_settings", "record": {"model": model, "thinking": thinking}})
             count += 1
             if mode == "reject":
                 emit(response(request, error="fixture rejected prompt"))

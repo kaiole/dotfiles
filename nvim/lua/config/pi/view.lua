@@ -212,6 +212,11 @@ function View:_draft_buffer()
 	self:_map(buf, { "n", "i" }, "<C-s>", function()
 		self.owner:send()
 	end, "send draft")
+	for key, method in pairs({ ["<C-g>"] = "pick_model", ["<C-t>"] = "pick_thinking" }) do
+		self:_map(buf, { "n", "i" }, key, function()
+			self.owner.settings[method](self.owner.settings)
+		end, method)
+	end
 	for key, method in pairs({ gP = "preview_prompt", gR = "restore_last", gC = "clear_draft" }) do
 		self:_map(buf, "n", key, function()
 			self.owner[method](self.owner)
@@ -277,6 +282,10 @@ function View:_geometry()
 	end
 	local row = math.max(0, math.floor((available - draft_height - attachment_height - 4) / 2) + 1)
 	local col = math.floor((vim.o.columns - width - 2) / 2)
+	local model, thinking = self.owner.settings:labels()
+	local prefix, suffix = " Pi · ", " · " .. thinking .. " · ephemeral "
+	-- Long provider/model IDs must not push thinking and persistence out of view.
+	local model_width = math.max(1, width - vim.fn.strdisplaywidth(prefix .. suffix))
 	local draft = {
 		relative = "editor",
 		style = "minimal",
@@ -285,8 +294,8 @@ function View:_geometry()
 		height = draft_height,
 		row = row,
 		col = col,
-		title = fit(" Pi · " .. (self.owner.workspace or "workspace not selected") .. " ", width),
-		footer = fit((self.owner.status or "") .. " | " .. count .. " attachments | C-s send", width),
+		title = fit(prefix .. fit(model, model_width) .. suffix, width),
+		footer = fit((self.owner.status or "") .. " | C-s send / C-g model / C-t thinking", width),
 		zindex = 50,
 	}
 	local attachments = {

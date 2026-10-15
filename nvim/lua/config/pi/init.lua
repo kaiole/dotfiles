@@ -46,6 +46,7 @@ function M.new(options)
 		attachment_serial = 0,
 	}
 	app.view = require("config.pi.view").new(app)
+	app.settings = require("config.pi.settings").new(app)
 
 	function app:workspace_for_source()
 		if not self.workspace then
@@ -358,6 +359,7 @@ function M.new(options)
 		if current(task) then
 			app.status = status
 			app:render()
+			app.settings:flush()
 		end
 	end
 
@@ -390,7 +392,11 @@ function M.new(options)
 			end
 			self.state:feed(event)
 			local task = self.task
-			if event.type == "client_stderr" then
+			if event.type == "client_start" then
+				self.settings:sync(event.state)
+			elseif event.type == "thinking_level_changed" then
+				self.settings.thinking = event.level
+			elseif event.type == "client_stderr" then
 				self.stderr = ((self.stderr or "") .. event.data):sub(-4096)
 			elseif event.type == "agent_start" then
 				self.status = "Investigating…"
@@ -438,6 +444,11 @@ function M.new(options)
 		end
 		if self.lost then
 			notify("Conversation process was lost. Use :PiNew to start explicitly.", vim.log.levels.WARN)
+			return
+		end
+		self.settings:flush()
+		if self.settings.operation then
+			notify("Finish the settings picker/change before sending; your draft has been kept", vim.log.levels.WARN)
 			return
 		end
 		local lines = self.view:get_text()
@@ -574,6 +585,7 @@ function M.new(options)
 					release(task, "Prompt handled; no answer run started")
 				end
 				self:render()
+				self.settings:flush()
 			end)
 		end
 		if client.status == "running" then
@@ -657,6 +669,7 @@ function M.new(options)
 		end
 		self.draft_generation = self.draft_generation + 1
 		self.client, self.task, self.lost = nil, nil, false
+		self.settings:reset()
 		self.workspace, self.archive, self.state = workspace, {}, pi.stream.new()
 		self.status = "New conversation · ready"
 		self:render()
@@ -667,6 +680,7 @@ function M.new(options)
 			return
 		end
 		self.disposed = true
+		self.settings:reset()
 		close_timer(self.task)
 		if self.unregister then
 			self.unregister()
@@ -725,6 +739,12 @@ function M.setup(options)
 		end)
 		command("PiAbort", function()
 			app:abort()
+		end)
+		command("PiModel", function()
+			app.settings:pick_model()
+		end)
+		command("PiThinking", function()
+			app.settings:pick_thinking()
 		end)
 		command("PiNew", function(args)
 			app:new_conversation(args.fargs[1])

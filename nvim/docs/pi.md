@@ -23,6 +23,40 @@ model; **sending a question can incur charges**.
 7. The answer streams into a read-only conversation split. `:PiChat` or
    `<leader>pc` reopens it. Normal-mode `q` hides a view without cancelling work.
 
+## Model and thinking
+
+- `:PiModel` opens a picker of Pi's available authenticated models.
+- `:PiThinking` opens a picker of thinking levels supported by the active model.
+  Non-reasoning models offer only `off`; no model IDs or levels are hardcoded.
+- In the composer, **`<C-g>` selects the model** and **`<C-t>` selects thinking**,
+  in Normal or Insert mode. These use the same actions as the commands.
+- The composer title shows `model · thinking · ephemeral`. Before Pi has started,
+  it shows default placeholders; actual settings come from Pi's state handshake.
+  Pending choices appear after an arrow.
+
+Pickers explicitly start the RPC process if needed, but **never send a prompt or
+call a model**. Cancelling one leaves the settings unchanged. Draft text, cursor,
+undo, attachments and conversation history are retained when settings change.
+
+Idle changes are applied immediately and read back from Pi. During an answer,
+choices wait for settlement and submission acknowledgement before being applied,
+so they affect the **next request**, not later tool turns in the current answer.
+If a model change is queued, a thinking-picker request waits until that model is
+active, then discovers its supported levels. Switching models uses Pi's model
+thinking defaults/capability clamping; any effective thinking adjustment is shown
+in the title and a notification.
+
+Finish an open picker or wait for an applying change before sending; an attempted
+send during either is refused with the draft intact. Pi startup/shutdown also
+needs to finish before opening another picker. A rejected change leaves the last
+confirmed settings usable. An ambiguous transport failure or failed readback
+stops Pi and requires `:PiNew`, rather than sending under uncertain settings.
+
+These changes are **conversation-local**: they don't rewrite Pi's saved global
+defaults. `:PiNew` returns to startup defaults. Sessions remain ephemeral and
+read-only; slash commands, skills, persistence controls and session browsing are
+not added here.
+
 ## Context commands
 
 | Command | Context | Mapping |
@@ -136,6 +170,7 @@ before sending it, especially unsaved buffers and diagnostic/build messages.
 - `lua/plugins/pi.lua`: local toolkit loading, mappings, teardown.
 - `lua/config/pi/init.lua`: workflow ownership, commands, Pi lifecycle.
 - `lua/config/pi/context.lua`: detached attachment capture and serialization.
+- `lua/config/pi/settings.lua`: model/thinking discovery, pickers and deferred changes.
 - `lua/config/pi/view.lua`: composer, attachment, preview and chat windows.
 
 Reload by executing `:lua dofile(vim.fn.stdpath('config') .. '/lua/plugins/pi.lua')`.

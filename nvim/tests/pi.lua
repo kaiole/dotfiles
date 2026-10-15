@@ -192,6 +192,290 @@ test("Pi views wrap at word boundaries without rewriting text", function()
 	eq(text(app.view.chat_buf), paragraph)
 end)
 
+test("model/thinking pickers preserve draft, cursor, undo, attachments, and history", function()
+	local app, log, calls = fixture()
+	app:attach_buffer()
+	app.view:open_draft()
+	app.view:set_text({ "Explain @1" })
+	vim.cmd("normal! A" .. string.char(7) .. "u please" .. string.char(27))
+	local before = draft(app)
+	local cursor = api.nvim_win_get_cursor(app.view.draft_win)
+	local undo = vim.fn.undotree().seq_cur
+	vim.ui.select = function(items, opts, callback)
+		has(opts.prompt, "model")
+		eq(items[1].id, "plain", "models should be sorted by provider/id")
+		callback(items[1])
+	end
+	app.settings:pick_model()
+	wait_for(function()
+		return not app.settings.operation and app.settings.model and app.settings.model.id == "plain"
+	end, "model changed and read back")
+	eq(calls(), 1)
+	eq(#records(log, "in", "prompt"), 0, "pickers must never call a model")
+	eq(draft(app), before)
+	eq(api.nvim_win_get_cursor(app.view.draft_win), cursor)
+	eq(vim.fn.undotree().seq_cur, undo)
+	eq(#app.attachments, 1)
+	eq(app.settings.thinking, "off")
+	assert(notice("thinking adjusted from medium"))
+	local title = api.nvim_win_get_config(app.view.draft_win).title[1][1]
+	has(title, "offline-fixture/plain · off")
+	has(title, "ephemeral")
+	vim.ui.select = function(items, _, callback)
+		eq(items, { "off" }, "non-reasoning models must only offer off")
+		callback(nil)
+	end
+	app.settings:pick_thinking()
+	wait_for(function()
+		return not app.settings.operation
+	end, "thinking picker cancellation")
+	eq(#records(log, "in", "set_thinking_level"), 0)
+	app:send()
+	settled(app)
+	local client, state = app.client, app.state
+	vim.ui.select = function(items, _, callback)
+		for _, model in ipairs(items) do
+			if model.id == "reasoner" then
+				callback(model)
+				return
+			end
+		end
+	end
+	app.settings:pick_model()
+	wait_for(function()
+		return not app.settings.operation and app.settings.model.id == "reasoner"
+	end, "reasoning model selected")
+	vim.ui.select = function(items, opts, callback)
+		eq(items, { "off", "minimal", "low", "medium", "high", "xhigh" })
+		has(opts.format_item("medium"), "[selected]")
+		callback("high")
+	end
+	app.settings:pick_thinking()
+	wait_for(function()
+		return not app.settings.operation and app.settings.thinking == "high"
+	end, "thinking changed and read back")
+	eq(app.client, client)
+	eq(app.state, state)
+	eq(#app.state.messages, 2)
+	eq(#app.archive, 1)
+	app.view:set_text({ "follow up" })
+	app:send()
+	settled(app)
+	local sent = records(log, "prompt_settings")
+	eq(sent[1].model.id, "plain")
+	eq(sent[1].thinking, "off")
+	eq(sent[2].model.id, "reasoner")
+	eq(sent[2].thinking, "high")
+	eq(calls(), 1)
+end)
+
+test("busy model choices wait for settlement; thinking waits for target-model discovery", function()
+	local app, log = fixture("hold")
+	app.view:set_text({ "current answer" })
+	app:send()
+	wait_for(function()
+		return #app.archive == 1
+	end, "held answer accepted")
+	app.view:set_text({ "next draft" })
+	vim.ui.select = function(items, _, callback)
+		callback(items[1]) -- sorted model list: plain
+	end
+	app.settings:pick_model()
+	wait_for(function()
+		return app.settings.pending_model and not app.settings.operation
+	end, "queued model")
+	eq(app.settings.model.id, "reasoner")
+	eq(#records(log, "in", "set_model"), 0)
+	has(app.settings:label(), "→ offline-fixture/plain")
+	local offered = false
+	vim.ui.select = function(items, _, callback)
+		eq(items, { "off" }, "must discover the queued model's levels, not the old model's")
+		offered = true
+		callback("off")
+	end
+	app.settings:pick_thinking()
+	eq(app.settings.deferred_thinking, true)
+	eq(offered, false)
+	app:abort()
+	settled(app)
+	wait_for(function()
+		return offered and not app.settings.operation and app.settings.thinking == "off"
+	end, "deferred model and thinking applied")
+	eq(draft(app), "next draft")
+	local stopped = false
+	for _, line in ipairs(vim.fn.readfile(log)) do
+		local entry = vim.json.decode(line)
+		if entry.direction == "out" and entry.record.type == "agent_settled" then
+			stopped = true
+		elseif entry.direction == "in" and entry.record.type == "set_model" then
+			assert(stopped, "model mutation must wait for session settlement")
+		end
+	end
+end)
+
+test("thinking choice waits for both early settlement and prompt acknowledgement", function()
+	local app, log = fixture("early_settle")
+	app.view:set_text({ "fast answer with late acknowledgement" })
+	app:send()
+	wait_for(function()
+		return app.task.done and app.task.awaiting_ack
+	end, "early settlement")
+	vim.ui.select = function(_, _, callback)
+		callback("high")
+	end
+	app.settings:pick_thinking()
+	wait_for(function()
+		return app.settings.pending_thinking == "high" and not app.settings.operation
+	end, "thinking queued")
+	eq(#records(log, "in", "set_thinking_level"), 0)
+	settled(app)
+	wait_for(function()
+		return not app.settings.operation and app.settings.thinking == "high"
+	end, "thinking applied after acknowledgement")
+	eq(#records(log, "in", "set_thinking_level"), 1)
+end)
+
+test("send during settings application is refused without erasing the draft", function()
+	local app, log = fixture("settings_slow")
+	app.view:set_text({ "keep this question" })
+	vim.ui.select = function(items, _, callback)
+		callback(items[1])
+	end
+	app.settings:pick_model()
+	wait_for(function()
+		return #records(log, "in", "set_model") == 1
+	end, "settings mutation pending acknowledgement")
+	app:send()
+	eq(draft(app), "keep this question")
+	eq(#records(log, "in", "prompt"), 0)
+	assert(notice("Finish the settings picker/change"))
+	wait_for(function()
+		return not app.settings.operation
+	end, "settings confirmed")
+	app:send()
+	settled(app)
+	eq(records(log, "prompt_settings")[1].model.id, "plain")
+end)
+
+test("empty, cancelled, and failed model discovery do not mutate settings", function()
+	for _, mode in ipairs({ "normal", "empty_models", "discovery_error" }) do
+		local app, log = fixture(mode)
+		app.view:set_text({ "untouched" })
+		vim.ui.select = function(_, _, callback)
+			callback(nil)
+		end
+		app.settings:pick_model()
+		wait_for(function()
+			return not app.settings.operation
+		end, "discovery/cancellation: " .. mode)
+		eq(#records(log, "in", "set_model"), 0)
+		eq(draft(app), "untouched")
+		eq(app.settings.model.id, "reasoner")
+	end
+	assert(notice("No available models"))
+	assert(notice("fixture discovery failed"))
+end)
+
+test("rejected settings retain confirmed state; uncertain changes stop Pi", function()
+	for _, mode in ipairs({ "settings_reject", "settings_timeout", "readback_error" }) do
+		local app, log = fixture(mode, { request_timeout_ms = 100 })
+		app.view:set_text({ "do not lose this" })
+		vim.ui.select = function(items, _, callback)
+			callback(items[1])
+		end
+		app.settings:pick_model()
+		wait_for(function()
+			return not app.settings.operation
+		end, "settings failure: " .. mode)
+		eq(draft(app), "do not lose this")
+		if mode == "settings_reject" then
+			eq(app.settings.model.id, "reasoner")
+			assert(not app.lost)
+			app:send()
+			settled(app)
+		else
+			assert(app.lost)
+			app:send()
+			eq(#records(log, "in", "prompt"), 0)
+		end
+	end
+end)
+
+test("late settings picker callbacks cannot affect a new or disposed conversation", function()
+	for _, action in ipairs({ "new", "dispose" }) do
+		local app, log = fixture()
+		local choose, items
+		vim.ui.select = function(models, _, callback)
+			items, choose = models, callback
+		end
+		app.settings:pick_model()
+		wait_for(function()
+			return choose ~= nil
+		end, "pending settings picker")
+		if action == "new" then
+			app:new_conversation()
+		else
+			app:dispose()
+		end
+		choose(items[1])
+		eq(app.settings.model, nil)
+		eq(app.settings.pending_model, nil)
+		eq(app.settings.operation, nil)
+		eq(#records(log, "in", "set_model"), 0)
+	end
+end)
+
+test("throwing selectors release settings ownership and allow subsequent sending", function()
+	local app, log = fixture()
+	app.view:set_text({ "survive picker errors" })
+	vim.ui.select = function()
+		error("broken UI backend")
+	end
+	for _, method in ipairs({ "pick_model", "pick_thinking" }) do
+		app.settings[method](app.settings)
+		wait_for(function()
+			return not app.settings.operation
+		end, "selector failure releases ownership")
+		eq(draft(app), "survive picker errors")
+	end
+	assert(notice("Settings picker failed"))
+	eq(#records(log, "in", "set_model"), 0)
+	eq(#records(log, "in", "set_thinking_level"), 0)
+	app:send()
+	settled(app)
+end)
+
+test("long model IDs do not hide thinking or ephemeral status", function()
+	local app = fixture()
+	app.settings.model = { provider = "provider", id = string.rep("long-model", 15) }
+	app.settings.thinking = "high"
+	app.view:open_draft()
+	local config = api.nvim_win_get_config(app.view.draft_win)
+	local title = config.title[1][1]
+	has(title, "provider/")
+	has(title, "… · high · ephemeral")
+	assert(vim.fn.strdisplaywidth(title) <= config.width)
+end)
+
+test("composer shortcuts share settings actions in normal and insert modes", function()
+	local app = fixture()
+	app.view:open_draft()
+	local models, thinking = 0, 0
+	app.settings.pick_model = function()
+		models = models + 1
+	end
+	app.settings.pick_thinking = function()
+		thinking = thinking + 1
+	end
+	for _, mode in ipairs({ "n", "i" }) do
+		vim.fn.maparg("<C-g>", mode, false, true).callback()
+		vim.fn.maparg("<C-t>", mode, false, true).callback()
+	end
+	eq(models, 2)
+	eq(thinking, 2)
+	eq(app.client, nil)
+end)
+
 test("outgoing messages contain question/context without repeated system instructions", function()
 	local context = require("config.pi.context")
 	local prefix = "User question:\nExplain this"
@@ -1233,6 +1517,8 @@ test("setup commands work and repeated setup disposes old ownership", function()
 		"PiChat",
 		"PiSend",
 		"PiAbort",
+		"PiModel",
+		"PiThinking",
 		"PiNew",
 		"PiClear",
 		"PiRestore",
@@ -1246,6 +1532,19 @@ test("setup commands work and repeated setup disposes old ownership", function()
 	}) do
 		assert(api.nvim_get_commands({})[name], "missing command " .. name)
 	end
+	local pick_model, pick_thinking = first.settings.pick_model, first.settings.pick_thinking
+	local models, thinking = 0, 0
+	first.settings.pick_model = function()
+		models = models + 1
+	end
+	first.settings.pick_thinking = function()
+		thinking = thinking + 1
+	end
+	vim.cmd("PiModel")
+	vim.cmd("PiThinking")
+	eq(models, 1)
+	eq(thinking, 1)
+	first.settings.pick_model, first.settings.pick_thinking = pick_model, pick_thinking
 	vim.cmd("PiAsk")
 	first.view:set_text({ "command draft" })
 	source()
@@ -1272,6 +1571,8 @@ test("setup commands work and repeated setup disposes old ownership", function()
 	eq(draft(second), "")
 	second:dispose()
 	eq(api.nvim_get_commands({}).PiAsk, nil)
+	eq(api.nvim_get_commands({}).PiModel, nil)
+	eq(api.nvim_get_commands({}).PiThinking, nil)
 end)
 
 if vim.env.PI_TEST_FILTER then
