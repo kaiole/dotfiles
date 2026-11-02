@@ -27,42 +27,54 @@ tooltip {
     border-radius: 0px;
 }
 
+/* Workspaces are fixed-size boxes, like fastfetch's palette strip; only
+   the color shows state. The button fills the bar's height, so the box is
+   a one-color gradient painted at a fixed size in its middle. Rules that
+   change the color also reset the size, since an empty box uses two
+   layers with their own sizes. */
 #workspaces button {
-    padding: 3px;
-    margin-left: 5px;
-    margin-right: 5px;
+    min-width: 24px;
+    padding: 0;
+    margin: 0 8px;
+    background-color: transparent;
+    background-image: linear-gradient(@fg_dim, @fg_dim);
+    background-size: 24px 6px;
+    background-position: center;
+    background-repeat: no-repeat;
+    box-shadow: none;
+    transition: none;
 }
 
-/* #workspaces button:nth-child(1) {color: @red;} */
-/* #workspaces button:nth-child(2) {color: @blue;} */
-/* #workspaces button:nth-child(3) {color: @yellow;} */
-/* #workspaces button:nth-child(4) {color: @green;} */
-/* #workspaces button:nth-child(5) {color: @magenta;} */
-/* #workspaces button:nth-child(6) {color: @cyan;} */
-/* #workspaces button:nth-child(7) {color: @red;} */
-/* #workspaces button:nth-child(8) {color: @green;} */
-/* #workspaces button:nth-child(9) {color: @yellow;} */
-/* #workspaces button:nth-child(10) {color: @blue;} */
+#workspaces button label {
+    margin: 0;
+}
+
+/* A dark fill inside a 1px outline */
+#workspaces button.empty {
+    background-image:
+        linear-gradient(@surface, @surface),
+        linear-gradient(@fg_dim, @fg_dim);
+    background-size: 22px 4px, 24px 6px;
+}
 
 #workspaces button.active {
-    color: @fg;
-    background: transparent;
-}
-
-#workspaces button.empty {
-    color: @bg2;
+    background-image: linear-gradient(@fg_max, @fg_max);
+    background-size: 24px 6px;
 }
 
 #workspaces button.urgent {
-    color: @red;
-    background: @bg;
+    background-image: linear-gradient(@red, @red);
+    background-size: 24px 6px;
 }
 
 #workspaces button:hover {
-    background: @bg;
-    color: @gray;
-    box-shadow: inherit;
-    text-shadow: inherit;
+    background-color: transparent;
+    background-image: linear-gradient(@bg2, @bg2);
+    background-size: 24px 6px;
+}
+
+#workspaces button.active:hover {
+    background-image: linear-gradient(@fg_max, @fg_max);
 }
 
 #window,

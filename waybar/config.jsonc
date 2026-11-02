@@ -55,19 +55,14 @@
         "all-outputs": true,
         "warp-on-scroll": false,
         "on-click": "activate",
-        "format": "{icon}",
+        // Blank label: style.css draws each workspace as a colored box
+        "format": "",
         "persistent-workspaces": {
             "1": [],
             "2": [],
             "3": [],
             "4": [],
             "swap": []
-        },
-        "format-icons": {
-            "empty": "",
-            "default": "", // When there's item inside
-            "active": "",
-            "urgent": ""
         }
     },
     "battery": {

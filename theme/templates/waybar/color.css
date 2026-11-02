@@ -9,3 +9,6 @@
 @define-color magenta {{ansi5}};
 @define-color cyan {{ansi6}};
 @define-color gray {{fg_muted}};
+@define-color surface {{surface}};
+@define-color fg_max {{fg_max}};
+@define-color fg_dim {{fg_dim}};
