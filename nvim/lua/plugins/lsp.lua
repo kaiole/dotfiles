@@ -6,8 +6,12 @@ vim.lsp.config("neocmake", {
 
 -- clangd logs at info level to stderr by default, and Neovim records all server
 -- stderr in lsp.log, which grew to hundreds of MB. Only keep real errors.
+-- -j defaults to one worker per core; each background-index worker holds a full
+-- translation unit, so cold indexing peaked at ~1.5 GB on a Hyprland plugin.
+-- Two workers cut that peak by ~30% at the cost of a slower first index; the
+-- settled footprint (one AST and preamble per open file) is unchanged.
 vim.lsp.config("clangd", {
-	cmd = { "clangd", "--log=error" },
+	cmd = { "clangd", "--log=error", "-j=2" },
 })
 
 -- Scoped to Obsidian vaults: no `.obsidian` root, no client (e.g. READMEs, pi
