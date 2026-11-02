@@ -7,6 +7,7 @@ root="${0:A:h}"
 bin="${HOME}/.local/bin"
 mkdir -p -- "$bin"
 entries=(clang/cfmt clang/tidy scratch/scratch tmux-sessionizer/tmux-sessionizer theme/theme)
+if [[ $OSTYPE == linux* ]]; then entries+=(tmux-orphans/tmux-orphans); fi
 
 # wall_select is a Rust binary for Hyprland; build it in place.
 if [[ $OSTYPE == linux* ]]; then

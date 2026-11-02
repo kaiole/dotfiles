@@ -1,0 +1,42 @@
+#!/usr/bin/env zsh
+# List (or with -k, stop) processes that outlived their tmux pane.
+#
+# tmux puts every pane in its own systemd scope (tmux-spawn-<uuid>.scope). A
+# scope stays alive while any process in it does, and a pane's own process is a
+# direct child of a tmux server. So a scope with no child of a tmux server is
+# left over from a closed pane: backgrounded, nohup'd or setsid'd processes that
+# survived the pane's SIGHUP. Linux with systemd only.
+emulate -L zsh
+setopt extended_glob null_glob
+
+usage() { print -u2 -- "usage: ${0:t} [-k]  (-k stops the listed scopes)"; exit 2; }
+kill_them=false
+case $# in
+  0) ;;
+  1) [[ $1 == -k ]] && kill_them=true || usage ;;
+  *) usage ;;
+esac
+
+slice=/sys/fs/cgroup/user.slice/user-$UID.slice/user@$UID.service/app.slice
+[[ -d $slice ]] || { print -u2 -- "${0:t}: no systemd user app.slice at $slice"; exit 1; }
+
+orphans=()
+for scope in $slice/tmux-spawn-*.scope; do
+  procs=(${(f)"$(<$scope/cgroup.procs)"})
+  (( $#procs )) || continue
+  live=false
+  for pid in $procs; do
+    ppid=${${(z)"$(</proc/$pid/stat)"##*\) }[2]} 2>/dev/null || continue
+    [[ "$(</proc/$ppid/comm)" == 'tmux: server' ]] 2>/dev/null && { live=true; break; }
+  done
+  $live && continue
+  orphans+=(${scope:t})
+  print -- "${scope:t}"
+  ps -o pid=,rss=,etime=,args= -p ${(j:,:)procs} |
+    awk '{ printf "  %7s %6.0fM %11s ", $1, $2 / 1024, $3; $1 = $2 = $3 = ""; print substr($0, 4, 110) }'
+done
+
+(( $#orphans )) || { print -- "no orphaned tmux pane processes"; exit 0; }
+$kill_them || { print -- "stop them with: ${0:t} -k"; exit 0; }
+# Stopping a scope sends SIGTERM to everything in it, then SIGKILL on timeout.
+systemctl --user stop -- $orphans && print -- "stopped ${#orphans} scope(s)"

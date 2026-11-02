@@ -7,6 +7,7 @@ Standalone commands, one directory per tool.
 | `clang/` | `cfmt`, `tidy` |
 | `scratch/` | `scratch` (completion: `zsh/completions/_scratch`) |
 | `theme/` | `theme` (see `../theme/AGENTS.md`) |
+| `tmux-orphans/` | `tmux-orphans`: lists processes that outlived their tmux pane (each pane is a systemd scope); `-k` stops them (Linux/systemd only) |
 | `tmux-sessionizer/` | `tmux-sessionizer`, its config, presets and tests; ROS workflow in [`tmux-sessionizer/ROS.md`](tmux-sessionizer/ROS.md) |
 | `wall_select/` | `wall_select`, the Super+W wallpaper picker (Rust; Linux/Hyprland only) |
 
