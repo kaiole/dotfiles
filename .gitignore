@@ -18,6 +18,7 @@ pi/themes/palette.json
 tmux/colors.conf
 yazi/theme.toml
 satty/overrides.css
+hypr/hyprlock-colors.conf
 zsh/themes/.dircolors
 zsh/themes/colors.zsh
 zsh/themes/zsh.zsh-theme

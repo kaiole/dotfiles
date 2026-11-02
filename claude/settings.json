@@ -1,10 +1,10 @@
 {
-  "model": "opus",
   "attribution": {
     "commit": "",
     "pr": "",
     "sessionUrl": false
   },
+  "model": "opus",
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh"
@@ -23,7 +23,7 @@
       "effortLevel": "high"
     }
   },
+  "autoCompactWindow": 200000,
   "skipWorkflowUsageWarning": true,
-  "theme": "dark",
-  "autoCompactWindow": 200000
+  "theme": "dark"
 }

@@ -17,6 +17,8 @@ end
 
 hl.bind(main_mod .. " + Q", hl.dsp.window.close())
 hl.bind(main_mod .. " + M", hl.dsp.exit())
+-- Lock through logind so hypridle's lock_cmd stays the only hyprlock launcher.
+hl.bind(main_mod .. " + minus", hl.dsp.exec_cmd("loginctl lock-session"))
 hl.bind(main_mod .. " + SPACE", hl.dsp.exec_cmd(toggle_rofi))
 hl.bind(main_mod .. " + W", hl.dsp.exec_cmd(wall_select))
 hl.bind(main_mod .. " + F", hl.dsp.window.float({ action = "toggle" }))

@@ -9,7 +9,7 @@ place; [`AGENTS.md`](AGENTS.md) lists exactly where each one goes.
 
 | Dir | Tool | Platform |
 | --- | --- | --- |
-| `hypr/` | [Hyprland](https://hyprland.org/) + hypridle | Linux |
+| `hypr/` | [Hyprland](https://hyprland.org/) + hypridle + hyprlock | Linux |
 | `waybar/` | [Waybar](https://github.com/Alexays/Waybar) | Linux |
 | `rofi/` | [rofi](https://github.com/davatorium/rofi) (launcher, menus) | Linux |
 | `dunst/` | [Dunst](https://dunst-project.org/) (notifications) | Linux |
@@ -31,7 +31,7 @@ place; [`AGENTS.md`](AGENTS.md) lists exactly where each one goes.
 
 ## Required packages
 
-**Linux:** `hyprland`, `hypridle`, `waybar`, `rofi`, `dunst`, `libnotify`,
+**Linux:** `hyprland`, `hypridle`, `hyprlock`, `waybar`, `rofi`, `dunst`, `libnotify`,
 `ghostty`, `cava` (waybar visualizer), `fastfetch`, `wireplumber` (`wpctl`),
 `playerctl`, `hyprpicker`, `grim`, `slurp`, `wl-clipboard`, `satty`, `awww` (wallpapers),
 `cargo` (builds `wall_select`), `libvips` (its rofi fallback), and a browser (autostart runs `helium-browser`).
@@ -70,7 +70,7 @@ After `theme set`:
 
 - **Reload live:** tmux, Ghostty, Waybar, Hyprland, Dunst, running nvims.
 - **Reload themselves:** pi and the Hyprcast overlay (they watch their files).
-- **Next launch:** rofi, yazi, btop, fastfetch, satty, new shells.
+- **Next launch:** rofi, yazi, btop, fastfetch, satty, hyprlock, new shells.
 - **By hand:** Helium (press **Reload** on the Palette theme in
   `chrome://extensions`).
 - **Not themed:** Sioyek, Claude Code.

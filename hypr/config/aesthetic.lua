@@ -56,6 +56,8 @@ hl.config({
 		force_default_wallpaper = 0,
 		disable_hyprland_logo = true,
 		focus_on_activate = true,
+		-- Lets a new hyprlock take over if one crashes, instead of a dead lock screen.
+		allow_session_lock_restore = true,
 	},
 })
 
