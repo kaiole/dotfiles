@@ -10,7 +10,7 @@ local workspace_rules = {
 	{ class = "codex-desktop", workspace = "3" },
 	{ class = "Spotify", workspace = "4" },
 	{ class = "discord", workspace = "4" },
-	{ class = "md.obsidian.Obsidian", workspace = "name:swap" },
+	{ class = "md.obsidian.Obsidian", workspace = "5" },
 }
 
 for _, rule in ipairs(workspace_rules) do

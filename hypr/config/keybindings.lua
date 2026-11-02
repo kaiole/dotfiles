@@ -59,7 +59,7 @@ end
 hl.bind(
 	main_mod .. " + SHIFT + O",
 	hl.dsp.window.move({
-		workspace = "name:swap",
+		workspace = 5,
 		follow = false,
 	})
 )
