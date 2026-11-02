@@ -35,3 +35,11 @@ hl.window_rule({
 	match = { class = ".*" },
 	suppress_event = "maximize",
 })
+
+hl.window_rule({
+	-- Quick screenshot edits: a large centered float instead of a tile.
+	match = { class = "com.gabm.satty" },
+	float = true,
+	size = "monitor_w*0.85 monitor_h*0.85",
+	center = true,
+})
