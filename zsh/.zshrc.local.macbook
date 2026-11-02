@@ -1,0 +1,1 @@
+source "$(dirname "$(readlink -f "${(%):-%x}")")/.zshrc.local.shared"

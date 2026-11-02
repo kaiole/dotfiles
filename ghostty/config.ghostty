@@ -1,0 +1,26 @@
+config-file = ?~/dotfiles/ghostty/arch.ghostty
+config-file = ?~/dotfiles/ghostty/mac.ghostty
+
+font-family = CaskaydiaCove Nerd Font Mono
+
+theme = palette
+
+font-thicken = false
+font-feature = -calt
+
+background-opacity = 0.6
+background-blur = false
+
+cursor-style = block
+cursor-style-blink = true
+
+confirm-close-surface = false
+
+shell-integration = zsh
+
+shell-integration-features = cursor, no-sudo, no-title
+
+keybind = ctrl+enter=unbind
+keybind = ctrl+shift+o=unbind
+
+command = zsh --login -c "if command -v tmux >/dev/null 2>&1; then if tmux ls >/dev/null 2>&1; then tmux attach; else $HOME/.local/bin/tmux-sessionizer $HOME; fi; else zsh; fi"

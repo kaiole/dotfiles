@@ -1,0 +1,11 @@
+{
+  "name": "pi-woke",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Prevent automatic sleep while pi is working on Linux with systemd and hypridle.",
+  "type": "module",
+  "keywords": ["pi-package"],
+  "pi": { "extensions": ["./index.ts"] },
+  "scripts": { "test": "node --experimental-strip-types --test test/*.test.ts" },
+  "peerDependencies": { "@earendil-works/pi-coding-agent": "*" }
+}

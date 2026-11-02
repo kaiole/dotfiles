@@ -1,0 +1,8 @@
+{
+  "tui.select.up": ["up", "ctrl+p"],
+  "tui.select.down": ["down", "ctrl+n"],
+  "tui.input.tab": ["tab", "ctrl+y"],
+  "app.model.cycleForward": [],
+  "app.model.cycleBackward": [],
+  "tui.editor.cursorRight": ["right"]
+}

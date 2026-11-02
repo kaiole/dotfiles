@@ -1,0 +1,18 @@
+configuration { 
+	modes: "drun"; 
+    hide-scrollbar: true;
+	show-icons: false;
+	terminal: "ghostty";
+	// Wrap launches in sh so a missing command fails silently instead of
+	// popping rofi's "Failed to execute" dialog.
+	run-command: "sh -c 'exec \"$@\"' sh {cmd}";
+	drun-display-format: "{name}";
+	disable-history: true;
+	kb-secondary-copy: "";
+	kb-cancel: "Escape,Control+c";
+    cache-dir:"~/.cache/rofi/";
+    matching: "prefix";
+    drun-match-fields: "name";
+}
+
+@theme "theme"

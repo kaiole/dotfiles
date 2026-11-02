@@ -1,0 +1,323 @@
+#!/usr/bin/env bash
+# Requires Bash 3.2+, tmux and fzf. Configuration and presets are trusted Bash.
+
+error() { printf 'tmux-sessionizer: %s\n' "$*" >&2; }
+
+canonical_dir() (
+    # Batch resolution uses one subshell. Missing paths get an empty line so
+    # callers can associate each result with its input; single-path calls still
+    # fail as before. Neither the caller's cwd nor its CDPATH is changed.
+    local path base="$PWD" status=0
+    for path in "$@"; do
+        case "$path" in
+            '~') path="$HOME" ;;
+            '~/'*) path="$HOME/${path#\~/}" ;;
+        esac
+        CDPATH= cd -- "$base" || return
+        if CDPATH= cd -P -- "$path" 2>/dev/null; then
+            printf '%s\n' "$PWD"
+        else
+            printf '\n'; status=1
+        fi
+    done
+    return "$status"
+)
+
+is_within() {
+    [[ "$1" == "$2" || "$2" == / || "$1" == "$2/"* ]]
+}
+
+load_config() {
+    CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/tmux-sessionizer"
+    TS_SEARCH_PATHS=("$HOME")
+    TS_EXTRA_SEARCH_PATHS=()
+    TS_IGNORE_PATHS=()
+    TS_PRESET_RULES=()
+    TS_DEFAULT_PRESET=default
+    TS_PRESET_DIR="$CONFIG_DIR/presets"
+    TS_MAX_DEPTH=1
+    [[ ! -f "$CONFIG_DIR/tmux-sessionizer.conf" ]] || source "$CONFIG_DIR/tmux-sessionizer.conf" || return
+    TS_SEARCH_PATHS+=("${TS_EXTRA_SEARCH_PATHS[@]}")
+    [[ "$TS_MAX_DEPTH" =~ ^[0-9]+$ ]] || { error 'TS_MAX_DEPTH must be a nonnegative integer'; return 1; }
+
+    RULE_PATHS=(); RULE_PRESETS=(); IGNORE_PATHS=()
+    local rule path preset i=0 paths=() presets=()
+    for rule in "${TS_PRESET_RULES[@]}"; do
+        [[ "$rule" == *'|'* ]] || { error "invalid preset rule: $rule"; return 1; }
+        path=${rule%|*}; preset=${rule##*|}
+        validate_preset "$preset" || return
+        paths+=("$path"); presets+=("$preset")
+    done
+    validate_preset "$TS_DEFAULT_PRESET" || return
+    # Missing directories are normal on a freshly provisioned machine.
+    while IFS= read -r path; do
+        if [[ -n "$path" ]]; then
+            RULE_PATHS+=("$path"); RULE_PRESETS+=("${presets[i]}")
+        fi
+        i=$((i+1))
+    done < <(canonical_dir "${paths[@]}")
+    while IFS= read -r path; do
+        [[ -z "$path" ]] || IGNORE_PATHS+=("$path")
+    done < <(canonical_dir "${TS_IGNORE_PATHS[@]}")
+}
+
+validate_preset() {
+    [[ "$1" =~ ^[a-zA-Z0-9_-]+$ && -f "$TS_PRESET_DIR/$1" && -r "$TS_PRESET_DIR/$1" ]] || {
+        error "missing or invalid preset: $1 (in $TS_PRESET_DIR)"; return 1;
+    }
+}
+
+preset_for_path() {
+    local path="$1" best=-1 preset="$TS_DEFAULT_PRESET" i root
+    for ((i=0; i<${#RULE_PATHS[@]}; i++)); do
+        root=${RULE_PATHS[i]}
+        if is_within "$path" "$root" && (( ${#root} > best )); then
+            best=${#root}; preset=${RULE_PRESETS[i]}
+        fi
+    done
+    printf '%s\n' "$preset"
+}
+
+snapshot_sessions() {
+    SESSION_IDS=(); SESSION_PATHS=(); SESSION_NAMES=()
+    local id path name
+    while IFS=$'\t' read -r id path name; do
+        [[ -n "$id" ]] || continue
+        SESSION_IDS+=("$id"); SESSION_PATHS+=("$path"); SESSION_NAMES+=("$name")
+    done < <(tmux list-sessions -F $'#{session_id}\t#{session_path}\t#{session_name}' 2>/dev/null)
+}
+
+find_session_by_path() {
+    local i
+    for ((i=0; i<${#SESSION_IDS[@]}; i++)); do
+        if [[ "${SESSION_PATHS[i]}" == "$1" ]]; then
+            printf '%s\n' "${SESSION_IDS[i]}"; return 0
+        fi
+    done
+    return 1
+}
+
+name_exists() {
+    local name
+    for name in "${SESSION_NAMES[@]}"; do [[ "$name" != "$1" ]] || return 0; done
+    return 1
+}
+
+unique_session_name() {
+    local path="$1" name parent suffix=2 base
+    name=$(basename "$path" | tr '.:/ ' '____')
+    [[ -n "$name" ]] || name=root
+    parent="$path"
+    while name_exists "$name" && [[ "$parent" != / ]]; do
+        parent=$(dirname "$parent")
+        [[ "$parent" == / ]] || name="$(basename "$parent" | tr '.:/ ' '____')_$name"
+    done
+    base="$name"
+    while name_exists "$name"; do name="${base}_$suffix"; suffix=$((suffix+1)); done
+    printf '%s\n' "$name"
+}
+
+scan_dirs() {
+    # Batch canonicalization and run one find per distinct depth, not per root.
+    local entry root depth i=0 group found
+    local paths=() roots=() depths=() groups=() batch=()
+    for entry in "${TS_SEARCH_PATHS[@]}"; do
+        depth="$TS_MAX_DEPTH"; root="$entry"
+        if [[ "$entry" =~ ^(.+):([0-9]+)$ ]]; then
+            root=${BASH_REMATCH[1]}; depth=${BASH_REMATCH[2]}
+        fi
+        paths+=("$root"); depths+=("$depth")
+    done
+    while IFS= read -r root; do roots+=("$root"); done < <(canonical_dir "${paths[@]}")
+    for ((i=0; i<${#roots[@]}; i++)); do
+        [[ -n "${roots[i]}" ]] || continue
+        depth=${depths[i]}; found=false
+        for group in "${groups[@]}"; do
+            [[ "$group" != "$depth" ]] || { found=true; break; }
+        done
+        "$found" || groups+=("$depth")
+    done
+    for group in "${groups[@]}"; do
+        batch=()
+        for ((i=0; i<${#roots[@]}; i++)); do
+            [[ -z "${roots[i]}" || "${depths[i]}" != "$group" ]] || batch+=("${roots[i]}")
+        done
+        find "${batch[@]}" -maxdepth "$group" -name .git -prune -o -type d -print
+    done
+}
+
+session_candidates() {
+    local current='' i path session_path
+    [[ -z "${TMUX:-}" ]] || current=$(tmux display-message -p '#{session_id}')
+    for ((i=0; i<${#SESSION_IDS[@]}; i++)); do
+        [[ "${SESSION_IDS[i]}" == "$current" ]] || printf '[TMUX] %s\n' "${SESSION_NAMES[i]}"
+    done
+    while IFS= read -r path; do
+        for session_path in "${SESSION_PATHS[@]}"; do
+            [[ "$path" != "$session_path" ]] || continue 2
+        done
+        printf '%s\n' "$path"
+    done
+}
+
+find_dirs() {
+    if [[ "${1:-normal}" == normal ]]; then
+        find_dirs create | session_candidates
+        return
+    fi
+    local path ignored skip
+    # Canonical roots collapse symlink aliases. awk removes overlapping results.
+    while IFS= read -r path; do
+        skip=false
+        for ignored in "${IGNORE_PATHS[@]}"; do
+            if is_within "$path" "$ignored"; then skip=true; break; fi
+        done
+        "$skip" || printf '%s\n' "$path"
+    done < <(scan_dirs) | awk '!seen[$0]++'
+}
+
+# Picker helpers run in fzf's Bash callbacks; input is always passed as arguments.
+picker_filter() {
+    local input="$1" query="$2"
+    if [[ "$query" == *:* ]]; then
+        query=${query%%:*}
+        fzf --filter="$query" < "$input.create" || [[ $? == 1 ]]
+    else
+        fzf --filter="$query" < "$input" || [[ $? == 1 ]]
+    fi
+}
+
+picker_preview() {
+    local query="$1" parent="$2"
+    if [[ "$query" == *:* ]]; then
+        [[ -n "$parent" ]] || { printf 'No matching parent directory\n'; return; }
+        printf 'Create: %s/%s\n' "$parent" "${query#*:}"
+    fi
+}
+
+create_directory() {
+    local parent="$1" child="$2" target ignored
+    [[ -n "$child" && "$child" != /* ]] || { error 'new directory must be a nonempty relative path'; return 1; }
+    case "/$child/" in
+        */../*|*/./*) error 'new directory cannot contain . or .. components'; return 1 ;;
+    esac
+    parent=$(canonical_dir "$parent") || { error 'parent is not an accessible directory'; return 1; }
+    # Resolve existing symlink components before creating anything. Do not allow
+    # a nested path to escape its parent or enter an ignored directory.
+    target="$parent"
+    local remaining="$child" part
+    while [[ -n "$remaining" ]]; do
+        part=${remaining%%/*}
+        if [[ "$remaining" == */* ]]; then remaining=${remaining#*/}; else remaining=''; fi
+        [[ -n "$part" ]] || continue
+        target="$target/$part"
+        if [[ -e "$target" || -L "$target" ]]; then
+            target=$(canonical_dir "$target") || { error 'target component is not an accessible directory'; return 1; }
+        fi
+        is_within "$target" "$parent" || { error 'new directory escapes its parent'; return 1; }
+        for ignored in "${IGNORE_PATHS[@]}"; do
+            if is_within "$target" "$ignored"; then error 'new directory is ignored'; return 1; fi
+        done
+    done
+    mkdir -p -- "$target" || return
+    canonical_dir "$target"
+}
+
+fzf_select() (
+    # Subshell scopes cleanup traps to the picker, including cancellation/signals.
+    local temp command filter preview
+    temp=$(mktemp -d) || return
+    trap 'rm -rf -- "$temp"' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM HUP
+    find_dirs create > "$temp/input.create"
+    session_candidates < "$temp/input.create" > "$temp/input"
+    # fzf already starts Bash for callbacks. Define the helper in that shell
+    # instead of starting another Bash and re-reading this entire script.
+    printf -v filter '%s; picker_filter %q {q}' "$(declare -f picker_filter)" "$temp/input"
+    printf -v preview '%s; picker_preview {q} {}' "$(declare -f picker_preview)"
+    local options=(--height=100% --border="${TS_FZF_BORDER:-bold}"
+        --disabled --print-query --no-multi --with-shell='bash -c'
+        --header='' --no-header-first --header-border=none
+        --bind="change:reload($filter)+transform-header($preview)"
+        --bind="focus:transform-header($preview),result:transform-header($preview)"
+        --bind='ctrl-p:up,ctrl-n:down')
+    if [[ -z "${TMUX:-}" ]]; then
+        fzf "${options[@]}" < "$temp/input"
+    else
+        printf -v command 'fzf'
+        local option
+        for option in "${options[@]}"; do printf -v command '%s %q' "$command" "$option"; done
+        printf -v command '%s < %q > %q' "$command" "$temp/input" "$temp/output"
+        tmux display-popup -B -x C -y "${TS_FZF_POPUP_Y:-0}" \
+            -w "${TS_FZF_POPUP_WIDTH:-75}" -h "${TS_FZF_POPUP_HEIGHT:-16}" -E "$command" || return
+        [[ ! -f "$temp/output" ]] || printf '%s' "$(<"$temp/output")"
+    fi
+)
+
+switch_to() {
+    if [[ -z "${TMUX:-}" ]]; then tmux attach-session -t "$1"
+    else tmux switch-client -t "$1"; fi
+}
+
+main() {
+    case "${1:-}" in
+        -h|--help) printf 'Usage: tmux-sessionizer [directory]\n       tmux-sessionizer --new <parent-directory> <relative-name>\n\nPicker: parent-search:new-directory creates under the highlighted directory.\n'; return 0 ;;
+        --picker-filter) picker_filter "$2" "$3"; return ;;
+        --picker-preview) picker_preview "$2" "$3"; return ;;
+    esac
+    local creating=false
+    if [[ "${1:-}" == --new ]]; then
+        [[ $# -eq 3 ]] || { error 'usage: --new <parent-directory> <relative-name>'; return 1; }
+        creating=true
+    else
+        [[ $# -le 1 ]] || { error 'expected at most one directory'; return 1; }
+    fi
+    command -v tmux >/dev/null || { error 'tmux is required'; return 1; }
+    load_config || return
+    snapshot_sessions
+    local selected session name preset i query parent candidates
+    if "$creating"; then
+        parent=$(canonical_dir "$2") || { error 'parent is not an accessible directory'; return 1; }
+        candidates=$(find_dirs create)
+        printf '%s\n' "$candidates" | grep -Fx -- "$parent" >/dev/null || {
+            error 'parent must be an eligible directory in the picker'; return 1;
+        }
+        selected=$(create_directory "$parent" "$3") || return
+    elif [[ $# -eq 1 ]]; then selected="$1"
+    else
+        command -v fzf >/dev/null || { error 'fzf is required for the picker'; return 1; }
+        selected=$(fzf_select) || return 0
+        [[ "$selected" == *$'\n'* ]] || return 0
+        query=${selected%%$'\n'*}
+        selected=${selected#*$'\n'}
+        if [[ "$query" == *:* && -n "$selected" ]]; then
+            [[ "$selected" != '[TMUX] '* ]] || { error 'select a directory, not a session'; return 1; }
+            selected=$(create_directory "$selected" "${query#*:}") || return
+        fi
+    fi
+    [[ -n "$selected" ]] || return 0
+    if [[ $# -eq 0 && "$selected" == '[TMUX] '* ]]; then
+        for ((i=0; i<${#SESSION_IDS[@]}; i++)); do
+            if [[ "${SESSION_NAMES[i]}" == "${selected#\[TMUX\] }" ]]; then
+                switch_to "${SESSION_IDS[i]}"; return
+            fi
+        done
+        error 'selected session no longer exists'; return 1
+    fi
+    selected=$(canonical_dir "$selected") || { error "not an accessible directory: ${1:-selection}"; return 1; }
+    # Refresh after the picker, which may have been open for a while.
+    snapshot_sessions
+    if ! session=$(find_session_by_path "$selected"); then
+        name=$(unique_session_name "$selected")
+        preset=$(preset_for_path "$selected")
+        session=$(tmux new-session -d -P -F '#{session_id}' -s "$name" -c "$selected") || return
+        if ! TS_SESSION="$session" TS_PATH="$selected" bash "$TS_PRESET_DIR/$preset"; then
+            error "preset '$preset' failed; session $session was preserved for inspection"
+            return 1
+        fi
+    fi
+    switch_to "$session"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then main "$@"; fi

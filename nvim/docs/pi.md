@@ -1,0 +1,187 @@
+# Pi in Neovim
+
+Uses the local `~/personal/pi-nvim` toolkit and Pi on Neovim's `$PATH`.
+The integration is skipped if the toolkit checkout is missing. Configure your
+model/credentials in Pi beforehand. Startup and opening windows do not call a
+model; **sending a question can incur charges**.
+
+## Workflow
+
+1. Collect context while visiting source buffers. Nothing attaches automatically.
+2. `:PiAsk` (or `<leader>pa`) opens the floating Markdown draft with attachments
+   underneath. Closing it hides both panes, retaining text, cursor and undo.
+3. Write your question. Use normal-mode `<Tab>` to switch between the panes.
+4. Refer to attachments in your question using their stable IDs, e.g.
+   `Explain @1 and compare it with @2`. In the attachment pane, `i` inserts the
+   selected reference before your preserved draft cursor and returns to the
+   draft in Normal mode. `<Enter>` previews it, `d` removes it, and `r` refreshes
+   it from its original source. Changed sources are marked.
+5. `:PiPreview` (draft normal-mode `gP`) previews the outgoing user message
+   (question and attachments, not system instructions or conversation history).
+6. `:PiSend` or draft-local `<C-s>` sends. Enter inserts a newline as usual.
+   Writing or closing the draft never sends it.
+7. The answer streams into a read-only conversation split. `:PiChat` or
+   `<leader>pc` reopens it. Normal-mode `q` hides a view without cancelling work.
+
+## Model and thinking
+
+- `:PiModel` opens a picker of Pi's available authenticated models.
+- `:PiThinking` opens a picker of thinking levels supported by the active model.
+  Non-reasoning models offer only `off`; no model IDs or levels are hardcoded.
+- In the composer, **`<C-g>` selects the model** and **`<C-t>` selects thinking**,
+  in Normal or Insert mode. These use the same actions as the commands.
+- The composer title shows `model · thinking · ephemeral`. Before Pi has started,
+  it shows default placeholders; actual settings come from Pi's state handshake.
+  Pending choices appear after an arrow.
+
+Pickers explicitly start the RPC process if needed, but **never send a prompt or
+call a model**. Cancelling one leaves the settings unchanged. Draft text, cursor,
+undo, attachments and conversation history are retained when settings change.
+
+Idle changes are applied immediately and read back from Pi. During an answer,
+choices wait for settlement and submission acknowledgement before being applied,
+so they affect the **next request**, not later tool turns in the current answer.
+If a model change is queued, a thinking-picker request waits until that model is
+active, then discovers its supported levels. Switching models uses Pi's model
+thinking defaults/capability clamping; any effective thinking adjustment is shown
+in the title and a notification.
+
+Finish an open picker or wait for an applying change before sending; an attempted
+send during either is refused with the draft intact. Pi startup/shutdown also
+needs to finish before opening another picker. A rejected change leaves the last
+confirmed settings usable. An ambiguous transport failure or failed readback
+stops Pi and requires `:PiNew`, rather than sending under uncertain settings.
+
+These changes are **conversation-local**: they don't rewrite Pi's saved global
+defaults. `:PiNew` returns to startup defaults. Sessions remain ephemeral and
+read-only; slash commands, skills, persistence controls and session browsing are
+not added here.
+
+## Context commands
+
+| Command | Context | Mapping |
+|---|---|---|
+| `:PiAttachFile [path]` | Disk file reference; defaults to current file | `<leader>pf` |
+| `:PiAttachBuffer` | Complete unsaved editor buffer | — |
+| `:PiAttachDiagnostics` | All diagnostics in the source buffer | `<leader>pD` |
+| `:PiAttachDiagnostic` | Diagnostic covering the cursor; picker on overlaps | `<leader>pd` |
+| `:PiAttachSelection` | Active Visual selection | Visual `<leader>pv` |
+| `:'<,'>PiAttachSelection` | Explicit linewise Ex range | — |
+| `:PiAttachQuickfix` | Current quickfix list entries and title | `<leader>pq` |
+
+Every successful attachment shows a command-line confirmation, including Visual
+selections after leaving Visual mode. Attachment commands don't open/focus the
+composer or alter quickfix. Run file/buffer/diagnostic/selection commands from the
+source buffer, not a Pi view.
+The Visual mapping preserves characterwise/multibyte selection boundaries. An
+Ex range is linewise. Blockwise/virtual-space selections aren't supported by
+the toolkit and produce an error rather than silently capturing different text.
+
+Paths display relative to the conversation workspace where possible; external
+paths remain absolute. Explicit relative `PiAttachFile` paths resolve against
+that workspace. A file reference asks Pi to read disk with its tools; it is not
+an automatic upload. For modified files, choose an unsaved buffer snapshot, a
+disk reference, or cancel. Buffers are never silently saved.
+
+Outgoing messages contain the question and explicit attachments, without a
+repeated workspace header. Editor snapshots include paths, filetypes, text and
+zero-based byte positions; diagnostics include readable severity and nonempty
+source/code fields. Toolkit snapshot IDs, buffer numbers, changedticks, namespaces
+and encoding/EOL/BOM details stay internal. Quickfix omits unused fields.
+
+Selections, diagnostics and quickfix are frozen when attached. Sending refuses
+changed attachments until you refresh/remove them. Refreshing a selection uses
+its original coordinates, **not tracking a moved selection**; reattach after
+structural edits. A refreshed single diagnostic must still uniquely cover its
+original position. Diagnostic publication can lag behind edits; freshness checks
+are not proof that the LSP's diagnostic is up to date. Quickfix includes entry
+messages/paths/locations, not the contents of every referenced file.
+
+## Attachment references
+
+Attachments have stable references (`@1`, `@2`, etc.) shown in confirmations,
+attachment lists, previews, outgoing messages and conversation summaries.
+Deleting an attachment doesn't renumber the remaining ones. IDs aren't recycled
+when sending, clearing a draft or starting another conversation.
+
+Single diagnostic labels show path, one-based line/byte column, severity and a
+message excerpt. Selection labels show line ranges; buffers are editor snapshots
+and files are disk references. A reference names the entire attachment: for a
+bundle, say e.g. `the second diagnostic in @3`, or attach diagnostics separately.
+
+Standalone `@<digits>` tokens in the question are attachment references (including
+inside Markdown backticks); email/identifier suffixes aren't. An unknown or
+removed unsent reference refuses sending and warns on preview. Remove the token
+or reattach the context under its new ID. Previously accepted attachments remain
+referenceable within the same conversation. Referencing one includes its original
+serialized context again, even if its source has since changed. A disk reference
+still only identifies a file; tools read current disk contents, not archived bytes.
+
+Refreshing an unsent attachment retains its ID. Once accepted, its ID identifies
+the original attachment. Refreshing a restored attachment with changed contents
+assigns a new ID and notifies you; an unchanged refresh retains the ID. Pending
+acknowledgements also reserve IDs. Refresh never rewrites your draft: update its
+references to use the new snapshot, or name both IDs to compare them. `:PiNew`
+clears access to previously sent attachments; unfinished current attachments are
+preserved when the directory stays the same.
+
+## Conversation and recovery
+
+- One continuing **in-memory** conversation, using the same running RPC client.
+  Hiding windows doesn't stop/reset Pi. There is no connection to a separate Pi
+  terminal session. Drafts and conversation do not survive restarting Neovim.
+- The session directory is Neovim's current working directory on first use,
+  pinned for that conversation. Source-file locations and Git roots don't change it.
+- `:PiNew` starts a fresh conversation using Neovim's current working directory.
+  `:PiNew /other/project` uses an explicit directory instead. An unfinished draft
+  is preserved if the directory is unchanged; changing directories requires an
+  empty draft/attachment list. It clears the displayed conversation and archive.
+- Successful submission archives and clears the sent draft/attachments, hiding
+  the composer to show the answer. If you changed the draft or added context
+  while awaiting acknowledgement, it stays open and your changes aren't erased. A submission/startup
+  failure preserves the draft. Acceptance isn't the same as a successful answer.
+- `:PiRestore` (draft `gR`) restores the last accepted draft with its attachments,
+  including after cancellation/provider failure. Clear your current draft first.
+- `:PiClear` (draft normal-mode `gC`) discards the unfinished draft and attachments explicitly. Deleting
+  draft text with Vim motions leaves attachments intact.
+- A second send while busy is refused; the next draft remains intact. There is
+  no implicit queue or steering.
+- `:PiAbort` clears any Pi queue, then aborts the current work. The conversation
+  remains usable after ordinary cancellation.
+- A three-minute whole-task deadline stops Pi. Cancellation failure or an
+  unexpected process exit also requires `:PiNew`, so a lost conversation isn't
+  silently replaced. An ambiguous acknowledgement/transport failure stops Pi
+  rather than pretending the prompt couldn't have executed. Stop/exit retains partial output and the submitted archive.
+- Prompts over 1 MiB are refused without truncation. Remove large attachments.
+
+## Explain/investigate only
+
+Only `read`, `grep`, `find`, and `ls` tools are enabled. There is no shell,
+editing, or writing tool. Extensions, skills, prompt templates and automatic
+context-file discovery are disabled for this client; instructions attached in
+source are treated as data. Attachments guide attention, **not filesystem access**.
+
+This is a tool allowlist, not an OS sandbox. Pi, settings, credential helpers and
+the configured provider remain trusted executable components. Review context
+before sending it, especially unsaved buffers and diagnostic/build messages.
+
+## Files and verification
+
+- `lua/plugins/pi.lua`: local toolkit loading, mappings, teardown.
+- `lua/config/pi/init.lua`: workflow ownership, commands, Pi lifecycle.
+- `lua/config/pi/context.lua`: detached attachment capture and serialization.
+- `lua/config/pi/settings.lua`: model/thinking discovery, pickers and deferred changes.
+- `lua/config/pi/view.lua`: composer, attachment, preview and chat windows.
+
+Reload by executing `:lua dofile(vim.fn.stdpath('config') .. '/lua/plugins/pi.lua')`.
+Reload explicitly disposes the old process/UI/commands/mappings and discards its
+in-memory state. Removing the integration requires removing its `init.lua`
+require. Colors use existing highlights; no palette changes are needed.
+
+Deterministic tests (Python 3, Neovim and the local toolkit; no provider/network):
+
+```sh
+nvim --headless -u NONE -l tests/pi.lua
+stylua --check lua/config/pi lua/plugins/pi.lua tests/pi.lua init.lua
+nvim --headless +qa
+```

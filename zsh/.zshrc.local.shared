@@ -1,0 +1,7 @@
+# Standalone commands are installed by ../scripts/install.
+# Remove legacy functions when reloading an existing shell.
+unfunction cfmt tidy scratch _scratch 2>/dev/null
+
+fpath=("${${(%):-%x}:A:h}/completions" ${fpath:#${${(%):-%x}:A:h}/completions})
+autoload -Uz _scratch
+compdef _scratch scratch

@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# Host-side bridge. The club repositories and the host shell stay independent.
+set -euo pipefail
+SELF=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/ros-tmux
+
+# Shell-quote arguments for tmux's command string (also safe for a Zsh default-shell).
+quote_command() {
+    local arg
+    for arg in "$@"; do
+        arg=${arg//\'/\'\\\'\'}
+        printf "'%s' " "$arg"
+    done
+}
+
+ensure_container_ready() {
+    local container=$1 lock_dir
+    [[ "$container" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]] || {
+        echo 'ros-tmux: invalid container name' >&2; return 1;
+    }
+    lock_dir="${XDG_RUNTIME_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}}/ros-tmux"
+    mkdir -p -m 700 -- "$lock_dir" || return
+    # Distrobox's cold-start progress readers share a per-container FIFO. Two
+    # simultaneous entrants can split its lines/completion marker and hang.
+    # Serialize a SHORT readiness entry, not the interactive shell's lifetime.
+    # A container reports running before Distrobox finishes initializing it, so
+    # check under the lock: a concurrent entrant waits for the cold start's
+    # probe, then skips its own. Children get the lock descriptor closed so
+    # container processes cannot hold it.
+    (
+        flock 9 || exit
+        container_running "$container" 9>&- ||
+            distrobox enter --name "$container" --no-workdir --no-tty -- /bin/true 9>&-
+    ) 9>"$lock_dir/$container.lock"
+}
+
+container_running() {
+    # ~80 ms versus ~420 ms for a probe entry. Any failure means "probe".
+    [[ $("${DBX_CONTAINER_MANAGER:-podman}" container inspect \
+        -f '{{.State.Running}}' "$1" 2>/dev/null) == true ]]
+}
+
+shell() {
+    local container root cwd pane result state
+    pane=${TMUX_PANE:?ros-tmux must run in a tmux pane}
+    container=$(tmux show-options -qv -t "$pane" @ros_container)
+    root=$(tmux show-options -qv -t "$pane" @ros_root)
+    cwd=${1:-$root}
+    if (( $# )); then shift; fi
+    [[ -n "$container" && "$cwd" == /* ]] || { echo 'ros-tmux: missing container or absolute directory' >&2; return 1; }
+    # /tmp is shared with Distrobox. A private, per-shell directory avoids
+    # tmux-version coupling and host-spawn/DBus dependencies. NUL termination
+    # preserves whitespace; the Zsh hook replaces this file atomically.
+    state=$(mktemp -d "/tmp/ros-tmux.${UID}.XXXXXXXX")
+    trap 'rm -f -- "$state/cwd" "$state/cwd.tmp" "$state/prompt" "$state/nvim-normal"; rmdir -- "$state" 2>/dev/null || true' EXIT
+    printf '%s\0' "$cwd" > "$state/cwd"
+    tmux set-option -p -t "$pane" @ros_state "$state"
+    result=0
+    if ensure_container_ready "$container"; then
+        distrobox enter --name "$container" --no-workdir -- /usr/bin/env \
+            -u TMUX -u TMUX_PANE ROS_TMUX_STATE="$state" \
+            ZDOTDIR="/run/host${SELF%/*}/ros-zsh" \
+            /bin/zsh -f -c '
+                cd -- "$1" || exit
+                shift
+                if (( $# )); then
+                    exec /bin/zsh -i -c '\''_ros_tmux_report_cwd; "$@"; exec /bin/zsh -i'\'' ros-command "$@"
+                fi
+                exec /bin/zsh -i
+            ' ros-shell "$cwd" "$@" || result=$?
+    else
+        result=$?
+    fi
+    if (( result != 0 )); then
+        printf '\nROS shell exited with status %s. No host shell was started.\nPress Enter to close this pane.\n' "$result" >&2
+        read -r _ || true
+    fi
+    rm -f -- "$state/cwd" "$state/cwd.tmp" "$state/prompt" "$state/nvim-normal"
+    rmdir -- "$state"
+    trap - EXIT
+    return "$result"
+}
+
+create() {
+    local pane=$1 action=$2 container cwd root command state target
+    shift 2
+    case "$action" in new-window|split-window) ;; *) echo "Invalid action: $action" >&2; return 1 ;; esac
+    target=$pane
+    if [[ "$action" == new-window ]]; then
+        target=$(tmux display-message -p -t "$pane" '#{session_id}:')
+    fi
+    container=$(tmux show-options -qv -t "$pane" @ros_container)
+    # tmux.conf routes only ROS sessions here; host sessions never run this script.
+    [[ -n "$container" ]] || { echo 'ros-tmux: pane is not in a ROS session' >&2; return 1; }
+    root=$(tmux show-options -qv -t "$pane" @ros_root)
+    state=$(tmux show-options -pqv -t "$pane" @ros_state)
+    cwd=$root
+    if [[ -n "$state" && -r "$state/cwd" ]]; then
+        IFS= read -r -d '' cwd < "$state/cwd" || cwd=$root
+    fi
+    command=$(quote_command "$SELF" shell "$cwd")
+    tmux "$action" -t "$target" -c "$root" "$@" "$command"
+}
+
+picker() {
+    local pane=$1 state
+    state=$(tmux show-options -pqv -t "$pane" @ros_state)
+    # At a Zsh prompt, or in Neovim's normal mode (where its own Ctrl-F mapping
+    # means sessionizer but cannot reach this host script). nvim-normal is kept
+    # by nvim/lua/config/sessionizer.lua.
+    if [[ -n "$state" && ( -e "$state/prompt" || -e "$state/nvim-normal" ) ]]; then
+        exec "${SELF%/*}/tmux-sessionizer"
+    else
+        # Do not steal Ctrl-F from Neovim's other modes, less, or other programs.
+        tmux send-keys -t "$pane" C-f
+    fi
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    case "${1:-}" in
+        shell) shift; shell "$@" ;;
+        create) shift; create "$@" ;;
+        picker) shift; picker "$@" ;;
+        *) echo 'Usage: ros-tmux shell [container-directory [command args...]] | create PANE new-window|split-window [tmux-options] | picker PANE' >&2; exit 2 ;;
+    esac
+fi

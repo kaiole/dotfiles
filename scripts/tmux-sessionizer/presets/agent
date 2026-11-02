@@ -1,0 +1,3 @@
+tmux new-window -t "$TS_SESSION:" -c "$TS_PATH" -n vim 'nvim; exec $SHELL'
+tmux new-window -t "$TS_SESSION:" -c "$TS_PATH" -n agent
+tmux select-window -t "$TS_SESSION:vim"

@@ -1,0 +1,61 @@
+#!/usr/bin/env zsh
+
+main() {
+  if (( $# == 0 )); then
+    echo "Usage: cfmt <path> [...]" >&2
+    return 1
+  fi
+
+  if ! command -v clang-format >/dev/null 2>&1; then
+    echo "cfmt: clang-format not found" >&2
+    return 127
+  fi
+
+  local target
+  for target in "$@"; do
+    if [[ ! -e "$target" ]]; then
+      echo "cfmt: not found: $target" >&2
+      return 1
+    fi
+
+    if [[ ! -d "$target" && ! -f "$target" ]]; then
+      echo "cfmt: not a file or directory: $target" >&2
+      return 1
+    fi
+
+    if [[ -f "$target" ]]; then
+      case "$target" in
+        *.c|*.h|*.cc|*.hh|*.cpp|*.hpp|*.cxx|*.hxx|*.m|*.mm) ;;
+        *)
+          echo "cfmt: unsupported file type: $target" >&2
+          return 1
+          ;;
+      esac
+    fi
+  done
+
+  for target in "$@"; do
+    if [[ -f "$target" ]]; then
+      clang-format -i -- "$target" || return 1
+      continue
+    fi
+
+    find "$target" \
+      \( -type d \( \
+        -name .git -o \
+        -name build -o \
+        -name vendor -o \
+        -name third_party -o \
+        -name node_modules \
+      \) -prune \) -o \
+      \( -type f \( \
+        -name '*.c' -o -name '*.h' -o \
+        -name '*.cc' -o -name '*.hh' -o \
+        -name '*.cpp' -o -name '*.hpp' -o \
+        -name '*.cxx' -o -name '*.hxx' -o \
+        -name '*.m' -o -name '*.mm' \
+      \) -exec clang-format -i -- {} + \) || return 1
+  done
+}
+
+main "$@"

@@ -1,0 +1,2 @@
+# User-level fallback: ruff reads this only when a project has no ruff config of its own.
+line-length = 80

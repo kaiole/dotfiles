@@ -1,0 +1,2 @@
+tmux new-window -t "$TS_SESSION:" -c "$TS_PATH" -n yazi 'yazi; exec $SHELL'
+tmux select-window -t "$TS_SESSION:yazi"

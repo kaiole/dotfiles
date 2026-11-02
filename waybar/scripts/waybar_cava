@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+
+set -o pipefail
+
+#----- Optimized bars animation without much CPU usage increase --------
+bar="▁▂▃▄▅▆▇█"
+dict="s/;//g"
+
+# Calculate the length of the bar outside the loop
+bar_length=${#bar}
+
+# Create dictionary to replace char with bar
+for ((i = 0; i < bar_length; i++)); do
+    dict+=";s/$i/${bar:$i:1}/g"
+done
+
+# Each bar owns its config and children, so multiple monitors cannot interfere.
+work_dir=$(mktemp -d "${TMPDIR:-/tmp}/waybar-cava.XXXXXXXX") || exit 1
+config_file="$work_dir/config"
+cava_pid=
+renderer_pid=
+
+cleanup() {
+    trap '' INT TERM
+    for pid in "$cava_pid" "$renderer_pid"; do
+        if [[ -n "$pid" ]]; then
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+        fi
+    done
+    rm -f -- "$config_file" "$work_dir/frames"
+    rmdir -- "$work_dir"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+mkfifo "$work_dir/frames" || exit 1
+cat >"$config_file" <<EOF
+[general]
+bars = 10
+# 30 fps is smooth for 10 bars; sleep after 1 s of silence so waybar stops redrawing.
+framerate = 30
+sleep_timer = 1
+
+[input]
+method = pulse
+source = auto
+
+[output]
+method = raw
+raw_target = /dev/stdout
+data_format = ascii
+ascii_max_range = 7
+EOF
+
+# Run both children in the background so signals interrupt wait and run cleanup.
+cava -p "$config_file" >"$work_dir/frames" &
+cava_pid=$!
+
+# Only render complete bar frames; CAVA can emit terminal escapes on failure.
+sed -u -n -E "/^([0-7];){10}$/ { $dict; p; }" <"$work_dir/frames" &
+renderer_pid=$!
+
+wait "$cava_pid"
+status=$?
+cava_pid=
+wait "$renderer_pid" || status=$?
+renderer_pid=
+exit "$status"

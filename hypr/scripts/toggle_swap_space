@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+workspace_name="swap"
+workspace_target="name:${workspace_name}"
+state_file="${XDG_RUNTIME_DIR:-/tmp}/hypr-swap-workspace"
+
+dispatch_workspace() {
+    local workspace="$1"
+    local workspace_json
+    workspace_json="$(jq -Rn --arg workspace "${workspace}" '$workspace')"
+    hyprctl dispatch "hl.dsp.focus({ workspace = ${workspace_json} })" >/dev/null
+}
+
+current_workspace="$(hyprctl activeworkspace -j | jq -r '.name')"
+
+if [[ "${current_workspace}" == "${workspace_name}" ]]; then
+    if [[ -s "${state_file}" ]]; then
+        previous_workspace="$(<"${state_file}")"
+        dispatch_workspace "${previous_workspace}"
+        rm -f "${state_file}"
+    fi
+    exit 0
+fi
+
+if [[ "${current_workspace}" =~ ^[0-9]+$ ]]; then
+    printf '%s' "${current_workspace}" >"${state_file}"
+else
+    printf 'name:%s' "${current_workspace}" >"${state_file}"
+fi
+
+dispatch_workspace "${workspace_target}"

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+helper="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)/ros-tmux"
+# This is a host tmux session whose interactive shells all run in Ubuntu.
+tmux set-option -t "$TS_SESSION" @ros_container ubuntu-ros
+tmux set-option -t "$TS_SESSION" @ros_root "$TS_PATH"
+printf -v command "'%s' shell" "${helper//\'/\'\\\'\'}"
+tmux set-option -t "$TS_SESSION" default-command "$command"
+# Sessionizer created the first host pane before applying the preset. Replace
+# that fresh pane, not any pre-existing user session.
+pane=$(tmux display-message -p -t "$TS_SESSION:" '#{pane_id}')
+tmux rename-window -t "$pane" zsh
+tmux respawn-pane -k -t "$pane" -c "$TS_PATH" "$command"
+printf -v editor_command "%s '%s' nvim" "$command" "${TS_PATH//\'/\'\\\'\'}"
+editor=$(tmux new-window -t "$TS_SESSION:" -c "$TS_PATH" -n nvim -P -F '#{pane_id}' "$editor_command")
+tmux select-window -t "$editor"

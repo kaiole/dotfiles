@@ -1,0 +1,15 @@
+[submodule "pi/picosystem/split-editor"]
+	path = pi/picosystem/split-editor
+	url = https://github.com/kyleqbnguyen/split-editor
+[submodule "pi/picosystem/pdf-reader"]
+	path = pi/picosystem/pdf-reader
+	url = git@github.com:kyleqbnguyen/pdf-reader.git
+[submodule "pi/picosystem/notifi"]
+	path = pi/picosystem/notifi
+	url = git@github.com:kyleqbnguyen/pi-notifi.git
+[submodule "pi/skills"]
+	path = pi/skills
+	url = git@github.com:kaiole/skills.git
+[submodule "pi/picosystem/sub-agents"]
+	path = pi/picosystem/sub-agents
+	url = git@github.com:kaiole/sub-agents.git

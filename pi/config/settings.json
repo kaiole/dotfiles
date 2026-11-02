@@ -1,0 +1,27 @@
+{
+  "lastChangelogVersion": "1.4.0",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-6.1-sol",
+  "defaultThinkingLevel": "low",
+  "packages": [
+    "~/dotfiles/pi/picosystem/pdf-reader",
+    "~/dotfiles/pi/picosystem/firecrawl",
+    "~/dotfiles/pi/picosystem/split-editor",
+    "~/dotfiles/pi/picosystem/footer",
+    "~/dotfiles/pi/picosystem/notifi",
+    "~/dotfiles/pi/picosystem/log",
+    "~/dotfiles/pi/picosystem/sub-agents",
+    "~/dotfiles/pi/picosystem/woke"
+  ],
+  "skills": [
+    "~/dotfiles/pi/skills/"
+  ],
+  "theme": "palette",
+  "tuiMode": "regular",
+  "showHardwareCursor": true,
+  "hideThinkingBlock": true,
+  "enableInstallTelemetry": false,
+  "subagents": {
+    "maxConcurrent": 4
+  }
+}
