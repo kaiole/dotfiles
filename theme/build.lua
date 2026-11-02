@@ -90,15 +90,40 @@ table.sort(outputs, function(a, b)
 	return a.rel < b.rel
 end)
 
+local function read(path)
+	local f = io.open(path)
+	if not f then
+		return nil
+	end
+	local text = f:read("*a")
+	f:close()
+	return text
+end
+
+-- Skip unchanged files so a no-op rebuild doesn't wake file watchers (pi, hyprcast).
+local changed, rels = 0, {}
 for _, out in ipairs(outputs) do
 	local path = repo .. "/" .. out.rel
-	vim.fn.mkdir(vim.fs.dirname(path), "p")
-	local f = assert(io.open(path, "w"))
-	f:write(out.text)
-	f:close()
-	io.stdout:write("  " .. out.rel .. "\n")
-	if vim.system({ "git", "-C", repo, "check-ignore", "-q", out.rel }):wait().code ~= 0 then
-		io.stderr:write("theme: warning: " .. out.rel .. " is not in .gitignore\n")
+	rels[#rels + 1] = out.rel
+	if read(path) ~= out.text then
+		vim.fn.mkdir(vim.fs.dirname(path), "p")
+		local f = assert(io.open(path, "w"))
+		f:write(out.text)
+		f:close()
+		changed = changed + 1
+		io.stdout:write("  " .. out.rel .. "\n")
 	end
 end
-io.stdout:write(("theme: rendered %d files with '%s'\n"):format(#outputs, name))
+
+-- One git call for all outputs; per-file calls dominated the build time.
+local ignored = {}
+local check = vim.system({ "git", "-C", repo, "check-ignore", "--", unpack(rels) }, { text = true }):wait()
+for rel in (check.stdout or ""):gmatch("[^\n]+") do
+	ignored[rel] = true
+end
+for _, rel in ipairs(rels) do
+	if not ignored[rel] then
+		io.stderr:write("theme: warning: " .. rel .. " is not in .gitignore\n")
+	end
+end
+io.stdout:write(("theme: rendered %d files with '%s' (%d changed)\n"):format(#outputs, name, changed))

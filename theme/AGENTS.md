@@ -22,7 +22,7 @@ app**. Both are below.
   | `{{key}}` | `#rrggbb` | most configs |
   | `{{key:hex}}` | `rrggbb` | configs that want no `#`, or need alpha: `rgba({{bg:hex}}ff)` |
   | `{{key:rgb}}` | `r;g;b` | ANSI truecolor (`38;2;{{fg:rgb}}`) |
-| `{{key:list}}` | `r, g, b` | JSON integer arrays (Chromium theme: `[{{bg:list}}]`) |
+  | `{{key:list}}` | `r, g, b` | JSON integer arrays (Chromium theme: `[{{bg:list}}]`) |
 
 - An unknown key, an unknown format or a missing palette key makes the build exit 1 and write nothing.
 - Rendered outputs are **gitignored**. Never edit an output; edit its template.
