@@ -16,6 +16,7 @@ place; [`AGENTS.md`](AGENTS.md) lists exactly where each one goes.
 | `hyprcast/` | Hyprcast overlay | Linux |
 | `satty/` | [Satty](https://github.com/Satty-org/Satty) (screenshot annotation) | Linux |
 | `fontconfig/`, `user-dirs.dirs` | fontconfig, xdg-user-dirs | Linux |
+| `pacman/` | makepkg (AUR build flags) | Linux |
 | `aerospace/` | [AeroSpace](https://github.com/nikitabobko/AeroSpace) (tiling WM) | macOS |
 | `nvim/` | [Neovim](https://neovim.io/) | both |
 | `tmux/` | [tmux](https://github.com/tmux/tmux) | both |
