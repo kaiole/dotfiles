@@ -7,7 +7,7 @@ use crate::{Result, text::Font, thumbs::Wallpaper};
 /// Tiles per page.
 pub const COLUMNS: usize = 6;
 
-/// The geometry of the old rofi theme (rofi/applets/wall_select.rasi), in
+/// The geometry of the rofi theme this replaced, in
 /// buffer pixels: a full-width strip holding one row of tiles, each a square
 /// icon above a one-line label.
 #[derive(Clone, Copy, Debug, PartialEq)]
