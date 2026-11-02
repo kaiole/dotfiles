@@ -25,9 +25,11 @@ only says where things live and how they connect.
 
 - Commit coherent changes, not each iteration. Include their tests and docs.
 - Small incidental cleanup can ride along; keep unrelated behavior changes separate.
-- Use a short imperative subject naming the change, ideally under 50 characters.
-  Plain subjects are preferred; no required prefix or body. Explain only non-obvious
-  reasons or consequences in a body. Avoid vague messages like `update` or `more`.
+- Follow Conventional Commits (`type(scope): summary`, scope = component dir)
+  and standard git message format: imperative subject under 50 characters, a
+  blank line, then a short body wrapped at 72 columns saying what changed and
+  why. Skip the body when the subject says it all; use `- ` bullets for
+  several distinct changes.
 
 ## Components
 
