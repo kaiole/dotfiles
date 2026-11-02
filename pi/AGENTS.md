@@ -62,5 +62,5 @@ pi loads code in two ways:
 
 - Run `/reload` in a running pi, or restart it.
 - Packages with tests: `npm test` in `firecrawl/`, `woke/`, `sub-agents/`;
-  `npm run check` in `immortalize/`. `typecheck` also exists in `firecrawl/` and
+  `npm run check` in `immortalize/`, `notifi/`. `typecheck` also exists in `firecrawl/` and
   `sub-agents/`.
