@@ -64,7 +64,7 @@ reload() {
   (( ok )) && print "reloaded: nvim ($ok)"
   (( busy )) && print "nvim: $busy server(s) busy; run :colorscheme palette there if colors stay stale"
   print "reload themselves: pi, hyprcast overlay"
-  print "next launch: rofi, yazi, btop, fastfetch, zsh prompt/fzf/dircolors"
+  print "next launch: rofi, yazi, btop, fastfetch, satty, zsh prompt/fzf/dircolors"
   pgrep -x helium &>/dev/null && print "helium: press Reload on Palette in chrome://extensions"
   return 0
 }

@@ -17,6 +17,7 @@ hyprcast/overlay.toml
 pi/themes/palette.json
 tmux/colors.conf
 yazi/theme.toml
+satty/overrides.css
 zsh/themes/.dircolors
 zsh/themes/colors.zsh
 zsh/themes/zsh.zsh-theme
