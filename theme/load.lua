@@ -25,9 +25,13 @@ function M.palette(name)
 	local path = M.root .. "/palettes/" .. name .. ".lua"
 	local chunk, err = loadfile(path)
 	if not chunk then
-		error("theme: cannot load palette '" .. name .. "': " .. err, 0)
+		error("cannot load palette '" .. name .. "': " .. err, 0)
 	end
-	return chunk(), name
+	local palette = chunk()
+	if type(palette) ~= "table" then
+		error("palette '" .. name .. "' must return a table", 0)
+	end
+	return palette, name
 end
 
 return M

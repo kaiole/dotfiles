@@ -46,11 +46,23 @@ reload() {
   if pgrep -x dunst &>/dev/null && (( $+commands[dunstctl] )); then
     $to dunstctl reload &>/dev/null && print "reloaded: dunst"
   fi
-  local n=0
-  for s in ${XDG_RUNTIME_DIR:-/nonexistent}/nvim.*(N=) ${TMPDIR:-/tmp}/nvim.$USER/*/nvim.*(N=); do
-    $to nvim --server "$s" --remote-expr 'luaeval("require(\"config.theme\").reload()")' &>/dev/null && (( ++n ))
-  done
-  (( n )) && print "reloaded: nvim ($n)"
+  # In parallel: one busy nvim would otherwise stall the rest for its whole timeout.
+  # Prints "ok" per reloaded nvim and "busy" per timeout; stale sockets fail silently.
+  local -a res=(${(f)"$(
+    for s in ${XDG_RUNTIME_DIR:-/nonexistent}/nvim.*(N=) ${TMPDIR:-/tmp}/nvim.$USER/*/nvim.*(N=); do
+      {
+        if $to nvim --server "$s" --remote-expr 'luaeval("require(\"config.theme\").reload()")' &>/dev/null; then
+          print ok
+        elif (( $? == 124 )); then
+          print busy
+        fi
+      } &
+    done
+    wait
+  )"})
+  local ok=${#${(M)res:#ok}} busy=${#${(M)res:#busy}}
+  (( ok )) && print "reloaded: nvim ($ok)"
+  (( busy )) && print "nvim: $busy server(s) busy; run :colorscheme palette there if colors stay stale"
   print "reload themselves: pi, hyprcast overlay"
   print "next launch: rofi, yazi, btop, fastfetch, zsh prompt/fzf/dircolors"
   pgrep -x helium &>/dev/null && print "helium: press Reload on Palette in chrome://extensions"

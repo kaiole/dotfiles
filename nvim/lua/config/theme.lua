@@ -9,7 +9,7 @@ function M.palette()
 	if ok then
 		return palette
 	end
-	vim.notify(palette .. "; falling back to " .. loader.default, vim.log.levels.WARN)
+	vim.notify("theme: " .. palette .. "; falling back to " .. loader.default, vim.log.levels.WARN)
 	return (loader.palette(loader.default))
 end
 
