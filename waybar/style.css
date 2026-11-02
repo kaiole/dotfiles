@@ -16,6 +16,12 @@ window#waybar {
     color: @fg;
 }
 
+/* Zen (SIGUSR1) hides the bar with opacity 0. With a solid background, GTK
+   still marks the surface opaque, so Hyprland shows black there for ~0.5s. */
+window#waybar.hidden {
+    background: transparent;
+}
+
 tooltip {
     background: @bg;
     border-radius: 0px;
