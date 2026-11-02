@@ -54,7 +54,7 @@ only says where things live and how they connect.
 | `btop/` | `~/.config/btop/themes` | Theme only (generated); `btop.conf` is untracked | — |
 | `fastfetch/` | `~/.config/fastfetch` | `config.jsonc` is fully generated; edit the template | — |
 | `helium/` | loaded unpacked in Helium (`chrome://extensions`) | `theme/manifest.json` is a generated theme extension; reload it there after `theme set` | — |
-| `hyprcast/` | `~/.config/hyprcast` | `overlay.toml` generated; `demo-*.toml` are standalone variants | — |
+| `hyprcast/` | `~/.config/hyprcast` | `overlay.toml` generated | — |
 | `satty/` | `~/.config/satty` | `config.toml`; `overrides.css` generated; opened by the Edit action on `hypr/scripts/screenshot` notifications | — |
 | `sioyek/`, `fontconfig/`, `user-dirs.dirs` | `~/.config/<name>` | Plain app configs, not themed | — |
 | `aerospace/` | `~/.config/aerospace` (macOS) | `aerospace.toml`; `fl.md` = FL Studio tiling notes | — |
