@@ -32,7 +32,7 @@ place; [`AGENTS.md`](AGENTS.md) lists exactly where each one goes.
 
 **Linux:** `hyprland`, `hypridle`, `waybar`, `rofi`, `dunst`, `libnotify`,
 `ghostty`, `cava` (waybar visualizer), `fastfetch`, `wireplumber` (`wpctl`),
-`playerctl`, `hyprpicker`, `grim`, `slurp`, `wl-clipboard`, `awww` (wallpapers),
+`playerctl`, `hyprpicker`, `grim`, `slurp`, `wl-clipboard`, `awww` + `libvips` (wallpapers),
 and a browser (autostart runs `helium-browser`).
 
 **macOS:** `aerospace`, `ghostty`.
@@ -91,7 +91,7 @@ To change colors, add a palette or theme a new app, see
 
 - `scripts/tmux-sessionizer/` derived from
   [ThePrimeagen/tmux-sessionizer](https://github.com/ThePrimeagen/tmux-sessionizer).
-- `hypr/scripts/wall_select`: wallpaper selector by
+- `hypr/scripts/wall_select`: based on the wallpaper selector by
   [gh0stzk](https://github.com/gh0stzk), via
   [Abhra00/Matuprland](https://github.com/Abhra00/Matuprland). GPL-3.0.
 - waybar & rofi: I forgot who and where I got the config from from i'm sorry </3

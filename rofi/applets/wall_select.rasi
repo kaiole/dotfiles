@@ -11,9 +11,7 @@
 
 /* ---- Configuration ---- */
 configuration {
-    modi:                   	  "drun";
     show-icons:             	  true;
-    drun-display-format:    	  "{name}";
     hover-select:           	  true;
     me-select-entry:        	  "MouseSecondary";
     me-accept-entry:        	  "MousePrimary";
@@ -43,6 +41,8 @@ mainbox {
 
 
 /* ---- Listview ---- */
+/* wall_select sizes icons from columns, spacing and padding here and in
+   element; keep its constants in sync. */
 listview {
     enabled:                     true;
     columns:                     6;
@@ -73,12 +73,6 @@ element {
     text-color:                  @text;
 }
 
-@media(max-aspect-ratio: 1.8) {
-    element {
-        orientation:             vertical;
-    }
-}
-
 element selected.normal {
     background-color:            @select;
     text-color:                  @stext;
@@ -100,26 +94,6 @@ element-text {
     text-color:                  inherit;
 }
 
-
-/*****----- Message -----*****/
-message {
-    background-color:            transparent;
-    border:			 0px;
-    margin:			 20px 0px 0px 0px;
-    padding:0px;
-    spacing:0px;
-    border-radius: 0px;
-}
-
-textbox {
-    padding:                     15px;
-    margin:                      0px;
-    border-radius:               0px;
-    background-color:            @background;
-    text-color:                  @text;
-    vertical-align:              0.5;
-    horizontal-align:            0.0;
-}
 
 error-message {
     padding:                     15px;

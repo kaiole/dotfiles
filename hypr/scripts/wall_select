@@ -1,139 +1,114 @@
 #!/usr/bin/env bash
-#  ┓ ┏┏┓┓ ┓ ┏┓┏┓┓ ┏┓┏┓┏┳┓
-#  ┃┃┃┣┫┃ ┃ ┗┓┣ ┃ ┣ ┃  ┃ 
-#  ┗┻┛┛┗┗┛┗┛┗┛┗┛┗┛┗┛┗┛ ┻ 
-#                        
-
-# Thank you gh0stzk for the script 🤲 means a lot
-# Copyright (C) 2021-2025 gh0stzk <z0mbi3.zk@protonmail.com>
-# Licensed under GPL-3.0 license
-
-# WallSelect - Dynamic wallpaper selector with intelligent caching system
-# Features:
-#   ✔ Multi-monitor support with scaling
-#   ✔ Auto-updating menu (add/delete wallpapers without restart)
-#   ✔ Parallel image processing (optimized CPU usage)
-#   ✔ XXHash64 checksum verification for cache integrity
-#   ✔ Orphaned cache detection and cleanup
-#   ✔ Adaptive icon sizing based on screen resolution
-#   ✔ Lockfile system for safe concurrent operations
-#   ✔ Handle gif files separately
-#   ✔ Rofi integration with theme support
-#   ✔ Lightweight (~2ms overhead on cache hits)
+# wall_select: pick a wallpaper from a rofi thumbnail strip and show it on
+# the focused monitor with awww. Pressing the bind again closes the picker.
 #
-# Dependencies:
-#   → Core: hyprland, rofi, jq, xxhsum (xxhash)
-#   → Media: awww, imagemagick
-#   → GNU: findutils, coreutils
+# Each wallpaper <name> gets a thumbnail <cache>/<name>.jpg stamped with the
+# wallpaper's mtime; differing mtimes mean the thumbnail is stale. Writes are
+# atomic, so concurrent runs need no locks.
+#
+# Based on WallSelect by gh0stzk (GPL-3.0).
+# Deps: hyprland, jq, rofi, libvips, awww
 
+set -u
+shopt -s nullglob nocaseglob
 
+walls=${WALLPAPER_DIR:-$HOME/images/wallpapers}
+cache=${XDG_CACHE_HOME:-$HOME/.cache}/wall_select
+theme=$HOME/.config/rofi/applets/wall_select.rasi
+thumb_px=512
 
-# Set dir varialable
-wall_dir="$HOME/images/wallpapers/"
-cacheDir="$HOME/.cache/wallcache"
-scriptsDir="$HOME/.config/hypr/scripts/wall_select"
+# Listview geometry from wall_select.rasi, used to fit icons to columns.
+cols=6 gap=30 pad=30 elem_pad=3
 
-# Create cache dir if not exists
-[ -d "$cacheDir" ] || mkdir -p "$cacheDir"
+# A second press closes the picker; rofi -replace below closes any other
+# rofi. The pidfile outlives rofi, so confirm the pid is still the picker.
+# (pgrep would do, but costs ~40ms scanning /proc.)
+pid=
+read -r pid 2>/dev/null <"$XDG_RUNTIME_DIR/rofi.pid"
+if [[ $pid =~ ^[0-9]+$ ]] &&
+	mapfile -d '' argv 2>/dev/null </proc/"$pid"/cmdline &&
+	[[ ${argv[*]} == *wall_select.rasi* ]]; then
+	kill "$pid"
+	exit
+fi
 
+files=("$walls"/*.{jpg,jpeg,png,webp,gif,bmp})
+if (( ! ${#files[@]} )); then
+	notify-send -a wall_select "No wallpapers in $walls"
+	exit 1
+fi
+mapfile -d '' files < <(printf '%s\0' "${files[@]}" | sort -zV)
 
-# Get focused monitor
-focused_monitor=$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name')
+# Logical width of the focused monitor, accounting for rotation.
+read -r mon width hz < <(hyprctl -j monitors | jq -r '.[] | select(.focused)
+	| "\(.name) \((if .transform % 2 == 1 then .height else .width end)
+	/ .scale | floor) \(.refreshRate | round)"')
+icon=$(( (width - 2 * pad - (cols - 1) * gap) / cols - 2 * elem_pad ))
 
-# Get monitor width and DPI
-monitor_width=$(hyprctl monitors -j | jq -r --arg mon "$focused_monitor" '.[] | select(.name == $mon) | .width')
-scale_factor=$(hyprctl monitors -j | jq -r --arg mon "$focused_monitor" '.[] | select(.name == $mon) | .scale')
+daemon_up=0 current=
+if query=$(awww query 2>/dev/null); then
+	daemon_up=1
+	while IFS= read -r line; do
+		[[ $line =~ ^[^:]*:\ ?"$mon":.*\ image:\ (.+)$ ]] &&
+			current=${BASH_REMATCH[1]}
+	done <<<"$query"
+fi
 
-# Calculate icon size
-icon_size=$(echo "scale=2; ($monitor_width * 14) / ($scale_factor * 96)" | bc)
-rofi_override="element-icon{size:${icon_size}px;}"
-rofi_command="rofi -i -show -dmenu -theme $HOME/.config/rofi/applets/wall_select.rasi -theme-str $rofi_override"
-
-# Detect number of cores and set a sensible number of jobs
-get_optimal_jobs() {
-    local cores=$(nproc)
-    (( cores <= 2 )) && echo 2 || echo $(( (cores > 4) ? 4 : cores-1 ))
+thumbnail() {
+	local tmp=$2.$BASHPID.jpg
+	if vipsthumbnail "$1" --size "${thumb_px}x$thumb_px" --crop \
+		-o "$tmp[Q=90,keep=none]" && touch -r "$1" "$tmp"; then
+		mv -f "$tmp" "$2"
+	else
+		rm -f "$tmp"
+	fi
 }
 
-PARALLEL_JOBS=$(get_optimal_jobs)
-
-process_image() {
-    local imagen="$1"
-    local number_archive=$(basename "$imagen")
-    local cache_file="${cacheDir}/${number_archive}"
-    local md5_file="${cacheDir}/.${number_archive}.md5"
-    local lock_file="${cacheDir}/.lock_${number_archive}"
-
-    local current_md5=$(xxh64sum "$imagen" | cut -d' ' -f1)
-
-    (
-        flock -x 200
-        if [ ! -f "$cache_file" ] || [ ! -f "$md5_file" ] || [ "$current_md5" != "$(cat "$md5_file" 2>/dev/null)" ]; then
-            magick "$imagen" -resize 500x500^ -gravity center -extent 500x500 "$cache_file"
-            echo "$current_md5" > "$md5_file"
-        fi
-        # Clean the lock file after processing
-        rm -f "$lock_file"
-    ) 200>"$lock_file"
-}
-
-# Export variables & functions
-export -f process_image
-export wall_dir cacheDir
-
-# Clean old locks before starting
-rm -f "${cacheDir}"/.lock_* 2>/dev/null || true
-
-# Process files in parallel
-find "$wall_dir" -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -o -name "*.gif" \) -print0 | \
-    xargs -0 -P "$PARALLEL_JOBS" -I {} bash -c 'process_image "{}"'
-
-# Clean orphaned cache files and their locks
-for cached in "$cacheDir"/*; do
-    [ -f "$cached" ] || continue
-    original="${wall_dir}/$(basename "$cached")"
-    if [ ! -f "$original" ]; then
-        number_archive=$(basename "$cached")
-        rm -f "$cached" \
-            "${cacheDir}/.${number_archive}.md5" \
-            "${cacheDir}/.lock_${number_archive}"
-    fi
+selected=0 stale=()
+for i in "${!files[@]}"; do
+	src=${files[i]} thumb=$cache/${files[i]##*/}.jpg
+	[[ $src == "$current" ]] && selected=$i
+	[[ -f $thumb && ! $thumb -nt $src && ! $src -nt $thumb ]] ||
+		stale+=("$src")
 done
 
-# Clean any remaining lock files
-rm -f "${cacheDir}"/.lock_* 2>/dev/null || true
-
-# Check if rofi is already running
-if pidof rofi > /dev/null; then
-  pkill rofi
+# One single-threaded vips job per core beats one multi-threaded job, since
+# small images spend most of their time in decode and process startup.
+if (( ${#stale[@]} )); then
+	export VIPS_CONCURRENCY=1
+	mkdir -p "$cache"
+	max_jobs=$(nproc) running=0
+	for src in "${stale[@]}"; do
+		(( running++ >= max_jobs )) && wait -n
+		thumbnail "$src" "$cache/${src##*/}.jpg" &
+	done
+	wait
 fi
 
-# Launch rofi
-wall_selection=$(find "${wall_dir}" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" -o -iname "*.gif" \) -print0 |
-    xargs -0 basename -a |
-    LC_ALL=C sort -V |
-    while IFS= read -r A; do
-        if [[ "$A" =~ \.gif$ ]]; then
-            printf "%s\n" "$A"  # Handle gifs by showing only file name
-        else
-            printf '%s\x00icon\x1f%s/%s\n' "$A" "${cacheDir}" "$A"  # Non-gif files with icon convention
-        fi
-    done | $rofi_command)
+# Drop thumbnails of deleted wallpapers, and temp files of killed runs.
+for thumb in "$cache"/*; do
+	src=${thumb##*/}
+	[[ -f $walls/${src%.jpg} ]] || rm -f -- "$thumb"
+done
 
-# AWWW Config
-FPS=60
-TYPE="wipe"
-ANGLE=180
-DURATION=2
-BEZIER=".43,1.19,1,.4"
-AWWW_PARAMS="--transition-fps $FPS --transition-type $TYPE --transition-duration $DURATION --transition-angle $ANGLE"
+# Read every entry before the first frame (-no-custom and -selected-row
+# imply -sync too). Async input costs an extra 66ms reload before icons.
+choice=$(
+	for src in "${files[@]}"; do
+		name=${src##*/}
+		printf '%s\0icon\x1f%s\n' "${name%.*}" "$cache/$name.jpg"
+	done | rofi -dmenu -sync -replace -i -no-custom -format i \
+		-selected-row "$selected" \
+		-theme "$theme" -theme-str "element-icon { size: ${icon}px; }"
+)
+[[ $choice =~ ^[0-9]+$ ]] || exit 0
 
-# Start awww if it isn't running. The daemon stays in the foreground, so
-# background it and wait for its socket.
-if ! awww query &>/dev/null; then
-    awww-daemon &>/dev/null & disown
-    for _ in {1..20}; do awww query &>/dev/null && break; sleep 0.1; done
+# Autostart launches the daemon; restart it if it has died since.
+if (( ! daemon_up )); then
+	awww-daemon &>/dev/null & disown
+	for _ in {1..20}; do awww query &>/dev/null && break; sleep 0.1; done
 fi
 
-# Set wallpaper
-[[ -n "$wall_selection" ]] && awww img -o "$focused_monitor" "${wall_dir}/${wall_selection}" $AWWW_PARAMS;
+awww img -o "$mon" "${files[choice]}" \
+	--transition-type wipe --transition-angle 180 \
+	--transition-duration 2 --transition-fps "$hz"
