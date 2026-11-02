@@ -26,10 +26,12 @@ only says where things live and how they connect.
 - Commit coherent changes, not each iteration. Include their tests and docs.
 - Small incidental cleanup can ride along; keep unrelated behavior changes separate.
 - Follow Conventional Commits (`type(scope): summary`, scope = component dir)
-  and standard git message format: imperative subject under 50 characters, a
-  blank line, then a short body wrapped at 72 columns saying what changed and
-  why. Skip the body when the subject says it all; use `- ` bullets for
-  several distinct changes.
+  and standard git message format: imperative subject under 50 characters,
+  then optionally a blank line and a short body wrapped at 72 columns.
+- Add a body only for what the subject and diff can't show: the cause, a
+  non-obvious reason, a measurement, or a rejected alternative. Removals,
+  renames and doc fixes usually need none. Use `- ` bullets for several
+  distinct changes.
 
 ## Components
 
