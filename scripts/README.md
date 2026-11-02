@@ -8,11 +8,13 @@ Standalone commands, one directory per tool.
 | `scratch/` | `scratch` (completion: `zsh/completions/_scratch`) |
 | `theme/` | `theme` (see `../theme/AGENTS.md`) |
 | `tmux-sessionizer/` | `tmux-sessionizer`, its config, presets and tests; ROS workflow in [`tmux-sessionizer/ROS.md`](tmux-sessionizer/ROS.md) |
+| `wall_select/` | `wall_select`, the Super+W wallpaper picker (Rust; Linux/Hyprland only) |
 
 ## Install
 
 `scripts/install` links every command into `~/.local/bin` (already on the Zsh
-PATH), then runs `theme`. It's safe to rerun and refuses to replace unrelated
+PATH), then runs `theme`. On Linux it first builds `wall_select` with
+`cargo build --release --locked`; rerun it after changing that crate. It's safe to rerun and refuses to replace unrelated
 files. The command list lives in `install`.
 
 tmux-sessionizer also reads its config from `~/.config/tmux-sessionizer`:
@@ -23,5 +25,8 @@ ln -sfn ~/dotfiles/scripts/tmux-sessionizer ~/.config/tmux-sessionizer
 
 ## Dependencies
 
-Commands are Zsh scripts, except `tmux-sessionizer` (Bash). They use
-clang-format, clang-tidy, fzf, and `$EDITOR` (default nvim).
+Commands are Zsh scripts, except `tmux-sessionizer` (Bash) and
+`wall_select` (Rust). They use clang-format, clang-tidy, fzf, and `$EDITOR`
+(default nvim). `wall_select` needs cargo to build, then Hyprland, `awww`,
+CaskaydiaCove Nerd Font and fontconfig (`fc-match`) at runtime. Its colors
+come from a theme template, and `WALL_SELECT_TRACE=1` logs startup timings.

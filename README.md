@@ -32,8 +32,8 @@ place; [`AGENTS.md`](AGENTS.md) lists exactly where each one goes.
 
 **Linux:** `hyprland`, `hypridle`, `waybar`, `rofi`, `dunst`, `libnotify`,
 `ghostty`, `cava` (waybar visualizer), `fastfetch`, `wireplumber` (`wpctl`),
-`playerctl`, `hyprpicker`, `grim`, `slurp`, `wl-clipboard`, `awww` + `libvips` (wallpapers),
-and a browser (autostart runs `helium-browser`).
+`playerctl`, `hyprpicker`, `grim`, `slurp`, `wl-clipboard`, `awww` (wallpapers),
+`cargo` (builds `wall_select`), `libvips` (its rofi fallback), and a browser (autostart runs `helium-browser`).
 
 **macOS:** `aerospace`, `ghostty`.
 

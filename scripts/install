@@ -8,6 +8,16 @@ bin="${HOME}/.local/bin"
 mkdir -p -- "$bin"
 entries=(clang/cfmt clang/tidy scratch/scratch tmux-sessionizer/tmux-sessionizer theme/theme)
 
+# wall_select is a Rust binary for Hyprland; build it in place.
+if [[ $OSTYPE == linux* ]]; then
+  if (( $+commands[cargo] )); then
+    cargo build --release --locked --manifest-path "$root/wall_select/Cargo.toml"
+    entries+=(wall_select/target/release/wall_select)
+  else
+    print -u2 -- "install: cargo not found, skipping wall_select"
+  fi
+fi
+
 # Validate all destinations before changing any links.
 for entry in "${entries[@]}"; do
   target="$root/$entry"
