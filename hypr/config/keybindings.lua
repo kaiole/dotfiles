@@ -4,7 +4,15 @@
 local main_mod = "SUPER"
 local home = os.getenv("HOME")
 local toggle_rofi = home .. "/.config/hypr/scripts/toggle_rofi"
-local wall_select = home .. "/.config/hypr/scripts/wall_select"
+-- scripts/wall_select (Rust, built by scripts/install); the rofi script
+-- remains as a fallback until it's removed.
+local wall_select = home .. "/.local/bin/wall_select"
+local binary = io.open(wall_select)
+if binary then
+	binary:close()
+else
+	wall_select = home .. "/.config/hypr/scripts/wall_select"
+end
 
 hl.bind(main_mod .. " + Q", hl.dsp.window.close())
 hl.bind(main_mod .. " + M", hl.dsp.exit())
