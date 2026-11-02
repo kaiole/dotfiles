@@ -14,6 +14,7 @@ place; [`AGENTS.md`](AGENTS.md) lists exactly where each one goes.
 | `rofi/` | [rofi](https://github.com/davatorium/rofi) (launcher, menus) | Linux |
 | `dunst/` | [Dunst](https://dunst-project.org/) (notifications) | Linux |
 | `hyprcast/` | Hyprcast overlay | Linux |
+| `satty/` | [Satty](https://github.com/Satty-org/Satty) (screenshot annotation) | Linux |
 | `fontconfig/`, `user-dirs.dirs` | fontconfig, xdg-user-dirs | Linux |
 | `aerospace/` | [AeroSpace](https://github.com/nikitabobko/AeroSpace) (tiling WM) | macOS |
 | `nvim/` | [Neovim](https://neovim.io/) | both |
@@ -32,7 +33,7 @@ place; [`AGENTS.md`](AGENTS.md) lists exactly where each one goes.
 
 **Linux:** `hyprland`, `hypridle`, `waybar`, `rofi`, `dunst`, `libnotify`,
 `ghostty`, `cava` (waybar visualizer), `fastfetch`, `wireplumber` (`wpctl`),
-`playerctl`, `hyprpicker`, `grim`, `slurp`, `wl-clipboard`, `awww` (wallpapers),
+`playerctl`, `hyprpicker`, `grim`, `slurp`, `wl-clipboard`, `satty`, `awww` (wallpapers),
 `cargo` (builds `wall_select`), `libvips` (its rofi fallback), and a browser (autostart runs `helium-browser`).
 
 **macOS:** `aerospace`, `ghostty`.

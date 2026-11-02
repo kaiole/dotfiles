@@ -1,0 +1,7 @@
+[general]
+# Copy with wl-copy so the clipboard survives satty exiting.
+copy-command = "wl-copy"
+# Ctrl+S saves an edited copy beside the original screenshot.
+output-filename = "~/images/screenshots/ss-%Y%m%d-%H%M%S-edit.png"
+# Quit after copying or saving.
+early-exit = ["all"]

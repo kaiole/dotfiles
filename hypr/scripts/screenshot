@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Usage: screenshot region|full copy|save
+# Takes a screenshot, then notifies with an Edit action (click or Super+Y)
+# that opens it in satty. satty's Ctrl+C copies the edit, Ctrl+S saves it
+# beside the original (see satty/config.toml).
+
+set -euo pipefail
+
+area="${1:?usage: screenshot region|full copy|save}"
+mode="${2:?usage: screenshot region|full copy|save}"
+
+geometry=()
+case "${area}" in
+    region)
+        pgrep -x slurp >/dev/null && exit 0
+        # slurp exits non-zero when the selection is cancelled.
+        selection="$(slurp)" || exit 0
+        geometry=(-g "${selection}")
+        ;;
+    full) ;;
+    *) echo "screenshot: unknown area '${area}'" >&2; exit 2 ;;
+esac
+
+case "${mode}" in
+    copy)
+        file="$(mktemp --tmpdir="${XDG_RUNTIME_DIR:-/tmp}" screenshot-XXXXXX.png)"
+        trap 'rm -f "${file}"' EXIT
+        grim "${geometry[@]}" "${file}"
+        wl-copy --type image/png <"${file}"
+        body="Copied to clipboard"
+        ;;
+    save)
+        dir="${HOME}/images/screenshots"
+        mkdir -p "${dir}"
+        file="${dir}/ss-$(date +%Y%m%d-%H%M%S).png"
+        grim "${geometry[@]}" "${file}"
+        body="Saved to ~/images/screenshots/"
+        ;;
+    *) echo "screenshot: unknown mode '${mode}'" >&2; exit 2 ;;
+esac
+
+# notify-send blocks until the notification closes, then prints the chosen
+# action's name; dunst invokes "default" on left click and `dunstctl action`.
+action="$(notify-send -A default=Edit "Screenshot" "${body}")"
+if [[ "${action}" == default ]]; then
+    satty --filename "${file}"
+fi

@@ -43,7 +43,7 @@ only says where things live and how they connect.
 | `scripts/tmux-sessionizer/` | `~/.local/bin/tmux-sessionizer`, `~/.config/tmux-sessionizer` | `tmux-sessionizer` (bash), `presets/`, `ros-tmux` for container panes; bound to `C-f` in tmux, nvim, pi, and tmux `prefix C-f` everywhere | `scripts/tmux-sessionizer/ROS.md` (ROS) |
 | `scripts/wall_select/` | `~/.local/bin/wall_select` (built by `scripts/install`) | Rust crate; `src/main.rs` (startup, toggle), `ui.rs` (layer shell, input), `draw.rs` (layout matching the old rofi theme); bound to Super+W in `hypr/config/keybindings.lua`, which falls back to `hypr/scripts/wall_select` (rofi) if the binary is missing; colors from a theme template | — |
 | `tmux/` | `~/.config/tmux` | `tmux.conf`; prefix is `C-Space`; sources generated `colors.conf`; `prefix r` reloads; `prefix b` opens the shell-shortcuts popup (`shortcuts.sh`); new-window/split binds go through `ros-tmux` only in ROS sessions (`@ros_container`) | — |
-| `hypr/` | `~/.config/hypr` | `hyprland.lua` requires `config/*.lua`; `hyprland.conf` is a stub, ignore it. Colors: `config/aesthetic.lua` loads `theme/load.lua`. Bind targets in `hypr/scripts/` | — |
+| `hypr/` | `~/.config/hypr` | `hyprland.lua` requires `config/*.lua`; `hyprland.conf` is a stub, ignore it. Colors: `config/aesthetic.lua` loads `theme/load.lua`. Bind targets in `hypr/scripts/` (`screenshot <region or full> <copy or save>`) | — |
 | `waybar/` | `~/.config/waybar` | `config.jsonc`, `style.css` imports generated `color.css`; modules run `mediaplayer.py` and `scripts/waybar_cava` (linked by hand into `~/.local/bin`) | — |
 | `rofi/` | `~/.config/rofi` | `config.rasi` → `themes/theme.rasi` → generated `share/colors.rasi` + `share/fonts.rasi`; opened by `hypr/scripts/toggle_rofi` | — |
 | `dunst/` | `~/.config/dunst` | `dunstrc` + generated drop-in `dunstrc.d/99-palette.conf` | — |
@@ -55,6 +55,7 @@ only says where things live and how they connect.
 | `fastfetch/` | `~/.config/fastfetch` | `config.jsonc` is fully generated; edit the template | — |
 | `helium/` | loaded unpacked in Helium (`chrome://extensions`) | `theme/manifest.json` is a generated theme extension; reload it there after `theme set` | — |
 | `hyprcast/` | `~/.config/hyprcast` | `overlay.toml` generated; `demo-*.toml` are standalone variants | — |
+| `satty/` | `~/.config/satty` | `config.toml`; opened by the Edit action on `hypr/scripts/screenshot` notifications | — |
 | `sioyek/`, `fontconfig/`, `user-dirs.dirs` | `~/.config/<name>` | Plain app configs, not themed | — |
 | `aerospace/` | `~/.config/aerospace` (macOS) | `aerospace.toml`; `fl.md` = FL Studio tiling notes | — |
 

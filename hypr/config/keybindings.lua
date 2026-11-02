@@ -4,6 +4,7 @@
 local main_mod = "SUPER"
 local home = os.getenv("HOME")
 local toggle_rofi = home .. "/.config/hypr/scripts/toggle_rofi"
+local screenshot = home .. "/.config/hypr/scripts/screenshot"
 -- scripts/wall_select (Rust, built by scripts/install); the rofi script
 -- remains as a fallback until it's removed.
 local wall_select = home .. "/.local/bin/wall_select"
@@ -32,30 +33,11 @@ hl.bind(main_mod .. " + Y", hl.dsp.exec_cmd("dunstctl action"))
 
 hl.bind(main_mod .. " + O", hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/toggle_swap_space"))
 
-hl.bind(
-	main_mod .. " + C",
-	hl.dsp.exec_cmd(
-		[=[pgrep -x slurp && exit; set -o pipefail; grim -g "$(slurp)" - | wl-copy --type image/png && notify-send "Screenshot" "Copied to clipboard"]=]
-	)
-)
-hl.bind(
-	main_mod .. " + SHIFT + C",
-	hl.dsp.exec_cmd(
-		[=[pgrep -x slurp && exit; grim -g "$(slurp)" ~/images/screenshots/ss-$(date +%Y%m%d-%H%M%S).png && notify-send "Screenshot" "Saved to ~/images/screenshots/"]=]
-	)
-)
-hl.bind(
-	main_mod .. " + S",
-	hl.dsp.exec_cmd(
-		[=[set -o pipefail; grim - | wl-copy --type image/png && notify-send "Screenshot" "Copied to clipboard"]=]
-	)
-)
-hl.bind(
-	main_mod .. " + SHIFT + S",
-	hl.dsp.exec_cmd(
-		[=[grim ~/images/screenshots/ss-$(date +%Y%m%d-%H%M%S).png && notify-send "Screenshot" "Saved to ~/images/screenshots/"]=]
-	)
-)
+-- Screenshots: notification's Edit action (click or Super+Y) opens satty.
+hl.bind(main_mod .. " + C", hl.dsp.exec_cmd(screenshot .. " region copy"))
+hl.bind(main_mod .. " + SHIFT + C", hl.dsp.exec_cmd(screenshot .. " region save"))
+hl.bind(main_mod .. " + S", hl.dsp.exec_cmd(screenshot .. " full copy"))
+hl.bind(main_mod .. " + SHIFT + S", hl.dsp.exec_cmd(screenshot .. " full save"))
 
 -- Move focus with the home-row keys.
 hl.bind(main_mod .. " + H", hl.dsp.focus({ direction = "l" }))
