@@ -46,7 +46,7 @@ only says where things live and how they connect.
 | `scripts/tmux-orphans/` | `~/.local/bin/tmux-orphans` (Linux) | Zsh; finds `tmux-spawn-*.scope` cgroups with no child of a tmux server, i.e. processes left by closed panes; skips `wl-copy` (Wayland clipboard owner); `-k` sends SIGTERM, then SIGKILL, to the listed PIDs | — |
 | `scripts/wall_select/` | `~/.local/bin/wall_select` (built by `scripts/install`) | Rust crate; `src/main.rs` (startup, toggle), `ui.rs` (layer shell, input), `draw.rs` (layout matching the old rofi theme); bound to Super+W in `hypr/config/keybindings.lua`, which falls back to `hypr/scripts/wall_select` (rofi) if the binary is missing; colors from a theme template | — |
 | `tmux/` | `~/.config/tmux` | `tmux.conf`; prefix is `C-Space`; sources generated `colors.conf`; `prefix r` reloads; `prefix b` opens the shell-shortcuts popup (`shortcuts.sh`); new-window/split binds go through `ros-tmux` only in ROS sessions (`@ros_container`) | — |
-| `hypr/` | `~/.config/hypr` | `hyprland.lua` requires `config/*.lua`; `hyprland.conf` is a stub, ignore it. Colors: `config/aesthetic.lua` loads `theme/load.lua`. Bind targets in `hypr/scripts/` (`screenshot <region or full> <copy or save>`). Locking: `hypridle.conf` `lock_cmd` is the only hyprlock launcher (binds use `loginctl lock-session`); `hyprlock.conf` sources generated `hyprlock-colors.conf` | — |
+| `hypr/` | `~/.config/hypr` | `hyprland.lua` (Lua, `hl.*` API) requires `config/*.lua`; bind targets in `scripts/`; `hypridle.conf`, `hyprlock.conf` | `hypr/AGENTS.md` |
 | `waybar/` | `~/.config/waybar` | `config.jsonc`, `style.css` imports generated `color.css`; modules run `mediaplayer.py` and `scripts/waybar_cava` (linked by hand into `~/.local/bin`) | — |
 | `rofi/` | `~/.config/rofi` | `config.rasi` → `themes/theme.rasi` → generated `share/colors.rasi` + `share/fonts.rasi`; opened by `hypr/scripts/toggle_rofi` | — |
 | `dunst/` | `~/.config/dunst` | `dunstrc` + generated drop-in `dunstrc.d/99-palette.conf` | — |
@@ -66,5 +66,5 @@ only says where things live and how they connect.
 
 - Theme: `theme` exits 0 and `git status` shows no generated files.
 - nvim, zsh, pi, tmux-sessionizer: the checks in their docs.
-- Hyprland: `hyprctl reload`, then `hyprctl configerrors`.
+- Hyprland: the checks in `hypr/AGENTS.md`.
 - Ghostty: `ghostty +validate-config`. tmux: `tmux source-file ~/dotfiles/tmux/tmux.conf`.

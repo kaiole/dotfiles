@@ -25,18 +25,8 @@ hl.config({
 		rounding = 0,
 		active_opacity = 1.0,
 		inactive_opacity = 1.0,
-		shadow = {
-			enabled = false,
-			range = 4,
-			render_power = 3,
-			color = rgba(palette.bg, "ee"),
-		},
-		blur = {
-			enabled = false,
-			size = 3,
-			passes = 1,
-			vibrancy = 0.1696,
-		},
+		shadow = { enabled = false },
+		blur = { enabled = false },
 	},
 
 	animations = {
@@ -48,10 +38,6 @@ hl.config({
 		force_split = 2,
 	},
 
-	master = {
-		new_status = "master",
-	},
-
 	misc = {
 		force_default_wallpaper = 0,
 		disable_hyprland_logo = true,
@@ -59,24 +45,4 @@ hl.config({
 		-- Lets a new hyprlock take over if one crashes, instead of a dead lock screen.
 		allow_session_lock_restore = true,
 	},
-})
-
-hl.curve("linear", {
-	type = "bezier",
-	points = { { 1, 0 }, { 0.58, 1 } },
-})
-
-hl.animation({
-	leaf = "borderangle",
-	enabled = true,
-	speed = 10,
-	bezier = "linear",
-	style = "loop",
-})
-
-hl.animation({
-	leaf = "global",
-	enabled = false,
-	speed = 10,
-	bezier = "default",
 })
