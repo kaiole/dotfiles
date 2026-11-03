@@ -266,16 +266,15 @@ function M.freshness(item)
 			return status
 		end
 		if item.capture.diagnostics then
-			local current = vim.diagnostic.get(item.spec.bufnr)
 			if item.spec.position then
-				current = M.at_cursor(item.spec.bufnr, unpack(item.spec.position))
-				for _, d in ipairs(current) do
+				for _, d in ipairs(M.at_cursor(item.spec.bufnr, unpack(item.spec.position))) do
 					if vim.deep_equal(d, item.capture.diagnostics[1]) then
 						return "unchanged"
 					end
 				end
 				return "changed"
 			end
+			local current = vim.diagnostic.get(item.spec.bufnr)
 			return vim.deep_equal(current, item.capture.diagnostics) and "unchanged" or "changed"
 		end
 		return status

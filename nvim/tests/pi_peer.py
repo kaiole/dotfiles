@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Deterministic JSONL Pi peer. No Pi binary, credentials, model, or network.
 
-PI_TEST_MODE selects normal, early_settle, slow_ack, reject, provider_error,
-hold, exit, or handled. PI_TEST_TRANSCRIPT records argv/cwd and both directions.
+PI_TEST_MODE selects a scenario (see the `mode` checks below; default normal).
+PI_TEST_TRANSCRIPT records argv/cwd and both directions.
 """
 import heapq
 import json

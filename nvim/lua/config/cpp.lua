@@ -172,8 +172,7 @@ function M.split()
 			return
 		end
 
-		local extension = vim.fn.fnamemodify(path, ":e"):lower()
-		local target_is_header = extension == "h" or extension == "hh" or extension == "hpp" or extension == "hxx"
+		local target_is_header = header_extensions[vim.fn.fnamemodify(path, ":e"):lower()]
 		local other_windows = {}
 		for _, candidate in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
 			if candidate ~= win and vim.api.nvim_win_get_config(candidate).relative == "" then

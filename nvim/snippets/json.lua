@@ -1,8 +1,7 @@
--- Standalone presets for hand-written projects (no cppstack copy). Mirrors the
--- cppstack dev/release split. Presets hold build-wide policy (compiler, build
--- type, sanitizers, warnings-as-errors, header verification, clang-tidy); the
--- warning flags themselves belong to targets (cmwarn in cmake.lua), so they
--- never reach third-party code.
+-- CMakePresets.json, written by :Cpp. Presets hold build-wide policy
+-- (compiler, build type, sanitizers, warnings-as-errors, header verification,
+-- clang-tidy); the warning flags themselves belong to targets (cmwarn in
+-- cmake.lua), so they never reach third-party code.
 -- - ASan and TSan can't share a binary, so dev and tsan are separate presets
 --   on one clang-debug base. Each repeats its full CMAKE_CXX_FLAGS: inherited
 --   cache variables don't concatenate.

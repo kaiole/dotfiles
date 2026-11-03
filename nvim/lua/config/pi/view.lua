@@ -352,13 +352,7 @@ function View:open_draft()
 		return
 	end
 	self:_check_composer()
-	if type(self.owner.workspace_for_source) == "function" then
-		local ok, err = pcall(self.owner.workspace_for_source, self.owner)
-		if not ok then
-			vim.notify("Pi: " .. tostring(err), vim.log.levels.WARN)
-			return
-		end
-	end
+	self.owner:workspace_for_source()
 	local draft, attachments = self:_geometry()
 	if not draft then
 		notify_small()

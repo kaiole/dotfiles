@@ -1,3 +1,5 @@
+local scaffold = require("config.actions.scaffold")
+
 local M = {}
 
 local template = {
@@ -10,27 +12,18 @@ local template = {
 	"}",
 }
 
-function M.create_problem(directory_argument)
-	local directory = vim.fn.fnamemodify(vim.fn.expand(directory_argument), ":p")
-	local main_cpp = directory .. "/main.cpp"
-
-	if vim.fn.filereadable(main_cpp) == 1 then
-		vim.notify("main.cpp already exists: " .. main_cpp, vim.log.levels.ERROR)
-		return
+local function create(directory_argument)
+	local directory = scaffold.directory(directory_argument)
+	local path = vim.fs.joinpath(directory, "main.cpp")
+	local created = scaffold.write(directory, { { name = "main.cpp", lines = template } })
+	if #created == 0 then
+		error("main.cpp already exists: " .. path, 0)
 	end
+	vim.cmd.edit(vim.fn.fnameescape(path))
+end
 
-	if vim.fn.mkdir(directory, "p") == 0 and vim.fn.isdirectory(directory) == 0 then
-		vim.notify("Could not create directory: " .. directory, vim.log.levels.ERROR)
-		return
-	end
-
-	local ok, error_message = pcall(vim.fn.writefile, template, main_cpp)
-	if not ok then
-		vim.notify("Could not create main.cpp: " .. error_message, vim.log.levels.ERROR)
-		return
-	end
-
-	vim.cmd.edit(vim.fn.fnameescape(main_cpp))
+function M.create(directory_argument)
+	return scaffold.run("Whitebox", create, directory_argument)
 end
 
 return M

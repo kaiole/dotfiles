@@ -8,8 +8,7 @@ local function notify(message, level)
 end
 
 function Settings:busy()
-	local task = self.owner.task
-	return task and (not task.done or task.awaiting_ack)
+	return self.owner:busy()
 end
 
 function Settings:refresh()
@@ -36,11 +35,6 @@ function Settings:labels()
 		thinking = thinking .. " …"
 	end
 	return model, thinking
-end
-
-function Settings:label()
-	local model, thinking = self:labels()
-	return model .. " · " .. thinking
 end
 
 function Settings:reset()

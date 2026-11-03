@@ -38,6 +38,8 @@ for _, extension in ipairs(binary_extensions) do
 	vim.list_extend(find_command, { "--exclude", "*." .. glob })
 end
 
+local dropdown = { theme = "dropdown", borderchars = square_borders }
+
 require("telescope").setup({
 	defaults = {
 		preview = { treesitter = true },
@@ -48,29 +50,12 @@ require("telescope").setup({
 		},
 	},
 	pickers = {
-		find_files = {
-			theme = "dropdown",
-			borderchars = square_borders,
-			-- Respect .gitignore; show dotfiles, but never Git's own directory or binaries.
-			find_command = find_command,
-			hidden = true,
-		},
-		live_grep = {
-			theme = "dropdown",
-			borderchars = square_borders,
-		},
-		help_tags = {
-			theme = "dropdown",
-			borderchars = square_borders,
-		},
-		git_files = {
-			theme = "dropdown",
-			borderchars = square_borders,
-		},
-		diagnostics = {
-			theme = "dropdown",
-			borderchars = square_borders,
-		},
+		-- Respect .gitignore; show dotfiles, but never Git's own directory or binaries.
+		find_files = vim.tbl_extend("force", dropdown, { find_command = find_command, hidden = true }),
+		live_grep = dropdown,
+		help_tags = dropdown,
+		git_files = dropdown,
+		diagnostics = dropdown,
 	},
 	extensions = {
 		fzf = {

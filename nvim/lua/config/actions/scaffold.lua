@@ -1,5 +1,5 @@
--- Shared by :Cpp and :CppLib: create missing files from saved snippets
--- without overwriting anything.
+-- Shared by :Cpp, :CppLib and :Whitebox: create missing files, from saved
+-- snippets or literal lines, without overwriting anything.
 local M = {}
 
 -- Loads the snippet with this trigger from the saved snippets/<filetype>.lua.

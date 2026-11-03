@@ -286,7 +286,7 @@ test("busy model choices wait for settlement; thinking waits for target-model di
 	end, "queued model")
 	eq(app.settings.model.id, "reasoner")
 	eq(#records(log, "in", "set_model"), 0)
-	has(app.settings:label(), "→ offline-fixture/plain")
+	has((app.settings:labels()), "→ offline-fixture/plain")
 	local offered = false
 	vim.ui.select = function(items, _, callback)
 		eq(items, { "off" }, "must discover the queued model's levels, not the old model's")
