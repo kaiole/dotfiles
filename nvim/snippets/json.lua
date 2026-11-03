@@ -1,10 +1,18 @@
 -- Standalone presets for hand-written projects (no cppstack copy). Mirrors the
 -- cppstack dev/release split. Presets hold build-wide policy (compiler, build
--- type, sanitizers, warnings-as-errors); the warning flags themselves belong to
--- targets (cmwarn in cmake.lua), so they never reach third-party code.
--- ASan and TSan can't share a binary, so dev and tsan are separate presets on
--- one clang-debug base. Each repeats its full CMAKE_CXX_FLAGS: inherited cache
--- variables don't concatenate. The text is Prettier-stable; keep it so.
+-- type, sanitizers, warnings-as-errors, header verification, clang-tidy); the
+-- warning flags themselves belong to targets (cmwarn in cmake.lua), so they
+-- never reach third-party code.
+-- - ASan and TSan can't share a binary, so dev and tsan are separate presets
+--   on one clang-debug base. Each repeats its full CMAKE_CXX_FLAGS: inherited
+--   cache variables don't concatenate.
+-- - lint runs clang-tidy on every compiled file with findings as errors, so
+--   .clang-tidy is enforced, not just shown in the editor. A workflow can't
+--   span configure presets; the check script (sh.lua) runs lint, dev and tsan.
+-- - Header verification compiles each public header alone (a header that
+--   relies on its includer's includes fails). Its target is outside "all", so
+--   every build preset names it.
+-- The text is Prettier-stable; keep it so.
 local ls = require("luasnip")
 local s = ls.snippet
 local t = ls.text_node
@@ -13,7 +21,7 @@ local i = ls.insert_node
 return {
 	s({
 		trig = "cmpresets",
-		dscr = "dev (Clang Debug, ASan/UBSan), tsan (TSan/UBSan), release (GCC) and release-clang (RelWithDebInfo); cmake --workflow --preset dev",
+		dscr = "dev (Clang Debug, ASan/UBSan), tsan (TSan/UBSan), lint (clang-tidy), release (GCC) and release-clang (RelWithDebInfo); cmake --workflow --preset dev",
 	}, {
 		t({
 			"{",
@@ -26,7 +34,8 @@ return {
 			'      "binaryDir": "${sourceDir}/build/${presetName}",',
 			'      "cacheVariables": {',
 			'        "CMAKE_EXPORT_COMPILE_COMMANDS": true,',
-			'        "CMAKE_COMPILE_WARNING_AS_ERROR": true',
+			'        "CMAKE_COMPILE_WARNING_AS_ERROR": true,',
+			'        "CMAKE_VERIFY_INTERFACE_HEADER_SETS": true',
 			"      }",
 			"    },",
 			"    {",
@@ -55,6 +64,14 @@ return {
 			"      }",
 			"    },",
 			"    {",
+			'      "name": "lint",',
+			'      "displayName": "Clang Debug + clang-tidy, findings are errors",',
+			'      "inherits": "clang-debug",',
+			'      "cacheVariables": {',
+			'        "CMAKE_CXX_CLANG_TIDY": "clang-tidy;--warnings-as-errors=*"',
+			"      }",
+			"    },",
+			"    {",
 			'      "name": "release",',
 			'      "displayName": "GCC RelWithDebInfo (benchmarks)",',
 			'      "inherits": "base",',
@@ -74,10 +91,24 @@ return {
 			"    }",
 			"  ],",
 			'  "buildPresets": [',
-			'    { "name": "dev", "configurePreset": "dev" },',
-			'    { "name": "tsan", "configurePreset": "tsan" },',
-			'    { "name": "release", "configurePreset": "release" },',
-			'    { "name": "release-clang", "configurePreset": "release-clang" }',
+			"    {",
+			'      "name": "build-base",',
+			'      "hidden": true,',
+			'      "targets": ["all", "all_verify_interface_header_sets"]',
+			"    },",
+			'    { "name": "dev", "configurePreset": "dev", "inherits": "build-base" },',
+			'    { "name": "tsan", "configurePreset": "tsan", "inherits": "build-base" },',
+			'    { "name": "lint", "configurePreset": "lint", "inherits": "build-base" },',
+			"    {",
+			'      "name": "release",',
+			'      "configurePreset": "release",',
+			'      "inherits": "build-base"',
+			"    },",
+			"    {",
+			'      "name": "release-clang",',
+			'      "configurePreset": "release-clang",',
+			'      "inherits": "build-base"',
+			"    }",
 			"  ],",
 			'  "testPresets": [',
 			"    {",
@@ -119,6 +150,13 @@ return {
 			'        { "type": "configure", "name": "tsan" },',
 			'        { "type": "build", "name": "tsan" },',
 			'        { "type": "test", "name": "tsan" }',
+			"      ]",
+			"    },",
+			"    {",
+			'      "name": "lint",',
+			'      "steps": [',
+			'        { "type": "configure", "name": "lint" },',
+			'        { "type": "build", "name": "lint" }',
 			"      ]",
 			"    },",
 			"    {",

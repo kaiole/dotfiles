@@ -3,11 +3,21 @@ local scaffold = require("config.actions.scaffold")
 
 local M = {}
 
-local files = {
-	{ name = "CMakeLists.txt", lines = {} },
-	{ name = "tests/CMakeLists.txt", lines = {} },
-	{ name = "tests/.clang-tidy", filetype = "yaml", trigger = "tidychill" },
-}
+-- The header and source are the ones the cmlib/cmlibh header set and
+-- add_library list, so the library configures as soon as it is added.
+local function files(namespace, name, header_only)
+	local header = namespace .. "/" .. name .. "/" .. name .. ".hpp"
+	local list = {
+		{ name = "CMakeLists.txt", lines = {} },
+		{ name = "include/" .. header, lines = { "#pragma once" } },
+		{ name = "tests/CMakeLists.txt", lines = {} },
+		{ name = "tests/.clang-tidy", filetype = "yaml", trigger = "tidychill" },
+	}
+	if not header_only then
+		table.insert(list, 3, { name = "src/" .. name .. ".cpp", lines = { '#include "' .. header .. '"' } })
+	end
+	return list
+end
 
 local function create(directory_argument, header_only)
 	assert(directory_argument and directory_argument ~= "", "usage: CppLib[!] <directory>")
@@ -15,12 +25,8 @@ local function create(directory_argument, header_only)
 	local sources = {}
 	-- The library CMakeLists.txt is the same snippet you'd expand by hand.
 	local snippet = scaffold.load("cmake", header_only and "cmlibh" or "cmlib", sources)
-	local created, skipped = scaffold.write(directory, files, sources)
 	local name = vim.fs.basename(directory)
-	vim.fn.mkdir(vim.fs.joinpath(directory, "include", cmake.project_name(directory), name), "p")
-	if not header_only then
-		vim.fn.mkdir(vim.fs.joinpath(directory, "src"), "p")
-	end
+	local created, skipped = scaffold.write(directory, files(cmake.project_name(directory), name, header_only), sources)
 
 	-- Never edit the parent CMakeLists.txt; hand over the line instead.
 	local parent = cmake.parent_lists(directory)
@@ -35,7 +41,7 @@ local function create(directory_argument, header_only)
 			.. line
 	)
 
-	vim.cmd.edit(vim.fn.fnameescape(vim.fs.joinpath(directory, "CMakeLists.txt")))
+	scaffold.open(vim.fs.joinpath(directory, "CMakeLists.txt"))
 	if vim.tbl_contains(created, "CMakeLists.txt") then
 		require("luasnip").snip_expand(snippet)
 	end

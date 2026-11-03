@@ -67,14 +67,25 @@ local function test(name, run)
 	end
 end
 
+local alias = "add_library(feed_handler::decoding ALIAS feed_handler_decoding)"
+
 local static_lib = {
-	"add_library(decoding STATIC src/decoding.cpp)",
-	"add_library(feed_handler::decoding ALIAS decoding)",
+	"add_library(feed_handler_decoding STATIC src/decoding.cpp)",
+	alias,
+	"set_target_properties(feed_handler_decoding PROPERTIES EXPORT_NAME decoding)",
 	"",
-	"target_include_directories(decoding PUBLIC include)",
-	"target_link_libraries(decoding PRIVATE feed_handler::warnings)",
+	"target_sources(feed_handler_decoding PUBLIC FILE_SET HEADERS BASE_DIRS include FILES",
+	"  include/feed_handler/decoding/decoding.hpp)",
+	"target_compile_features(feed_handler_decoding PUBLIC cxx_std_${CMAKE_CXX_STANDARD})",
+	"target_link_libraries(feed_handler_decoding PRIVATE $<BUILD_INTERFACE:feed_handler::warnings>)",
 	"",
-	"if(BUILD_TESTING)",
+	"include(${PROJECT_SOURCE_DIR}/cmake/install.cmake)",
+	"install(",
+	"  TARGETS feed_handler_decoding",
+	"  EXPORT feed_handler-targets",
+	"  FILE_SET HEADERS)",
+	"",
+	"if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)",
 	"  add_subdirectory(tests)",
 	"endif()",
 }
@@ -85,29 +96,40 @@ test("static library gets its layout and an expanded cmlib", function()
 	eq(vim.api.nvim_buf_get_name(0), dir .. "/CMakeLists.txt")
 	eq(lines(), static_lib)
 	assert(vim.bo.modified, "expansion is left for the user to save")
-	eq(vim.fn.isdirectory(dir .. "/include/feed_handler/decoding"), 1)
-	eq(vim.fn.isdirectory(dir .. "/src"), 1)
+	eq(vim.fn.readfile(dir .. "/include/feed_handler/decoding/decoding.hpp"), { "#pragma once" })
+	eq(vim.fn.readfile(dir .. "/src/decoding.cpp"), { '#include "feed_handler/decoding/decoding.hpp"' })
 	eq(vim.fn.readfile(dir .. "/tests/.clang-tidy"), snippet("yaml", "tidychill"):get_static_text())
 	eq(vim.uv.fs_stat(dir .. "/tests/CMakeLists.txt").size, 0)
 	eq(vim.fn.getreg('"'), "add_subdirectory(libs/decoding)\n")
 	eq(vim.fn.getregtype('"'), "V")
-	assert(notices[1].message:find("created 3", 1, true))
+	assert(notices[1].message:find("created 5", 1, true))
 	assert(notices[1].message:find(project .. "/CMakeLists.txt", 1, true))
 end)
 
 test("bang makes a header-only library without src/", function()
 	vim.cmd("CppLib! libs/decoding")
 	eq(lines(), {
-		"add_library(decoding INTERFACE)",
-		"add_library(feed_handler::decoding ALIAS decoding)",
+		"add_library(feed_handler_decoding INTERFACE)",
+		alias,
+		"set_target_properties(feed_handler_decoding PROPERTIES EXPORT_NAME decoding)",
 		"",
-		"target_include_directories(decoding INTERFACE include)",
+		"target_sources(feed_handler_decoding INTERFACE FILE_SET HEADERS BASE_DIRS include FILES",
+		"  include/feed_handler/decoding/decoding.hpp)",
+		"target_compile_features(feed_handler_decoding INTERFACE cxx_std_${CMAKE_CXX_STANDARD})",
 		"",
-		"if(BUILD_TESTING)",
+		"include(${PROJECT_SOURCE_DIR}/cmake/install.cmake)",
+		"install(",
+		"  TARGETS feed_handler_decoding",
+		"  EXPORT feed_handler-targets",
+		"  FILE_SET HEADERS)",
+		"",
+		"if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)",
 		"  add_subdirectory(tests)",
 		"endif()",
 	})
 	eq(vim.fn.isdirectory(project .. "/libs/decoding/src"), 0)
+	eq(vim.fn.filereadable(project .. "/libs/decoding/include/feed_handler/decoding/decoding.hpp"), 1)
+	assert(notices[1].message:find("created 4", 1, true))
 end)
 
 test("subdirectory line is relative to the nearest parent CMakeLists", function()
@@ -116,14 +138,14 @@ test("subdirectory line is relative to the nearest parent CMakeLists", function(
 	vim.cmd("CppLib libs/decoding")
 	eq(vim.fn.getreg('"'), "add_subdirectory(decoding)\n")
 	assert(notices[1].message:find(project .. "/libs/CMakeLists.txt", 1, true))
-	eq(lines()[2], "add_library(feed_handler::decoding ALIAS decoding)")
+	eq(lines()[2], alias)
 end)
 
 test("namespace falls back to the cwd name before project() exists", function()
 	vim.fn.writefile({}, project .. "/CMakeLists.txt")
 	vim.cmd("CppLib decoding")
-	eq(lines()[2], "add_library(feed_handler::decoding ALIAS decoding)")
-	eq(vim.fn.isdirectory(project .. "/decoding/include/feed_handler/decoding"), 1)
+	eq(lines()[2], alias)
+	eq(vim.fn.filereadable(project .. "/decoding/include/feed_handler/decoding/decoding.hpp"), 1)
 end)
 
 test("existing library files are kept and not expanded into", function()
@@ -133,7 +155,7 @@ test("existing library files are kept and not expanded into", function()
 	assert(lib.create(dir))
 	eq(lines(), { "# hand-written" })
 	assert(not vim.bo.modified)
-	assert(notices[1].message:find("created 2", 1, true))
+	assert(notices[1].message:find("created 4", 1, true))
 	assert(notices[1].message:find("skipped existing: CMakeLists.txt", 1, true))
 end)
 
@@ -159,9 +181,7 @@ test("cmgtx defaults come from the tests directory", function()
 	ls.snip_expand(snippet("cmake", "cmgtx"))
 	eq(lines(), {
 		"add_executable(decoding_tests decoding_test.cpp)",
-		"target_link_libraries(",
-		"  decoding_tests PRIVATE feed_handler::decoding feed_handler::warnings",
-		"                         GTest::gtest_main)",
+		"target_link_libraries(decoding_tests PRIVATE feed_handler::decoding feed_handler::warnings GTest::gtest_main)",
 		"gtest_discover_tests(decoding_tests DISCOVERY_MODE PRE_TEST)",
 	})
 end)

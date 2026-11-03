@@ -6,6 +6,7 @@ vim.o.swapfile = false
 vim.o.hidden = true
 require("config.cmds")
 
+local ls = require("luasnip")
 local project = require("config.actions.cpp_project")
 local root = vim.fn.tempname()
 local original_stdpath, original_notify = vim.fn.stdpath, vim.notify
@@ -26,12 +27,15 @@ end
 
 local function test(name, run)
 	count = count + 1
+	if ls.get_active_snip() then
+		ls.unlink_current()
+	end
 	vim.cmd("enew!")
 	vim.fn.chdir(original_cwd)
 	directory = root .. "/" .. count .. "/project"
 	source_config = root .. "/" .. count .. "/config"
 	vim.fn.mkdir(source_config .. "/snippets", "p")
-	for _, ft in ipairs({ "yaml", "json" }) do
+	for _, ft in ipairs({ "yaml", "json", "cmake", "sh" }) do
 		vim.fn.writefile(
 			vim.fn.readfile(config .. "/snippets/" .. ft .. ".lua"),
 			source_config .. "/snippets/" .. ft .. ".lua"
@@ -56,25 +60,47 @@ end
 local function expect_scaffold()
 	local names = vim.fn.readdir(directory)
 	table.sort(names)
-	eq(
-		names,
-		{ ".clang-format", ".clang-tidy", ".clangd", ".gitignore", "CMakeLists.txt", "CMakePresets.json", "cmake" }
-	)
-	eq(vim.fn.readdir(directory .. "/cmake"), { "warnings.cmake" })
-	eq(vim.uv.fs_stat(directory .. "/cmake/warnings.cmake").size, 0)
-	eq(read(".gitignore"), { "/build/", ".cache/" })
+	eq(names, {
+		".clang-format",
+		".clang-tidy",
+		".clangd",
+		".gitignore",
+		"CMakeLists.txt",
+		"CMakePresets.json",
+		"check",
+		"cmake",
+	})
+	eq(vim.fn.readdir(directory .. "/cmake"), { "config.cmake.in", "gtest.cmake", "install.cmake", "warnings.cmake" })
+	eq(read(".gitignore"), { "/build/", ".cache/", "/CMakeUserPresets.json" })
+	assert(vim.uv.fs_access(directory .. "/check", "X"), "check is executable")
+	-- cm is expanded into the buffer and left for the user to save.
 	eq(vim.uv.fs_stat(directory .. "/CMakeLists.txt").size, 0)
 	eq(vim.api.nvim_buf_get_name(0), directory .. "/CMakeLists.txt")
+	assert(vim.bo.modified, "expansion is left for the user to save")
+	local listed = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+	eq(vim.list_slice(listed, 1, 3), {
+		"cmake_minimum_required(VERSION 3.25...4.4)",
+		"project(",
+		"  " .. vim.fs.basename(directory):gsub("[^%w_]", "_"),
+	})
+	assert(vim.tbl_contains(listed, "    include(cmake/gtest.cmake)"))
 	local presets = vim.json.decode(table.concat(read("CMakePresets.json"), "\n"))
 	eq(
 		vim.tbl_map(function(preset)
 			return preset.name
 		end, presets.configurePresets),
-		{ "base", "clang-debug", "dev", "tsan", "release", "release-clang" }
+		{ "base", "clang-debug", "dev", "tsan", "lint", "release", "release-clang" }
 	)
 	for ft, mappings in pairs({
 		yaml = { clangd = ".clangd", fmt = ".clang-format", tidy = ".clang-tidy" },
 		json = { cmpresets = "CMakePresets.json" },
+		cmake = {
+			cmwarn = "cmake/warnings.cmake",
+			cmgt = "cmake/gtest.cmake",
+			cminstall = "cmake/install.cmake",
+			cmconfig = "cmake/config.cmake.in",
+		},
+		sh = { check = "check" },
 	}) do
 		for _, snippet in ipairs(dofile(source_config .. "/snippets/" .. ft .. ".lua")) do
 			local target = mappings[snippet.trigger]
@@ -85,11 +111,11 @@ local function expect_scaffold()
 	end
 end
 
-test("explicit directory creates all seven files from real snippets", function()
+test("explicit directory creates all files from real snippets", function()
 	vim.cmd("Cpp " .. vim.fn.fnameescape(directory))
 	expect_scaffold()
 	eq(vim.fn.getcwd(), original_cwd)
-	assert(notices[1].message:find("created 7", 1, true))
+	assert(notices[1].message:find("created 11", 1, true))
 end)
 
 test("no argument uses effective window-local cwd", function()
@@ -166,7 +192,7 @@ test("existing directories and dangling symlinks are not overwritten", function(
 	assert(project.create(directory))
 	eq(vim.uv.fs_lstat(directory .. "/.clang-format").type, "link")
 	eq(vim.uv.fs_stat(directory .. "/.clangd").type, "directory")
-	assert(notices[1].message:find("created 5", 1, true))
+	assert(notices[1].message:find("created 9", 1, true))
 end)
 
 test("unsaved destination buffer is preserved", function()
@@ -185,7 +211,7 @@ test("existing cmake directory keeps unrelated files", function()
 	vim.fn.writefile({ "# keep" }, directory .. "/cmake/custom.cmake")
 	assert(project.create(directory))
 	eq(read("cmake/custom.cmake"), { "# keep" })
-	eq(vim.uv.fs_stat(directory .. "/cmake/warnings.cmake").size, 0)
+	eq(vim.fn.filereadable(directory .. "/cmake/warnings.cmake"), 1)
 end)
 
 test("file blocking cmake directory fails before writing configs", function()

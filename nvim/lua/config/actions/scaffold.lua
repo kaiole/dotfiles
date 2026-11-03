@@ -48,9 +48,9 @@ local function exists(path)
 	return buf ~= -1 and vim.bo[buf].modified
 end
 
-local function write_new(path, lines)
+local function write_new(path, lines, mode)
 	-- Exclusive creation also prevents overwriting a file created after preflight.
-	local fd, err, code = vim.uv.fs_open(path, "wx", 438)
+	local fd, err, code = vim.uv.fs_open(path, "wx", mode or 438)
 	if code == "EEXIST" then
 		return false
 	end
@@ -78,8 +78,8 @@ function M.directory(argument)
 end
 
 -- Creates each missing file in `files` under `directory`. A file is
--- { name, lines } or { name, filetype, trigger } naming a static snippet.
--- Returns the created and skipped names.
+-- { name, lines } or { name, filetype, trigger } naming a static snippet, plus
+-- an optional permission `mode`. Returns the created and skipped names.
 function M.write(directory, files, sources)
 	sources = sources or {}
 	local pending, skipped = {}, {}
@@ -89,7 +89,7 @@ function M.write(directory, files, sources)
 		if exists(path) then
 			skipped[#skipped + 1] = file.name
 		else
-			pending[#pending + 1] = { path = path, name = file.name, lines = render(file, sources) }
+			pending[#pending + 1] = { path = path, name = file.name, lines = render(file, sources), mode = file.mode }
 		end
 	end
 	vim.fn.mkdir(directory, "p")
@@ -97,7 +97,7 @@ function M.write(directory, files, sources)
 	local created = {}
 	for _, file in ipairs(pending) do
 		vim.fn.mkdir(vim.fs.dirname(file.path), "p")
-		if write_new(file.path, file.lines) then
+		if write_new(file.path, file.lines, file.mode) then
 			created[#created + 1] = file.name
 		else
 			skipped[#skipped + 1] = file.name
@@ -112,6 +112,15 @@ function M.summary(command, directory, created, skipped)
 		message = message .. "; skipped existing: " .. table.concat(skipped, ", ")
 	end
 	return message
+end
+
+-- Opens `path` for the follow-up expansion. Re-editing it while it is the
+-- current buffer would reload it, failing if a previous run's expansion is
+-- unsaved, so that buffer is kept as is.
+function M.open(path)
+	if vim.fn.isdirectory(path) == 0 and vim.fn.bufnr(path) ~= vim.api.nvim_get_current_buf() then
+		vim.cmd.edit(vim.fn.fnameescape(path))
+	end
 end
 
 -- Runs `create` and reports errors as notifications. Returns success.
