@@ -42,3 +42,8 @@ merely implement or validate my first idea.
 - Be concise and proportional. Explain what matters to the decision without
   making me extract it through repeated questions. Don't turn narrow fixes
   into unnecessary architecture reviews.
+
+# Git
+
+- Never add `Co-Authored-By` or any other attribution trailer to commit
+  messages.

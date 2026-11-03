@@ -33,7 +33,8 @@ are live after a reload.
 
 ## Invariants
 
-- **Locking:** `hypridle.conf`'s `lock_cmd` is the only thing that starts
+- **Locking:** `hypridle.conf`'s `lock_cmd` (via `scripts/lock`, which links
+  the current wallpaper for the background) is the only thing that starts
   hyprlock, behind a `pidof` guard. Binds, timeouts and sleep call
   `loginctl lock-session`; running `hyprlock` directly skips the guard.
 - **Workspace 5 is the swap space**, numbered (not named) so waybar tracks it.

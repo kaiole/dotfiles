@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+# hypridle's lock_cmd. Points hyprlock's background (hyprlock.conf) at the
+# wallpaper awww shows on the first output, then becomes hyprlock. If awww
+# isn't running, the link keeps the last wallpaper it saw.
+
+link=$HOME/.cache/hyprlock-wallpaper
+wall=$(awww query 2>/dev/null | sed -n 's/.*currently displaying: image: //p' | head -n1)
+[[ -n $wall ]] && ln -sfn -- "$wall" "$link"
+exec hyprlock

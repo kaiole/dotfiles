@@ -8,6 +8,7 @@ theme = palette
 font-thicken = false
 font-feature = -calt
 
+# Same opacity as the lock screen veil (hypr/hyprlock.conf).
 background-opacity = 0.6
 background-blur = false
 
