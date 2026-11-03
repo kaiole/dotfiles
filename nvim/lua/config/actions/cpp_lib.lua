@@ -3,18 +3,18 @@ local scaffold = require("config.actions.scaffold")
 
 local M = {}
 
--- The header and source are the ones the cmlib/cmlibh header set and
--- add_library list, so the library configures as soon as it is added.
-local function files(namespace, name, header_only)
-	local header = namespace .. "/" .. name .. "/" .. name .. ".hpp"
+-- A library's files besides its CMakeLists.txt, also written by :CppSolo.
+-- The header (a path under include/) and source are the ones the
+-- cmlib/cmlibh-style header set and add_library list, so the library
+-- configures as soon as it is added.
+function M.files(header, name, header_only)
 	local list = {
-		{ name = "CMakeLists.txt", lines = {} },
 		{ name = "include/" .. header, lines = { "#pragma once" } },
 		{ name = "tests/CMakeLists.txt", lines = {} },
 		{ name = "tests/.clang-tidy", filetype = "yaml", trigger = "tidychill" },
 	}
 	if not header_only then
-		table.insert(list, 3, { name = "src/" .. name .. ".cpp", lines = { '#include "' .. header .. '"' } })
+		table.insert(list, 2, { name = "src/" .. name .. ".cpp", lines = { '#include "' .. header .. '"' } })
 	end
 	return list
 end
@@ -25,8 +25,10 @@ local function create(directory_argument, header_only)
 	local sources = {}
 	-- The library CMakeLists.txt is the same snippet you'd expand by hand.
 	local snippet = scaffold.load("cmake", header_only and "cmlibh" or "cmlib", sources)
-	local name = vim.fs.basename(directory)
-	local created, skipped = scaffold.write(directory, files(cmake.project_name(directory), name, header_only), sources)
+	local name = cmake.identifier(vim.fs.basename(directory))
+	local header = cmake.project_name(directory) .. "/" .. name .. "/" .. name .. ".hpp"
+	local files = vim.list_extend({ { name = "CMakeLists.txt", lines = {} } }, M.files(header, name, header_only))
+	local created, skipped = scaffold.write(directory, files, sources)
 
 	-- Never edit the parent CMakeLists.txt; hand over the line instead.
 	local parent = cmake.parent_lists(directory)

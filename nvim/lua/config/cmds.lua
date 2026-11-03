@@ -15,6 +15,15 @@ end, {
 	desc = "Create one C++ library and expand cmlib (! for header-only cmlibh) in its CMakeLists.txt",
 })
 
+vim.api.nvim_create_user_command("CppSolo", function(opts)
+	require("config.actions.cpp_project").create_solo(opts.args, opts.bang)
+end, {
+	nargs = "?",
+	bang = true,
+	complete = "dir",
+	desc = "Create a C++ project that is one library at its root and expand cmsolo (! for header-only cmsoloh)",
+})
+
 vim.api.nvim_create_user_command("Whitebox", function(opts)
 	require("config.actions.comp_prog").create(opts.args)
 end, {

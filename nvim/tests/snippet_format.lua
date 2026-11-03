@@ -80,6 +80,8 @@ end
 local places = {
 	cmake = {
 		cm = "CMakeLists.txt",
+		cmsolo = "CMakeLists.txt",
+		cmsoloh = "CMakeLists.txt",
 		cmlib = "libs/%s/CMakeLists.txt",
 		cmlibh = "libs/%s/CMakeLists.txt",
 		cmgtx = "libs/%s/tests/CMakeLists.txt",

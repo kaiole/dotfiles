@@ -27,13 +27,14 @@ which language or workflow they configure.
 | Purpose | Source and entry points |
 | --- | --- |
 | `.clangd`, `.clang-format`, `.clang-tidy` | `snippets/yaml.lua`: `clangd` (database in `build/dev`), `fmt`, `tidy`, `tidychill` (relaxations for `tests/`) |
-| CMake project files | `snippets/cmake.lua`: `cm` (top-level `CMakeLists.txt`), `cmwarn` (`<ns>::warnings`), `cminstall` + `cmconfig` (install export, package config). Its header comment states the rules every target follows |
-| Library `CMakeLists.txt` | `snippets/cmake.lua`: `cmlib` (STATIC), `cmlibh` (header-only). Name defaults to the buffer's directory, namespace to the nearest `project()` (`lua/config/cmake.lua`) |
-| Dependencies and test/bench executables | `snippets/cmake.lua`: `cmfetch` (system package, else pinned, hashed download), `cmgt`/`cmgb` (GoogleTest/Benchmark that way), `cmgtx`/`cmgbx` (executables in `<lib>/tests`, `<lib>/bench`) |
+| CMake project files | `snippets/cmake.lua`: `cm` (top-level `CMakeLists.txt`), `cmsolo`/`cmsoloh` (`cm` plus one library at the root, named after the `project()` field), `cmwarn` (`<ns>::warnings`), `cminstall` + `cmconfig` (install export, package config). Its header comment states the rules every target follows |
+| Library `CMakeLists.txt` | `snippets/cmake.lua`: `cmlib` (STATIC), `cmlibh` (header-only). Name defaults to the buffer's directory in snake_case, namespace to the nearest `project()` (`lua/config/cmake.lua`) |
+| Dependencies and test/bench executables | `snippets/cmake.lua`: `cmfetch` (system package, else pinned, hashed download), `cmgt`/`cmgb` (GoogleTest/Benchmark that way), `cmgtx`/`cmgbx` (executables in `<lib>/tests`, `<lib>/bench`, linking the alias in the parent's saved `CMakeLists.txt`) |
 | CMake presets | `snippets/json.lua`: `cmpresets` (`dev` ASan/UBSan, `tsan`, `lint` clang-tidy, `release`/`release-clang`; warnings as errors, header self-containment check) |
 | C++ gate script | `snippets/sh.lua`: `check` (clang-format, then the `lint`, `dev`, `tsan` workflows) |
 | Markdown prompt drafts and notes | `snippets/markdown.lua`: `draft` (coding prompt), `frontmatter`, wiki `link`, `sol`, math/LaTeX and more |
 | C++ project starter | `:Cpp [directory]` → `lua/config/actions/cpp_project.lua`: writes the files above from the saved snippets plus `.gitignore`, then expands `cm` into `CMakeLists.txt` |
+| C++ single-library project | `:CppSolo[!] [directory]` → `create_solo` in `lua/config/actions/cpp_project.lua`: `:Cpp`'s files plus `include/<name>/<name>.hpp`, source (not with `!`), `tests/`; expands `cmsolo` (`!`: `cmsoloh`) into `CMakeLists.txt`. For a project that is one library; use `:Cpp` + `:CppLib` when it holds several or an app |
 | C++ library starter | `:CppLib[!] <directory>` → `lua/config/actions/cpp_lib.lua`: header, source (not with `!`), `tests/`; expands `cmlib` (`!`: `cmlibh`); puts the parent's `add_subdirectory(...)` line in the unnamed register instead of editing it |
 | Competitive-programming starter | `:Whitebox <directory>` → `lua/config/actions/comp_prog.lua`: creates and opens `main.cpp` |
 
@@ -140,7 +141,7 @@ before touching colors.
 
 | Test | Covers | Needs |
 | --- | --- | --- |
-| `cpp_project`, `cpp_lib` | `:Cpp`, `:CppLib` | LuaSnip |
+| `cpp_project`, `cpp_lib` | `:Cpp`, `:CppSolo`, `:CppLib` | LuaSnip |
 | `snippet_format` | C++ snippets come out `gw`-formatted | cmake-format, Prettier, shfmt |
 | `cpp` | header/source navigation and creation | — |
 | `statusline` | Git segment | git |

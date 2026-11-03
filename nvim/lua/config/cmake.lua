@@ -2,6 +2,12 @@
 -- saved files only.
 local M = {}
 
+-- C++/CMake identifier for a file or directory name: order-book -> order_book.
+-- Directories keep their own names; this is the only conversion.
+function M.identifier(name)
+	return (name:gsub("[^%w_]", "_"))
+end
+
 local function declared_project(file)
 	local ok, lines = pcall(vim.fn.readfile, file)
 	return ok and table.concat(lines, "\n"):match("%f[%w_]project%s*%(%s*([%w_%-]+)") or nil
@@ -16,7 +22,14 @@ function M.project_name(path)
 			return name
 		end
 	end
-	return (vim.fs.basename(vim.fn.getcwd()):gsub("[^%w_]", "_"))
+	return M.identifier(vim.fs.basename(vim.fn.getcwd()))
+end
+
+-- The library directory/CMakeLists.txt defines, as its <project>::<name>
+-- alias, or nil if it defines none.
+function M.library(directory)
+	local ok, lines = pcall(vim.fn.readfile, vim.fs.joinpath(directory, "CMakeLists.txt"))
+	return ok and table.concat(lines, "\n"):match("add_library%s*%(%s*([%w_]+::[%w_]+)%s+ALIAS") or nil
 end
 
 -- The CMakeLists.txt that would add_subdirectory(directory), if any.

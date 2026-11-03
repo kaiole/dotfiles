@@ -230,6 +230,110 @@ test("non-directory target reports an error", function()
 	eq(notices[1].level, vim.log.levels.ERROR)
 end)
 
+local solo_project = {
+	"cmake_minimum_required(VERSION 3.25...4.4)",
+	"project(",
+	"  order_book",
+	"  VERSION 0.1.0",
+	'  DESCRIPTION "description"',
+	"  LANGUAGES CXX)",
+	"",
+	"set(CMAKE_CXX_STANDARD 23)",
+	"set(CMAKE_CXX_STANDARD_REQUIRED ON)",
+	"set(CMAKE_CXX_EXTENSIONS OFF)",
+	"",
+	"include(cmake/warnings.cmake)",
+	"",
+	"if(PROJECT_IS_TOP_LEVEL)",
+	"  include(CTest)",
+	"  if(BUILD_TESTING)",
+	"    include(cmake/gtest.cmake)",
+	"  endif()",
+	"endif()",
+	"",
+}
+
+local function solo_install()
+	return {
+		"",
+		"include(${PROJECT_SOURCE_DIR}/cmake/install.cmake)",
+		"install(",
+		"  TARGETS order_book",
+		"  EXPORT order_book-targets",
+		"  FILE_SET HEADERS)",
+		"",
+		"if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)",
+		"  add_subdirectory(tests)",
+		"endif()",
+	}
+end
+
+local function lines()
+	return vim.api.nvim_buf_get_lines(0, 0, -1, false)
+end
+
+test("CppSolo puts one library at the project root", function()
+	directory = vim.fs.dirname(directory) .. "/order-book"
+	vim.cmd("CppSolo " .. vim.fn.fnameescape(directory))
+	eq(vim.api.nvim_buf_get_name(0), directory .. "/CMakeLists.txt")
+	assert(vim.bo.modified, "expansion is left for the user to save")
+	local expected = vim.list_extend(vim.list_extend({}, solo_project), {
+		"add_library(order_book STATIC src/order_book.cpp)",
+		"add_library(order_book::order_book ALIAS order_book)",
+		"set_target_properties(order_book PROPERTIES EXPORT_NAME order_book)",
+		"",
+		"target_sources(order_book PUBLIC FILE_SET HEADERS BASE_DIRS include FILES",
+		"  include/order_book/order_book.hpp)",
+		"target_compile_features(order_book PUBLIC cxx_std_${CMAKE_CXX_STANDARD})",
+		"target_link_libraries(order_book PRIVATE $<BUILD_INTERFACE:order_book::warnings>)",
+	})
+	eq(lines(), vim.list_extend(expected, solo_install()))
+	eq(read("include/order_book/order_book.hpp"), { "#pragma once" })
+	eq(read("src/order_book.cpp"), { '#include "order_book/order_book.hpp"' })
+	eq(vim.uv.fs_stat(directory .. "/tests/CMakeLists.txt").size, 0)
+	eq(vim.fn.filereadable(directory .. "/tests/.clang-tidy"), 1)
+	eq(vim.fn.filereadable(directory .. "/CMakePresets.json"), 1)
+	assert(notices[1].message:find("CppSolo: created 15", 1, true))
+end)
+
+test("CppSolo! makes the root library header-only", function()
+	directory = vim.fs.dirname(directory) .. "/order-book"
+	vim.cmd("CppSolo! " .. vim.fn.fnameescape(directory))
+	local expected = vim.list_extend(vim.list_extend({}, solo_project), {
+		"add_library(order_book INTERFACE)",
+		"add_library(order_book::order_book ALIAS order_book)",
+		"set_target_properties(order_book PROPERTIES EXPORT_NAME order_book)",
+		"",
+		"target_sources(order_book INTERFACE FILE_SET HEADERS BASE_DIRS include FILES",
+		"  include/order_book/order_book.hpp)",
+		"target_compile_features(order_book INTERFACE cxx_std_${CMAKE_CXX_STANDARD})",
+	})
+	eq(lines(), vim.list_extend(expected, solo_install()))
+	eq(vim.fn.isdirectory(directory .. "/src"), 0)
+	assert(notices[1].message:find("created 14", 1, true))
+end)
+
+test("CppSolo copies a renamed project into the library", function()
+	vim.cmd("CppSolo " .. vim.fn.fnameescape(directory))
+	-- Field 2 is the project name; typing replaces the selected default.
+	ls.jump(1)
+	vim.api.nvim_feedkeys(vim.keycode("book<Esc>"), "nx", false)
+	local listed = lines()
+	eq(listed[3], "  book")
+	assert(vim.tbl_contains(listed, "add_library(book::book ALIAS book)"), vim.inspect(listed))
+end)
+
+test("CppSolo on an existing project adds only missing files", function()
+	assert(project.create(directory))
+	vim.fn.writefile({ "project(custom)" }, directory .. "/CMakeLists.txt")
+	vim.cmd("enew!")
+	assert(project.create_solo(directory))
+	eq(read("CMakeLists.txt"), { "project(custom)" })
+	eq(read("src/project.cpp"), { '#include "project/project.hpp"' })
+	assert(notices[#notices].message:find("created 4", 1, true))
+	assert(notices[#notices].message:find("skipped existing:", 1, true))
+end)
+
 vim.fn.stdpath, vim.notify = original_stdpath, original_notify
 vim.fn.chdir(original_cwd)
 vim.cmd("%bwipeout!")

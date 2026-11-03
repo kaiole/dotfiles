@@ -186,6 +186,44 @@ test("cmgtx defaults come from the tests directory", function()
 	})
 end)
 
+test("kebab-case directory gives a snake_case library", function()
+	vim.cmd("CppLib libs/order-book")
+	local dir = project .. "/libs/order-book"
+	eq(lines()[2], "add_library(feed_handler::order_book ALIAS feed_handler_order_book)")
+	eq(vim.fn.readfile(dir .. "/src/order_book.cpp"), { '#include "feed_handler/order_book/order_book.hpp"' })
+	eq(vim.fn.getreg('"'), "add_subdirectory(libs/order-book)\n")
+end)
+
+local function expand_in(path, trigger)
+	vim.fn.mkdir(vim.fs.dirname(path), "p")
+	vim.cmd.edit(vim.fn.fnameescape(path))
+	ls.snip_expand(snippet("cmake", trigger))
+	return lines()
+end
+
+test("cmgtx tests the library its parent's CMakeLists.txt defines", function()
+	-- A root library, as :CppSolo writes it once formatted, in a kebab-case
+	-- directory, with an alias wrapped onto its own line.
+	vim.fn.writefile({
+		"project(feed_handler)",
+		"add_library(",
+		"  feed_handler::decoder ALIAS",
+		"  feed_handler_decoder)",
+	}, project .. "/CMakeLists.txt")
+	eq(expand_in(project .. "/tests/CMakeLists.txt", "cmgtx"), {
+		"add_executable(decoder_tests decoder_test.cpp)",
+		"target_link_libraries(decoder_tests PRIVATE feed_handler::decoder feed_handler::warnings GTest::gtest_main)",
+		"gtest_discover_tests(decoder_tests DISCOVERY_MODE PRE_TEST)",
+	})
+end)
+
+test("cmgbx without a saved alias falls back to the directory, converted", function()
+	eq(expand_in(project .. "/bench/CMakeLists.txt", "cmgbx"), {
+		"add_executable(feed_handler_bench feed_handler_bench.cpp)",
+		"target_link_libraries(feed_handler_bench PRIVATE feed_handler::feed_handler feed_handler::warnings benchmark::benchmark_main)",
+	})
+end)
+
 vim.fn.stdpath, vim.notify = original_stdpath, original_notify
 vim.fn.chdir(original_cwd)
 vim.cmd("%bwipeout!")

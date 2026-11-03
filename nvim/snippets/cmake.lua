@@ -1,11 +1,17 @@
 -- :Cpp writes the static project files (presets, tidy, format, warnings,
--- gtest, install) and expands cm; :CppLib expands cmlib/cmlibh. The rest are
+-- gtest, install) and expands cm; :CppLib expands cmlib/cmlibh; :CppSolo
+-- writes both sets of files and expands cmsolo/cmsoloh. The rest are
 -- fragments written by hand. Defaults that depend on where the snippet expands
 -- (target name, project namespace) are computed from the buffer's path.
 --
+-- Names: directories may be kebab-case; C++ and CMake names never are. The
+-- conversion happens once, in each name's default (project() from the
+-- project directory, a library from its directory); later snippets read
+-- names back from the CMake files rather than from paths.
+--
 -- Consumer rules every snippet follows: a target's real name is
--- <project>_<name> so two projects can share a build, consumers only see the
--- <project>::<name> alias, and nothing here (tests, warnings, -Werror,
+-- <project>_<name> (just <project> when the two match) so two projects can
+-- share a build, consumers only see the <project>::<name> alias, and nothing here (tests, warnings, -Werror,
 -- clang-tidy) reaches a project that embeds or installs this one.
 --
 -- Text is written the way gw's formatter (cmake-format) leaves it, so gw is a
@@ -29,18 +35,25 @@ local function here()
 	return vim.fn.expand("%:p:h")
 end
 
--- libs/foo/CMakeLists.txt -> foo
+-- libs/order-book/CMakeLists.txt -> order_book
 local function target_name()
-	return vim.fs.basename(here())
-end
-
--- libs/foo/tests/CMakeLists.txt -> foo
-local function parent_target()
-	return vim.fs.basename(vim.fs.dirname(here()))
+	return cmake.identifier(vim.fs.basename(here()))
 end
 
 local function namespace()
 	return cmake.project_name(here())
+end
+
+-- The library a tests/ or bench/ directory belongs to: the alias in the
+-- parent's saved CMakeLists.txt (so the directory's name doesn't matter),
+-- else <project>::<parent directory>.
+local function tested_library()
+	local parent = vim.fs.dirname(here())
+	return cmake.library(parent) or namespace() .. "::" .. cmake.identifier(vim.fs.basename(parent))
+end
+
+local function tested_name()
+	return tested_library():match("::(.*)")
 end
 
 -- Where a line wraps depends on the names typed in, so a snippet can't be
@@ -86,18 +99,16 @@ local function executable(target_suffix, source_suffix, last, rest)
 	local nodes = {
 		t("add_executable("),
 		default(1, function()
-			return parent_target() .. target_suffix
+			return tested_name() .. target_suffix
 		end),
 		t(" "),
 		default(2, function()
-			return parent_target() .. source_suffix
+			return tested_name() .. source_suffix
 		end),
 		t({ ")", "target_link_libraries(" }),
 		f(copy, { 1 }),
 		t(" PRIVATE "),
-		default(3, function()
-			return namespace() .. "::" .. parent_target()
-		end),
+		default(3, tested_library),
 		t(" "),
 		default(4, function()
 			return namespace() .. "::warnings"
@@ -120,40 +131,44 @@ end
 -- - install.cmake (once per project) adds the export and package files the
 --   first time a library includes it, so a project without libraries has none.
 -- - Tests build only when this is the top-level project.
-local function library(kind)
+local function real(args)
+	local name, project = args[1][1], args[2][1]
+	return name == project and name or project .. "_" .. name
+end
+
+-- What follows "add_library(<real name>". `name`, `ns` and `src` are the
+-- fields holding the library name, the namespace and a static library's
+-- source; header(name, ns) is the public header's path under include/.
+local function library_nodes(kind, name, ns, src, header)
 	local static = kind == "STATIC"
-	local ns = static and 3 or 2
 	local scope = static and " PUBLIC" or " INTERFACE"
-	local function real(args)
-		return args[2][1] .. "_" .. args[1][1]
-	end
-	local nodes = { t("add_library("), default(ns, namespace), t("_"), default(1, target_name), t(" " .. kind) }
+	local nodes = { t(" " .. kind) }
 	if static then
 		vim.list_extend(nodes, {
 			t(" "),
-			d(2, function(args)
+			d(src, function(args)
 				return sn(nil, i(1, "src/" .. args[1][1] .. ".cpp"))
-			end, { 1 }),
+			end, { name }),
 		})
 	end
 	vim.list_extend(nodes, {
 		t({ ")", "add_library(" }),
 		f(function(args)
 			return args[2][1] .. "::" .. args[1][1] .. " ALIAS " .. real(args)
-		end, { 1, ns }),
+		end, { name, ns }),
 		t({ ")", "set_target_properties(" }),
 		f(function(args)
 			return real(args) .. " PROPERTIES EXPORT_NAME " .. args[1][1]
-		end, { 1, ns }),
+		end, { name, ns }),
 		t({ ")", "", "target_sources(" }),
 		f(function(args)
 			return {
 				real(args) .. scope .. " FILE_SET HEADERS BASE_DIRS include FILES",
-				"  include/" .. args[2][1] .. "/" .. args[1][1] .. "/" .. args[1][1] .. ".hpp)",
+				"  include/" .. header(args[1][1], args[2][1]) .. ")",
 			}
-		end, { 1, ns }),
+		end, { name, ns }),
 		t({ "", "target_compile_features(" }),
-		f(real, { 1, ns }),
+		f(real, { name, ns }),
 		t(scope .. " cxx_std_${CMAKE_CXX_STANDARD})"),
 	})
 	if static then
@@ -162,15 +177,15 @@ local function library(kind)
 				"",
 				"target_link_libraries(" .. real(args) .. " PRIVATE $<BUILD_INTERFACE:" .. args[2][1] .. "::warnings>)",
 			}
-		end, { 1, ns })
+		end, { name, ns })
 	end
 	vim.list_extend(nodes, {
 		t({ "", "", "include(${PROJECT_SOURCE_DIR}/cmake/install.cmake)", "install(", "  TARGETS " }),
-		f(real, { 1, ns }),
+		f(real, { name, ns }),
 		t({ "", "  EXPORT " }),
 		f(function(args)
 			return args[2][1] .. "-targets"
-		end, { 1, ns }),
+		end, { name, ns }),
 		t({
 			"",
 			"  FILE_SET HEADERS)",
@@ -181,6 +196,19 @@ local function library(kind)
 		}),
 		i(0),
 	})
+	return nodes
+end
+
+local function library(kind)
+	local static = kind == "STATIC"
+	local ns = static and 3 or 2
+	local nodes = { t("add_library("), default(ns, namespace), t("_"), default(1, target_name) }
+	vim.list_extend(
+		nodes,
+		library_nodes(kind, 1, ns, 2, function(name, project)
+			return project .. "/" .. name .. "/" .. name .. ".hpp"
+		end)
+	)
 	return s({
 		trig = static and "cmlib" or "cmlibh",
 		dscr = static and "Static library: alias, header set, standard, warnings, install, tests"
@@ -222,35 +250,59 @@ end
 -- global cache variable, and a consumer turning on its own tests must not
 -- build these. Benchmarks are per project: add
 -- include(cmake/gbench.cmake) (cmgb) inside if(PROJECT_IS_TOP_LEVEL).
-local cm = s("cm", {
-	t("cmake_minimum_required(VERSION "),
-	i(1, "3.25...4.4"),
-	t({ ")", "project(", "  " }),
-	default(2, function()
-		return (target_name():gsub("[^%w_]", "_"))
-	end),
-	t({ "", "  VERSION " }),
-	i(3, "0.1.0"),
-	t({ "", '  DESCRIPTION "' }),
-	i(4, "description"),
-	t({ '"', "  LANGUAGES CXX)", "", "set(CMAKE_CXX_STANDARD " }),
-	c(5, { t("23"), t("17"), t("20") }),
-	t({
-		")",
-		"set(CMAKE_CXX_STANDARD_REQUIRED ON)",
-		"set(CMAKE_CXX_EXTENSIONS OFF)",
-		"",
-		"include(cmake/warnings.cmake)",
-		"",
-		"if(PROJECT_IS_TOP_LEVEL)",
-		"  include(CTest)",
-		"  if(BUILD_TESTING)",
-		"    include(cmake/gtest.cmake)",
-		"  endif()",
-		"endif()",
-	}),
-	i(0),
-})
+local function project_nodes()
+	return {
+		t("cmake_minimum_required(VERSION "),
+		i(1, "3.25...4.4"),
+		t({ ")", "project(", "  " }),
+		default(2, function()
+			return target_name()
+		end),
+		t({ "", "  VERSION " }),
+		i(3, "0.1.0"),
+		t({ "", '  DESCRIPTION "' }),
+		i(4, "description"),
+		t({ '"', "  LANGUAGES CXX)", "", "set(CMAKE_CXX_STANDARD " }),
+		c(5, { t("23"), t("17"), t("20") }),
+		t({
+			")",
+			"set(CMAKE_CXX_STANDARD_REQUIRED ON)",
+			"set(CMAKE_CXX_EXTENSIONS OFF)",
+			"",
+			"include(cmake/warnings.cmake)",
+			"",
+			"if(PROJECT_IS_TOP_LEVEL)",
+			"  include(CTest)",
+			"  if(BUILD_TESTING)",
+			"    include(cmake/gtest.cmake)",
+			"  endif()",
+			"endif()",
+		}),
+	}
+end
+
+local cm = s("cm", vim.list_extend(project_nodes(), { i(0) }))
+
+-- Top-level CMakeLists.txt of a project that is one library at its root,
+-- expanded by :CppSolo (! for cmsoloh): cm, then cmlib/cmlibh named after the
+-- project, whose header is include/<project>/<project>.hpp. The file is
+-- unsaved, so the name is copied from the project() field.
+local function solo(kind)
+	local static = kind == "STATIC"
+	local nodes = project_nodes()
+	vim.list_extend(nodes, { t({ "", "", "add_library(" }), f(real, { 2, 2 }) })
+	vim.list_extend(
+		nodes,
+		library_nodes(kind, 2, 2, 6, function(name)
+			return name .. "/" .. name .. ".hpp"
+		end)
+	)
+	return s({
+		trig = static and "cmsolo" or "cmsoloh",
+		dscr = static and "Project that is one static library at the root (cm + cmlib)"
+			or "Project that is one header-only library at the root (cm + cmlibh)",
+	}, nodes)
+end
 
 return {
 	cm,
@@ -332,6 +384,8 @@ return {
 
 	library("STATIC"),
 	library("INTERFACE"),
+	solo("STATIC"),
+	solo("INTERFACE"),
 
 	-- System package first, else the pinned download. URL_HASH makes the
 	-- download tamper- and drift-proof; get it with
