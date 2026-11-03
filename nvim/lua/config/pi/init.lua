@@ -50,7 +50,7 @@ function M.new(options)
 
 	function app:workspace_for_source()
 		if not self.workspace then
-			self.workspace = vim.fs.normalize(options.cwd or vim.fn.getcwd())
+			self.workspace = vim.fs.normalize(options.cwd or vim.fn.getcwd(), { expand_env = false })
 		end
 		return self.workspace
 	end
@@ -648,7 +648,7 @@ function M.new(options)
 			return
 		end
 		self:workspace_for_source()
-		local workspace = vim.fs.normalize(options.cwd or vim.fn.getcwd())
+		local workspace = vim.fs.normalize(options.cwd or vim.fn.getcwd(), { expand_env = false })
 		if directory and directory ~= "" then
 			workspace = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(directory), ":p")):gsub("/$", "")
 			if workspace == "" then
@@ -759,7 +759,8 @@ function M.setup(options)
 			app:preview_prompt()
 		end)
 		command("PiAttachFile", function(args)
-			app:attach_file(args.fargs[1] or "")
+			-- Expand what was typed (~, %); buffer names and saved paths stay literal.
+			app:attach_file(args.fargs[1] and vim.fn.expand(args.fargs[1]) or "")
 		end, { nargs = "?", complete = "file" })
 		command("PiAttachBuffer", function()
 			app:attach_buffer()

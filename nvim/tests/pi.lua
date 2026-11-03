@@ -625,6 +625,17 @@ test("refreshing a restored disk reference notices disk changes even when its se
 	eq(app.attachments[1].attachment_id, 2)
 end)
 
+test("file references keep glob and $ characters literal", function()
+	local app = fixture()
+	for _, name in ipairs({ "[id].tsx", "i.tsx", "a$HOME.txt" }) do
+		vim.fn.writefile({ name }, directory .. "/" .. name)
+	end
+	app:attach_file("[id].tsx")
+	app:attach_file("a$HOME.txt")
+	eq(app.attachments[1].path, directory .. "/[id].tsx")
+	eq(app.attachments[2].path, directory .. "/a$HOME.txt")
+end)
+
 test("pending acknowledgement reserves submitted IDs when the draft attachment is refreshed", function()
 	local app = fixture("slow_ack")
 	app:attach_buffer()

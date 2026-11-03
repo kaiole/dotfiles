@@ -40,8 +40,9 @@ local function excerpt(message)
 	return vim.fn.strchars(text) > 80 and vim.fn.strcharpart(text, 0, 80) .. "…" or text
 end
 
+-- Paths here are literal file names: never expand `$VAR` or globs in them.
 function M.path(path, workspace)
-	path = vim.fs.normalize(path)
+	path = vim.fs.normalize(path, { expand_env = false })
 	local prefix = workspace:gsub("/$", "") .. "/"
 	return path:sub(1, #prefix) == prefix and path:sub(#prefix + 1) or path
 end
@@ -52,11 +53,10 @@ local function stat(path)
 end
 
 function M.file(path, workspace)
-	path = vim.fn.expand(path)
 	if path:sub(1, 1) ~= "/" then
 		path = workspace .. "/" .. path
 	end
-	path = vim.fs.normalize(path)
+	path = vim.fs.normalize(path, { expand_env = false })
 	assert(vim.fn.filereadable(path) == 1, "Not a readable file: " .. path)
 	local name = M.path(path, workspace)
 	return {
