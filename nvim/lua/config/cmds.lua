@@ -8,6 +8,15 @@ end, {
 	desc = "Create C++ project configs from saved snippets (default: current directory)",
 })
 
+vim.api.nvim_create_user_command("CppLib", function(opts)
+	require("config.actions.cpp_lib").create(opts.args, opts.bang)
+end, {
+	nargs = 1,
+	bang = true,
+	complete = "dir",
+	desc = "Create one C++ library and expand cmlib (! for header-only cmlibh) in its CMakeLists.txt",
+})
+
 vim.api.nvim_create_user_command("Whitebox", function(opts)
 	comp_prog.create_problem(opts.args)
 end, {

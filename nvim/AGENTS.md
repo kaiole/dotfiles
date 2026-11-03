@@ -30,12 +30,14 @@ which language or workflow they configure.
 | C++ formatting policy / `.clang-format` template | `snippets/yaml.lua`: `fmt` |
 | C++ lint policy / `.clang-tidy` template | `snippets/yaml.lua`: `tidy` (checks, naming rules, extra warnings), `tidychill` (inherited test/benchmark relaxations) |
 | CMake project preamble and target warning flags | `snippets/cmake.lua`: `cm`, `cmwarn` (warnings INTERFACE target, linked PRIVATE) |
+| Library CMakeLists.txt | `snippets/cmake.lua`: `cmlib` (STATIC), `cmlibh` (header-only INTERFACE, no warnings link); alias, include dir, `if(BUILD_TESTING) add_subdirectory(tests)`. Target name defaults to the buffer's directory, namespace to the nearest `project()` (`lua/config/cmake.lua`); `cmgtx`/`cmgbx` default from the parent of `tests/`/`bench/` |
 | Generic system-first dependency with pinned FetchContent fallback | `snippets/cmake.lua`: `cmfetch` (package name, Git repository, tag) |
 | GoogleTest / Google Benchmark dependencies and executables | `snippets/cmake.lua`: `cmgt`, `cmgtx`, `cmgb`, `cmgbx` |
-| CMake configure/build/test/workflow presets | `snippets/json.lua`: `cmpresets` (Ninja, compile commands, warnings-as-errors, Clang Debug + sanitizers, GCC/Clang release builds) |
+| CMake configure/build/test/workflow presets | `snippets/json.lua`: `cmpresets` (Ninja, compile commands, warnings-as-errors, Clang Debug `dev` (ASan/UBSan) and `tsan` (TSan/UBSan), GCC/Clang release builds; output is Prettier-stable) |
 | Markdown coding prompt drafts | `snippets/markdown.lua`: `draft` (problem, context, constraints, optional approach, acceptance criteria, grading priorities, deliverable) |
 | Markdown notes and writing | `snippets/markdown.lua`: `frontmatter` (note/tutoring), `hd`, `bold`, `link` (wiki links), `hyperlink`, `footer`, `table`, `code`, `cin`, `ex`, `check`, `sol` (solution + complexity), math/LaTeX snippets |
 | C++ project starter | `:Cpp [directory]` in `lua/config/cmds.lua` → `lua/config/actions/cpp_project.lua`; defaults to editor cwd; creates `.clangd`, `.clang-format`, `.clang-tidy`, and `CMakePresets.json` from the latest saved `clangd`/`fmt`/`tidy`/`cmpresets` snippets, plus `.gitignore`, empty `CMakeLists.txt`, and empty `cmake/warnings.cmake`; skips existing paths/modified destination buffers and opens `CMakeLists.txt`; static snippets only, no Git/build/cwd changes |
+| C++ library starter | `:CppLib[!] <directory>` in `lua/config/cmds.lua` → `lua/config/actions/cpp_lib.lua`; one library anywhere (name = last path component): `include/<ns>/<name>/`, `src/` (not with `!`), `tests/.clang-tidy` from `tidychill`, empty `tests/CMakeLists.txt`; opens `CMakeLists.txt` and expands `cmlib` (`!`: `cmlibh`) live; never edits the parent, puts its `add_subdirectory(...)` line in the unnamed register. Shares create-only file writing with `:Cpp` (`lua/config/actions/scaffold.lua`) |
 | Competitive-programming starter | `:Whitebox <directory>` in `lua/config/cmds.lua` → `lua/config/actions/comp_prog.lua`; creates and opens `main.cpp` |
 
 ## Editor behavior and tool connections
@@ -136,6 +138,8 @@ before touching colors.
 - `:checkhealth`: runtime dependencies and plugin health.
 - C++ project scaffolding (requires installed LuaSnip):
   `nvim --headless -u NONE -l tests/cpp_project.lua`.
+- C++ library scaffolding (requires installed LuaSnip):
+  `nvim --headless -u NONE -l tests/cpp_lib.lua`.
 - Header/source navigation and creation: `nvim --headless -u NONE -l tests/cpp.lua`.
 - Statusline Git segment (temporary repos, isolated from your Git config):
   `nvim --headless -u NONE -l tests/statusline.lua`.

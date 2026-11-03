@@ -66,7 +66,12 @@ local function expect_scaffold()
 	eq(vim.uv.fs_stat(directory .. "/CMakeLists.txt").size, 0)
 	eq(vim.api.nvim_buf_get_name(0), directory .. "/CMakeLists.txt")
 	local presets = vim.json.decode(table.concat(read("CMakePresets.json"), "\n"))
-	eq(presets.configurePresets[2].name, "dev")
+	eq(
+		vim.tbl_map(function(preset)
+			return preset.name
+		end, presets.configurePresets),
+		{ "base", "clang-debug", "dev", "tsan", "release", "release-clang" }
+	)
 	for ft, mappings in pairs({
 		yaml = { clangd = ".clangd", fmt = ".clang-format", tidy = ".clang-tidy" },
 		json = { cmpresets = "CMakePresets.json" },

@@ -2,6 +2,9 @@
 -- cppstack dev/release split. Presets hold build-wide policy (compiler, build
 -- type, sanitizers, warnings-as-errors); the warning flags themselves belong to
 -- targets (cmwarn in cmake.lua), so they never reach third-party code.
+-- ASan and TSan can't share a binary, so dev and tsan are separate presets on
+-- one clang-debug base. Each repeats its full CMAKE_CXX_FLAGS: inherited cache
+-- variables don't concatenate. The text is Prettier-stable; keep it so.
 local ls = require("luasnip")
 local s = ls.snippet
 local t = ls.text_node
@@ -10,7 +13,7 @@ local i = ls.insert_node
 return {
 	s({
 		trig = "cmpresets",
-		dscr = "dev (Clang Debug, ASan/UBSan), release (GCC) and release-clang (RelWithDebInfo); cmake --workflow --preset dev",
+		dscr = "dev (Clang Debug, ASan/UBSan), tsan (TSan/UBSan), release (GCC) and release-clang (RelWithDebInfo); cmake --workflow --preset dev",
 	}, {
 		t({
 			"{",
@@ -27,15 +30,28 @@ return {
 			"      }",
 			"    },",
 			"    {",
-			'      "name": "dev",',
-			'      "displayName": "Clang Debug + ASan/UBSan + libstdc++ assertions",',
+			'      "name": "clang-debug",',
+			'      "hidden": true,',
 			'      "inherits": "base",',
 			'      "cacheVariables": {',
 			'        "CMAKE_CXX_COMPILER": "clang++",',
-			'        "CMAKE_BUILD_TYPE": "Debug",',
-			'        "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -D_GLIBCXX_ASSERTIONS",',
-			'        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",',
-			'        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,undefined"',
+			'        "CMAKE_BUILD_TYPE": "Debug"',
+			"      }",
+			"    },",
+			"    {",
+			'      "name": "dev",',
+			'      "displayName": "Clang Debug + ASan/UBSan + libstdc++ assertions",',
+			'      "inherits": "clang-debug",',
+			'      "cacheVariables": {',
+			'        "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -D_GLIBCXX_ASSERTIONS"',
+			"      }",
+			"    },",
+			"    {",
+			'      "name": "tsan",',
+			'      "displayName": "Clang Debug + TSan/UBSan + libstdc++ assertions",',
+			'      "inherits": "clang-debug",',
+			'      "cacheVariables": {',
+			'        "CMAKE_CXX_FLAGS": "-fsanitize=thread,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -D_GLIBCXX_ASSERTIONS"',
 			"      }",
 			"    },",
 			"    {",
@@ -59,6 +75,7 @@ return {
 			"  ],",
 			'  "buildPresets": [',
 			'    { "name": "dev", "configurePreset": "dev" },',
+			'    { "name": "tsan", "configurePreset": "tsan" },',
 			'    { "name": "release", "configurePreset": "release" },',
 			'    { "name": "release-clang", "configurePreset": "release-clang" }',
 			"  ],",
@@ -70,10 +87,12 @@ return {
 			'      "execution": { "noTestsAction": "error" },',
 			'      "environment": {',
 			'        "ASAN_OPTIONS": "abort_on_error=1:detect_leaks=1:strict_string_checks=1",',
-			'        "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1"',
+			'        "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1",',
+			'        "TSAN_OPTIONS": "halt_on_error=1:second_deadlock_stack=1"',
 			"      }",
 			"    },",
 			'    { "name": "dev", "configurePreset": "dev", "inherits": "test-base" },',
+			'    { "name": "tsan", "configurePreset": "tsan", "inherits": "test-base" },',
 			"    {",
 			'      "name": "release",',
 			'      "configurePreset": "release",',
@@ -92,6 +111,14 @@ return {
 			'        { "type": "configure", "name": "dev" },',
 			'        { "type": "build", "name": "dev" },',
 			'        { "type": "test", "name": "dev" }',
+			"      ]",
+			"    },",
+			"    {",
+			'      "name": "tsan",',
+			'      "steps": [',
+			'        { "type": "configure", "name": "tsan" },',
+			'        { "type": "build", "name": "tsan" },',
+			'        { "type": "test", "name": "tsan" }',
 			"      ]",
 			"    },",
 			"    {",
