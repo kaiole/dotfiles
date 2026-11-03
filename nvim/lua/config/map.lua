@@ -1,9 +1,15 @@
 vim.keymap.set({ "n", "i", "v", "o" }, "<C-c>", "<Esc>", { silent = true })
-vim.keymap.set("n", "<C-d>", "<C-d>zz")
-vim.keymap.set("n", "<C-u>", "<C-u>zz")
-vim.keymap.set("n", "<C-o>", "<C-o>zz")
-vim.keymap.set("n", "<C-i>", "<C-i>zz")
-vim.keymap.set("n", "G", "Gzz")
+-- One :normal! instead of a "<C-d>zz" rhs: Neovim can redraw between a
+-- mapping's keys, flashing the pre-zz scroll for a frame (e.g. <C-d> at the top).
+local function centered(keys)
+	return function()
+		local count = vim.v.count > 0 and vim.v.count or ""
+		vim.cmd.normal({ args = { count .. vim.keycode(keys) .. "zz" }, bang = true })
+	end
+end
+for _, keys in ipairs({ "<C-d>", "<C-u>", "<C-o>", "<C-i>", "G" }) do
+	vim.keymap.set("n", keys, centered(keys))
+end
 vim.keymap.set("n", "n", "nzzzv")
 vim.keymap.set("n", "N", "Nzzzv")
 -- "x", not "v": "v" also covers Select mode, where typing J/K into a snippet
