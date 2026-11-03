@@ -65,8 +65,8 @@ not added here.
 | `:PiAttachBuffer` | Complete unsaved editor buffer | — |
 | `:PiAttachDiagnostics` | All diagnostics in the source buffer | `<leader>pD` |
 | `:PiAttachDiagnostic` | Diagnostic covering the cursor; picker on overlaps | `<leader>pd` |
-| `:PiAttachSelection` | Active Visual selection | Visual `<leader>pv` |
-| `:'<,'>PiAttachSelection` | Explicit linewise Ex range | — |
+| — | Active Visual selection, exact boundaries | Visual `<leader>pv` |
+| `:'<,'>PiAttachSelection` | Lines in the Ex range | — |
 | `:PiAttachQuickfix` | Current quickfix list entries and title | `<leader>pq` |
 
 Every successful attachment shows a command-line confirmation, including Visual
@@ -122,8 +122,7 @@ the original attachment. Refreshing a restored attachment with changed contents
 assigns a new ID and notifies you; an unchanged refresh retains the ID. Pending
 acknowledgements also reserve IDs. Refresh never rewrites your draft: update its
 references to use the new snapshot, or name both IDs to compare them. `:PiNew`
-clears access to previously sent attachments; unfinished current attachments are
-preserved when the directory stays the same.
+clears access to previously sent attachments.
 
 ## Conversation and recovery
 
@@ -138,12 +137,13 @@ preserved when the directory stays the same.
   empty draft/attachment list. It clears the displayed conversation and archive.
 - Successful submission archives and clears the sent draft/attachments, hiding
   the composer to show the answer. If you changed the draft or added context
-  while awaiting acknowledgement, it stays open and your changes aren't erased. A submission/startup
-  failure preserves the draft. Acceptance isn't the same as a successful answer.
+  while awaiting acknowledgement, it stays open and your changes aren't erased.
+  A submission/startup failure preserves the draft. Acceptance isn't the same as
+  a successful answer.
 - `:PiRestore` (draft `gR`) restores the last accepted draft with its attachments,
   including after cancellation/provider failure. Clear your current draft first.
-- `:PiClear` (draft normal-mode `gC`) discards the unfinished draft and attachments explicitly. Deleting
-  draft text with Vim motions leaves attachments intact.
+- `:PiClear` (draft normal-mode `gC`) discards the unfinished draft and
+  attachments. Deleting draft text with Vim motions leaves attachments intact.
 - A second send while busy is refused; the next draft remains intact. There is
   no implicit queue or steering.
 - `:PiAbort` clears any Pi queue, then aborts the current work. The conversation
@@ -151,7 +151,8 @@ preserved when the directory stays the same.
 - A three-minute whole-task deadline stops Pi. Cancellation failure or an
   unexpected process exit also requires `:PiNew`, so a lost conversation isn't
   silently replaced. An ambiguous acknowledgement/transport failure stops Pi
-  rather than pretending the prompt couldn't have executed. Stop/exit retains partial output and the submitted archive.
+  rather than pretending the prompt couldn't have executed. Stop/exit retains
+  partial output and the submitted archive.
 - Prompts over 1 MiB are refused without truncation. Remove large attachments.
 
 ## Explain/investigate only
@@ -167,16 +168,12 @@ before sending it, especially unsaved buffers and diagnostic/build messages.
 
 ## Files and verification
 
-- `lua/plugins/pi.lua`: local toolkit loading, mappings, teardown.
-- `lua/config/pi/init.lua`: workflow ownership, commands, Pi lifecycle.
-- `lua/config/pi/context.lua`: detached attachment capture and serialization.
-- `lua/config/pi/settings.lua`: model/thinking discovery, pickers and deferred changes.
-- `lua/config/pi/view.lua`: composer, attachment, preview and chat windows.
+File responsibilities are in `nvim/AGENTS.md`. Colors use existing highlights.
 
-Reload by executing `:lua dofile(vim.fn.stdpath('config') .. '/lua/plugins/pi.lua')`.
-Reload explicitly disposes the old process/UI/commands/mappings and discards its
-in-memory state. Removing the integration requires removing its `init.lua`
-require. Colors use existing highlights; no palette changes are needed.
+`:lua dofile(vim.fn.stdpath('config') .. '/lua/plugins/pi.lua')` resets the
+integration: it disposes the old process, UI, commands and mappings, and
+discards in-memory state. It doesn't reload edited `config.pi.*` modules;
+restart Neovim for code changes.
 
 Deterministic tests (Python 3, Neovim and the local toolkit; no provider/network):
 
