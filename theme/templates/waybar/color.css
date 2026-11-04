@@ -12,3 +12,4 @@
 @define-color surface {{surface}};
 @define-color fg_max {{fg_max}};
 @define-color fg_dim {{fg_dim}};
+@define-color fg_faint {{fg_faint}};

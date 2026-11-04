@@ -37,7 +37,7 @@ tooltip {
     padding: 0;
     margin: 0 8px;
     background-color: transparent;
-    background-image: linear-gradient(@fg_dim, @fg_dim);
+    background-image: linear-gradient(@fg_faint, @fg_faint);
     background-size: 24px 6px;
     background-position: center;
     background-repeat: no-repeat;
@@ -49,16 +49,16 @@ tooltip {
     margin: 0;
 }
 
-/* A dark fill inside a 1px outline */
+/* A dark fill inside a 1px outline, dimmer than an occupied box */
 #workspaces button.empty {
     background-image:
         linear-gradient(@surface, @surface),
-        linear-gradient(@fg_dim, @fg_dim);
+        linear-gradient(@bg2, @bg2);
     background-size: 22px 4px, 24px 6px;
 }
 
 #workspaces button.active {
-    background-image: linear-gradient(@fg_max, @fg_max);
+    background-image: linear-gradient(@fg, @fg);
     background-size: 24px 6px;
 }
 
@@ -69,12 +69,12 @@ tooltip {
 
 #workspaces button:hover {
     background-color: transparent;
-    background-image: linear-gradient(@bg2, @bg2);
+    background-image: linear-gradient(@fg_dim, @fg_dim);
     background-size: 24px 6px;
 }
 
 #workspaces button.active:hover {
-    background-image: linear-gradient(@fg_max, @fg_max);
+    background-image: linear-gradient(@fg, @fg);
 }
 
 #window,
