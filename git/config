@@ -1,0 +1,19 @@
+[user]
+	name = Kyle Nguyen
+	email = kyleqbnguyen@gmail.com
+	signingkey = 49A68C9CEC0CA563
+[init]
+	defaultBranch = main
+[tag]
+	gpgSign = true
+[merge]
+	conflictStyle = zdiff3
+	tool = nvimdiff
+[rerere]
+	enabled = true
+[diff]
+	algorithm = histogram
+[mergetool]
+	keepBackup = false
+[mergetool "nvimdiff"]
+	layout = LOCAL,MERGED,REMOTE
