@@ -11,6 +11,18 @@ end
 vim.o.termguicolors = true
 vim.g.colors_name = "palette"
 
+-- `amount` of `color` over `base`, for tints the palette has no key for.
+local function mix(color, base, amount)
+	local function ch(hex, i)
+		return tonumber(hex:sub(i, i + 1), 16)
+	end
+	local out = "#"
+	for i = 2, 6, 2 do
+		out = out .. string.format("%02x", math.floor(ch(color, i) * amount + ch(base, i) * (1 - amount) + 0.5))
+	end
+	return out
+end
+
 -- stylua: ignore
 local groups = {
 	-- Editor UI and legacy syntax groups
@@ -119,10 +131,11 @@ local groups = {
 	Added = { fg = c.success },
 	Changed = { fg = c.fg_muted },
 	Removed = { fg = c.warning },
-	DiffAdd = { fg = c.success },
-	DiffChange = { fg = c.fg_muted },
-	DiffDelete = { fg = c.warning },
-	DiffText = { fg = c.fg_dim },
+	-- Diff mode: background only, so syntax colors stay readable.
+	DiffAdd = { bg = mix(c.success, c.bg, 0.30) },
+	DiffChange = { bg = mix(c.fg, c.bg, 0.20) },
+	DiffText = { bg = mix(c.warning, c.bg, 0.40) },
+	DiffDelete = { fg = c.fg_faint, bg = mix(c.error, c.bg, 0.30) },
 	DiffAdded = { fg = c.success },
 	DiffRemoved = { fg = c.warning },
 	DiffChanged = { fg = c.fg_muted },
