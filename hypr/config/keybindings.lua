@@ -13,6 +13,8 @@ hl.bind(main_mod .. " + M", hl.dsp.exit())
 -- Lock through logind so hypridle's lock_cmd stays the only hyprlock launcher.
 hl.bind(main_mod .. " + minus", hl.dsp.exec_cmd("loginctl lock-session"))
 hl.bind(main_mod .. " + SPACE", hl.dsp.exec_cmd(toggle_rofi))
+-- Toggle Colemak-DH / QWERTY (for guests); binds stay on Colemak positions.
+hl.bind(main_mod .. " + backslash", hl.dsp.exec_cmd("hyprctl switchxkblayout all next"))
 hl.bind(main_mod .. " + W", hl.dsp.exec_cmd(wall_select))
 hl.bind(main_mod .. " + F", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(main_mod .. " + P", hl.dsp.exec_cmd("hyprpicker -a"))

@@ -3,8 +3,10 @@
 
 hl.config({
 	input = {
-		kb_layout = "us",
-		kb_variant = "colemak_dh_ortho",
+		-- Two groups: Colemak-DH (default) and QWERTY, toggled by
+		-- Super+backslash (keybindings.lua).
+		kb_layout = "us,us",
+		kb_variant = "colemak_dh_ortho,",
 		kb_options = "ctrl:swapcaps",
 		repeat_rate = 50,
 		repeat_delay = 300,
