@@ -1,12 +1,14 @@
-local path = vim.fn.expand("~/personal/pi-nvim")
+local toolkit = vim.fn.expand("~/personal/pi-nvim")
+local path = vim.fn.expand("~/personal/wingman")
 
--- Local toolkit outside dotfiles; no startup process or model call.
-if vim.fn.isdirectory(path) == 0 then
+-- Local plugin and toolkit outside dotfiles; no startup process or model call.
+if vim.fn.isdirectory(toolkit) == 0 or vim.fn.isdirectory(path) == 0 then
 	return
 end
 
+vim.opt.runtimepath:prepend(toolkit)
 vim.opt.runtimepath:prepend(path)
-local app = require("config.pi").setup()
+local app = require("wingman").setup()
 local mappings = {}
 local function map(mode, lhs, callback, description)
 	vim.keymap.set(mode, lhs, callback, { desc = description })
@@ -32,18 +34,10 @@ map("n", "<leader>pq", function()
 	vim.cmd.PiAttachQuickfix()
 end, "Pi: attach quickfix list")
 map("x", "<leader>pv", function()
-	-- Capture while Visual mode is still active, before changing mode/focus.
-	local ok, err = pcall(function()
-		app:attach_selection()
-	end)
-	if ok then
-		vim.cmd.normal({ vim.keycode("<Esc>"), bang = true })
-	else
-		vim.notify("Pi: " .. tostring(err), vim.log.levels.ERROR)
-	end
+	app:attach_visual()
 end, "Pi: attach selection")
 
-local group = vim.api.nvim_create_augroup("PiIntegration", { clear = true })
+local group = vim.api.nvim_create_augroup("Wingman", { clear = true })
 vim.api.nvim_create_autocmd("VimLeavePre", {
 	group = group,
 	callback = function()

@@ -76,13 +76,7 @@ These are entry points; read the owning file for exact modes and overrides.
 | Undo history | `lua/plugins/undotree.lua`: `<leader>u` toggles built-in `nvim.undotree` (no plugin); persistence configured in `lua/config/set.lua` |
 | Session launcher | `lua/config/sessionizer.lua` (set up from `map.lua`): `<C-f>` → `~/.local/bin/tmux-sessionizer`; in ROS distrobox panes (`$ROS_TMUX_STATE`) it instead reports normal mode so host tmux opens the picker; source in `~/dotfiles/scripts/tmux-sessionizer/` (`ROS.md`) |
 | Command center | `lua/plugins/command_center.lua` → local plugin `~/personal/command-center` (owns its behavior); skipped if missing |
-| Pi integration | `lua/plugins/pi.lua`: `<leader>pa` question, `<leader>pc` chat, `<leader>pf` file, `<leader>pd`/`<leader>pD` diagnostic(s), `<leader>pq` quickfix, visual `<leader>pv` selection |
-
-Pi's `:Pi*` commands and session orchestration live in
-`lua/config/pi/init.lua`; attachment capture in `context.lua`, windows and
-buffer-local controls in `view.lua`, model/thinking selection in `settings.lua`.
-See `docs/pi.md`. The integration depends on `~/personal/pi-nvim` and is
-skipped if that directory is missing.
+| Pi integration (wingman) | `lua/plugins/wingman.lua` → local plugin `~/personal/wingman` (owns its behavior, commands and docs; needs `~/personal/pi-nvim`); skipped if either is missing. Maps: `<leader>pa` question, `<leader>pc` chat, `<leader>pf` file, `<leader>pd`/`<leader>pD` diagnostic(s), `<leader>pq` quickfix, visual `<leader>pv` selection |
 
 Obsidian vault support (`~/vault`) is the markdown-oxide language server,
 configured in `lua/plugins/lsp.lua`: wiki-link/heading/block completion,
@@ -145,7 +139,6 @@ before touching colors.
 | `snippet_format` | C++ snippets come out `gw`-formatted | cmake-format, Prettier, shfmt |
 | `cpp` | header/source navigation and creation | — |
 | `statusline` | Git segment | git |
-| `pi` | Pi integration | — |
 | `sessionizer` | ROS mode reporting | — |
 | `theme_cpp` | C++ highlight hierarchy, with and without semantic tokens (`tests/fixtures/theme.cpp`) | C++ parser, clangd |
 

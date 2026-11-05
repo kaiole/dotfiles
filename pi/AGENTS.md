@@ -56,7 +56,8 @@ pi loads code in two ways:
   `theme/templates/pi/themes/palette.json`; never edit it. pi finds it through
   the `~/.pi/agent/themes` link and reloads when it changes. See
   `../theme/AGENTS.md`.
-- **nvim integration** lives in `../nvim/lua/config/pi/` and `../nvim/docs/pi.md`.
+- **nvim integration** is the separate `~/personal/wingman` plugin, loaded by
+  `../nvim/lua/plugins/wingman.lua`.
 
 ## Verify
 
