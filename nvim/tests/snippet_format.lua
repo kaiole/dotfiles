@@ -157,6 +157,17 @@ test("finishing a snippet formats only its own lines", function()
 	assert(result[2] == "add_executable(io_tests io_test.cpp)", result[2])
 end)
 
+test("cmfetch requires at least the pinned version", function()
+	open(project("app"), "cmake/dependency.cmake", "cmake")
+	for _, snippet in ipairs(dofile(config .. "/snippets/cmake.lua")) do
+		if snippet.trigger == "cmfetch" then
+			ls.snip_expand(snippet)
+		end
+	end
+	finish()
+	assert(vim.tbl_contains(lines(), "  SYSTEM FIND_PACKAGE_ARGS 1.2.3 CONFIG)"), table.concat(lines(), "\n"))
+end)
+
 vim.cmd("%bwipeout!")
 vim.fn.delete(root, "rf")
 if failures > 0 then

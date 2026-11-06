@@ -86,6 +86,15 @@ local function s(context, nodes)
 	return ls.snippet(context, nodes, { callbacks = { [-1] = { [events.leave] = format_when_done } } })
 end
 
+-- .../tags/v1.2.3.tar.gz -> 1.2.3: the last dotted number in a release URL.
+local function url_version(url)
+	local version = ""
+	for match in url:gmatch("%d+%.%d+[%.%d]*") do
+		version = match
+	end
+	return (version:gsub("%.+$", ""))
+end
+
 -- Editable field whose default is computed when the snippet expands.
 local function default(index, text)
 	return d(index, function()
@@ -375,7 +384,7 @@ return {
 			"@PACKAGE_INIT@",
 			"",
 			"include(CMakeFindDependencyMacro)",
-			"# find_dependency(<Package>) for each PUBLIC external dependency.",
+			"# find_dependency(<Package> <version>) for each PUBLIC external dependency.",
 			"",
 			'include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@-targets.cmake")',
 			"check_required_components(@PROJECT_NAME@)",
@@ -390,6 +399,10 @@ return {
 	-- System package first, else the pinned download. URL_HASH makes the
 	-- download tamper- and drift-proof; get it with
 	-- curl -sL <url> | sha256sum.
+	-- The version (default: the URL's) is the oldest system package accepted;
+	-- the package's version file decides which newer ones are compatible, and
+	-- a range (1.2...<2) caps them. A PUBLIC dependency needs the same
+	-- constraint in its find_dependency (cmconfig).
 	s({ trig = "cmfetch", dscr = "Dependency: system first, else pinned, hashed download" }, {
 		t({ "include(FetchContent)", "", "FetchContent_Declare(", "  " }),
 		i(1, "PackageName"),
@@ -397,7 +410,11 @@ return {
 		i(2, "https://github.com/owner/repo/archive/refs/tags/v1.2.3.tar.gz"),
 		t({ "", "  URL_HASH SHA256=" }),
 		i(3, "hash"),
-		t({ "", "  SYSTEM FIND_PACKAGE_ARGS CONFIG)", "block()", "set(CMAKE_COMPILE_WARNING_AS_ERROR OFF)" }),
+		t({ "", "  SYSTEM FIND_PACKAGE_ARGS " }),
+		d(4, function(args)
+			return sn(nil, i(1, url_version(args[1][1])))
+		end, { 2 }),
+		t({ " CONFIG)", "block()", "set(CMAKE_COMPILE_WARNING_AS_ERROR OFF)" }),
 		t({ "", 'set(CMAKE_CXX_CLANG_TIDY "")', "FetchContent_MakeAvailable(" }),
 		f(copy, { 1 }),
 		t({ ")", "endblock()" }),
