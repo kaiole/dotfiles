@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Read-only content for the prefix-b popup; tmux also handles Esc and Ctrl-C.
+# Read-only content for the prefix-b floating pane; prefix-b closes it.
 printf '\033[?25l'
-trap 'printf "\033[?25h"' EXIT
+# Keys typed after focusing it by accident stay invisible instead of echoing.
+stty -echo
 
 printf '%s\n' \
   ' Start / end of line     Ctrl-A / Ctrl-E' \
@@ -16,8 +17,4 @@ printf '%s\n' \
 # No final newline: it would scroll the first row away and leave a blank bottom row.
 printf '%s' ' Previous last argument  Alt-.'
 
-while IFS= read -rsn1 key; do
-  case "$key" in
-    q|$'\e') break ;;
-  esac
-done
+exec sleep infinity
