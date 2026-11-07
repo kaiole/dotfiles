@@ -38,6 +38,9 @@ for _, extension in ipairs(binary_extensions) do
 	vim.list_extend(find_command, { "--exclude", "*." .. glob })
 end
 
+-- Directories only; selecting one :edits it, which opens oil.
+local find_dirs_command = { fd, "--type", "d", "--color", "never", "--hidden", "--exclude", ".git" }
+
 local dropdown = { theme = "dropdown", borderchars = square_borders }
 
 require("telescope").setup({
@@ -75,6 +78,12 @@ if not fzf_ok then
 end
 
 vim.keymap.set("n", "<leader>ff", "<Cmd>Telescope find_files<CR>")
+vim.keymap.set("n", "<leader>fd", function()
+	require("telescope.builtin").find_files(vim.tbl_extend("force", dropdown, {
+		prompt_title = "Find Directories",
+		find_command = find_dirs_command,
+	}))
+end)
 vim.keymap.set("n", "<leader>gr", "<Cmd>Telescope live_grep<CR>")
 vim.keymap.set("n", "<leader>gf", "<Cmd>Telescope git_files<CR>")
 vim.keymap.set("n", "<leader>gs", "<Cmd>Telescope git_status<CR>")
