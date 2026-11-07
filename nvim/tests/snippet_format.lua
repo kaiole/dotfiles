@@ -86,6 +86,7 @@ local places = {
 		cmlibh = "libs/%s/CMakeLists.txt",
 		cmgtx = "libs/%s/tests/CMakeLists.txt",
 		cmgbx = "libs/%s/bench/CMakeLists.txt",
+		cmapp = "apps/CMakeLists.txt",
 		cmconfig = "cmake/config.cmake.in",
 		default = "cmake/dependency.cmake",
 	},

@@ -472,4 +472,39 @@ return {
 		{ trig = "cmgbx", dscr = "Google Benchmark executable (benchmark_main)" },
 		executable("_bench", "_bench.cpp", "benchmark::benchmark_main", {})
 	),
+
+	-- apps/CMakeLists.txt: one block per executable, its main in
+	-- apps/<name>.cpp. The target is <project>_<name>, the binary just <name>.
+	-- Keep main thin; logic worth testing goes in a library. The top level
+	-- adds apps/ inside if(PROJECT_IS_TOP_LEVEL), so consumers don't build it.
+	s({ trig = "cmapp", dscr = "Executable in apps/: <project>_<name>, binary <name>" }, {
+		t("add_executable("),
+		f(namespace),
+		t("_"),
+		i(1, "app"),
+		t(" "),
+		d(2, function(args)
+			return sn(nil, i(1, args[1][1] .. ".cpp"))
+		end, { 1 }),
+		t({ ")", "set_target_properties(" }),
+		f(namespace),
+		t("_"),
+		f(copy, { 1 }),
+		t(" PROPERTIES OUTPUT_NAME "),
+		f(copy, { 1 }),
+		t({ ")", "target_link_libraries(" }),
+		f(namespace),
+		t("_"),
+		f(copy, { 1 }),
+		t(" PRIVATE "),
+		default(3, function()
+			return namespace() .. "::lib"
+		end),
+		t(" "),
+		f(function()
+			return namespace() .. "::warnings"
+		end),
+		t(")"),
+		i(0),
+	}),
 }
