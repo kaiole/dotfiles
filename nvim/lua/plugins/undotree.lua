@@ -1,3 +1,4 @@
-vim.cmd.packadd("nvim.undotree") -- Built-in since Neovim 0.12; :Undotree toggles.
+-- mbbill/undotree. Options are read when its plugin/ script loads after init.lua.
+vim.g.undotree_SetFocusWhenToggle = 1
 
-vim.keymap.set("n", "<leader>u", vim.cmd.Undotree)
+vim.keymap.set("n", "<leader>u", vim.cmd.UndotreeToggle)
