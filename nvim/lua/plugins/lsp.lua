@@ -21,6 +21,9 @@ vim.filetype.add({
 		mll = "ocamllex",
 		mly = "menhir",
 	},
+	filename = {
+		[".ocamlformat"] = "conf",
+	},
 })
 
 vim.lsp.config("neocmake", {

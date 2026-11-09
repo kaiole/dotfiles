@@ -27,6 +27,7 @@ which language or workflow they configure.
 | Purpose | Source and entry points |
 | --- | --- |
 | `.clangd`, `.clang-format`, `.clang-tidy` | `snippets/yaml.lua`: `clangd` (database in `build/dev`), `fmt`, `tidy`, `tidychill` (relaxations for `tests/`) |
+| `.ocamlformat` | `snippets/conf.lua`: `ofmt` (default profile, pinned version, one line per match case, `;;` after multi-line top-level definitions); `.ocamlformat` is mapped to the `conf` filetype in `lua/plugins/lsp.lua` |
 | CMake project files | `snippets/cmake.lua`: `cm` (top-level `CMakeLists.txt`), `cmsolo`/`cmsoloh` (`cm` plus one library at the root, named after the `project()` field), `cmwarn` (`<ns>::warnings`), `cminstall` + `cmconfig` (install export, package config). Its header comment states the rules every target follows |
 | Library `CMakeLists.txt` | `snippets/cmake.lua`: `cmlib` (STATIC), `cmlibh` (header-only). Name defaults to the buffer's directory in snake_case, namespace to the nearest `project()` (`lua/config/cmake.lua`) |
 | Dependencies and test/bench executables | `snippets/cmake.lua`: `cmfetch` (system package, else pinned, hashed download), `cmgt`/`cmgb` (GoogleTest/Benchmark that way), `cmgtx`/`cmgbx` (executables in `<lib>/tests`, `<lib>/bench`, linking the alias in the parent's saved `CMakeLists.txt`); `cmapp` (executable in `apps/CMakeLists.txt`: target `<project>_<name>`, binary `<name>`, main in `apps/<name>.cpp`) |
