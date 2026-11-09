@@ -41,7 +41,8 @@ pi loads code in two ways:
 | `sub-agents/` | package | Background subagents in tmux windows; definitions in `agents/` | submodule |
 
 `../skills/` (submodule) is the skills directory pi loads: `brainstorm`, `cpp`,
-`handoff`, `resume-optimizer`, and manual-only `gcmsg` (`/skill:gcmsg`).
+`handoff`, `resume-optimizer`, `teach` (interactive, learner-paced lessons), and
+manual-only `gcmsg` (`/skill:gcmsg`).
 
 ## Conventions
 
