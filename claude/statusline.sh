@@ -1,18 +1,26 @@
 #!/usr/bin/env bash
 # Claude Code status line:
 #   model • effort | ctx% [used/size] | 5h% [󰜉 reset] | 7d% [󰜉 reset]      dir
-# Rate-limit segments only appear when Claude Code provides them (subscription
-# plans); otherwise session cost is shown instead.
+# Rate limits come from API response headers, so Claude Code only provides them
+# (subscription plans) after a session's first request. Until then the last
+# values seen are shown from a cache, prefixed with ~ (a window that has reset
+# since shows ~0%). With neither, session cost is shown instead.
 #
 # This runs on every render, so one jq call extracts and formats every field.
 # Fields are joined with \x1f, not IFS whitespace, so empty ones survive `read`.
-IFS=$'\x1f' read -r model model_id effort pct used size p5 t5 p7 t7 cost dir < <(jq -r '
+cache=${XDG_CACHE_HOME:-$HOME/.cache}/claude/rate-limits.json
+cached=$(cat "$cache" 2>/dev/null)
+IFS=$'\x1f' read -r model model_id effort pct used size p5 t5 p7 t7 cost dir stale live < <(jq -r --arg cached "$cached" '
   def human: if . < 1000 then "\(floor)"
     elif . < 1000000 then "\((. / 100 | round) / 10)k"
     else "\((. / 100000 | round) / 10)m" end;
   def reset($f): if . == null then "" else tonumber | localtime | strflocaltime($f) | ascii_downcase end;
   def pct: if . == null then "" else floor end;
-  (.context_window.context_window_size // 200000) as $size
+  def unexpired: if . == null or (.resets_at // 0 | tonumber) > now then . else {used_percentage: 0} end;
+  (.rate_limits // null) as $live
+  | ((try ($cached | fromjson) catch null) | if type == "object" then . else null end) as $old
+  | (if $live then $live else $old // {} | map_values(unexpired) end) as $rl
+  | (.context_window.context_window_size // 200000) as $size
   | ((.context_window.current_usage // {}) as $u
      | ($u.input_tokens // 0) + ($u.cache_creation_input_tokens // 0) + ($u.cache_read_input_tokens // 0)) as $used
   | [ .model.display_name // .model.id // "?",
@@ -20,13 +28,20 @@ IFS=$'\x1f' read -r model model_id effort pct used size p5 t5 p7 t7 cost dir < <
       (.effort | if type == "object" then .level else . end) // "",
       (if $size > 0 then $used * 100 / $size | floor else 0 end),
       ($used | human), ($size | human),
-      (.rate_limits.five_hour.used_percentage | pct),
-      (.rate_limits.five_hour.resets_at | reset("%I:%M%p") | sub("^0"; "")),
-      (.rate_limits.seven_day.used_percentage | pct),
-      (.rate_limits.seven_day.resets_at | reset("%m/%d")),
+      ($rl.five_hour.used_percentage | pct),
+      ($rl.five_hour.resets_at | reset("%I:%M%p") | sub("^0"; "")),
+      ($rl.seven_day.used_percentage | pct),
+      ($rl.seven_day.resets_at | reset("%m/%d")),
       .cost.total_cost_usd // 0,
-      .workspace.project_dir // .workspace.current_dir // .cwd // ""
+      .workspace.project_dir // .workspace.current_dir // .cwd // "",
+      (if $live then "" else "~" end),
+      ($live | if . then tojson else "" end)
     ] | map(tostring) | join("\u001f")')
+
+if [[ -n $live && $live != "$cached" ]]; then
+  mkdir -p "${cache%/*}"
+  printf '%s' "$live" >"$cache.$$" && mv -f "$cache.$$" "$cache"
+fi
 
 d=$'\e[2m' r=$'\e[0m'
 sep=" ${d}|${r} "
@@ -55,7 +70,7 @@ out+="${sep}$(color "${pct:-0}") ${d}[${r}${used:-0}/${size:-200k}${d}]${r}"
 icons=0
 rl() { # pct reset
   [[ -z $1 ]] && return 1
-  out+="${sep}$(color "$1")"
+  out+="${sep}${stale:+$d$stale$r}$(color "$1")"
   if [[ -n $2 ]]; then
     out+=" ${d}[${r}󰜉 $2${d}]${r}"
     icons=$((icons + 1))
