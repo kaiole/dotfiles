@@ -1,4 +1,27 @@
-vim.lsp.enable({ "lua_ls", "ts_ls", "eslint", "rust_analyzer", "clangd", "pyright", "neocmake", "markdown_oxide" })
+vim.lsp.enable({
+	"lua_ls",
+	"ts_ls",
+	"eslint",
+	"rust_analyzer",
+	"clangd",
+	"pyright",
+	"neocmake",
+	"markdown_oxide",
+	"ocamllsp",
+})
+
+-- Neovim gives .mli/.mll/.mly the `ocaml` filetype, so interfaces would parse
+-- with the implementation grammar and ocamllsp would read lexer and parser
+-- sources as OCaml. These filetypes select the matching Tree-sitter parsers and
+-- LSP language ids; {ftplugin,indent}/ocamlinterface.lua reuse OCaml's
+-- settings.
+vim.filetype.add({
+	extension = {
+		mli = "ocamlinterface",
+		mll = "ocamllex",
+		mly = "menhir",
+	},
+})
 
 vim.lsp.config("neocmake", {
 	cmd = { "neocmakelsp", "stdio" },

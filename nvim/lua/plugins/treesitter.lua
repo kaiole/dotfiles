@@ -18,6 +18,10 @@ local treesitter_languages = {
 	"toml",
 	"rust",
 	"python",
+	"ocaml",
+	"ocaml_interface",
+	"ocamllex",
+	"menhir",
 }
 
 require("nvim-treesitter").setup({

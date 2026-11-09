@@ -4,7 +4,7 @@ Two entry points share one preferences file.
 
 | File | Used by | Owns |
 | --- | --- | --- |
-| `.zshrc` | host (`~/.zshrc`) | Cargo PATH, secrets, `~/.zshrc.local` (→ `.zshrc.local.linux` or `.macbook`, both source `.zshrc.local.shared`), host aliases, Ctrl-F sessionizer |
+| `.zshrc` | host (`~/.zshrc`) | Cargo PATH, opam environment (default switch), secrets, `~/.zshrc.local` (→ `.zshrc.local.linux` or `.macbook`, both source `.zshrc.local.shared`), host aliases, Ctrl-F sessionizer |
 | `ros.zsh` | ROS container (its `.zshrc` sources `/run/host/home/red/dotfiles/zsh/ros.zsh`) | Ubuntu PATH, clearing inherited Python variables, ROS setup, its own history and cache paths |
 | `shared/init.zsh` | both | Oh My Zsh git plugin, editor, aliases, colors, prompt |
 

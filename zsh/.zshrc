@@ -1,5 +1,7 @@
 # Host-only toolchain setup. Never sourced by the ROS container.
 export PATH="$HOME/.cargo/bin:$PATH"
+# OCaml: PATH and env for the default opam switch (ocaml, dune, ocamllsp).
+[[ -r ~/.opam/opam-init/init.zsh ]] && source ~/.opam/opam-init/init.zsh >/dev/null 2>&1
 
 export ZSH="$HOME/.oh-my-zsh"
 zstyle ':omz:update' mode auto
