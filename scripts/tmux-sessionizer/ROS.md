@@ -21,7 +21,9 @@ switching still work. The club's `start_tmux_session.sh` is not involved.
   treats it like the prompt marker. In other Neovim modes and during any other
   foreground command, Ctrl-F is forwarded to the application.
 - Prefix + Ctrl-F: open the sessionizer from any pane or program.
-- Other host sessions retain their previous window/split/Control-F behavior.
+- Other host sessions retain their previous window/split/Control-F behavior,
+  except that a pane whose foreground command is `claude` opens the sessionizer
+  on Ctrl-F (Claude Code leaves that key unbound).
 
 Each pane tracks its own directory, including paths containing spaces or quotes
 and container-only paths such as `/opt/ros/jazzy`. Tracking is for interactive
