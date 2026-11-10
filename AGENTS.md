@@ -17,8 +17,9 @@ only says where things live and how they connect.
   them first, then commit the pointer bump here.
 - **Platforms.** Linux (Hyprland) is primary. macOS-only: `aerospace/`,
   `zsh/.zshrc.local.macbook`, Ghostty's untracked `mac.ghostty`.
-- **Global agent instructions** are `agents/global.md`, linked as
-  `~/.claude/CLAUDE.md` and `~/.pi/agent/AGENTS.md`. They aren't about this repo.
+- **Global agent instructions** are per harness and kept separate on purpose:
+  `claude/global.md` → `~/.claude/CLAUDE.md`, `pi/config/global.md` →
+  `~/.pi/agent/AGENTS.md`. They aren't about this repo; don't sync them.
 - When you add, move or rewire a component, update its row here.
 
 ## Commits
@@ -39,7 +40,7 @@ only says where things live and how they connect.
 | --- | --- | --- | --- |
 | `nvim/` | `~/.config/nvim` | `init.lua` (load order); plugins via `vim.pack` | `nvim/AGENTS.md` |
 | `theme/` | `theme` command → `scripts/theme/theme` | `build.lua` renders `templates/`; `load.lua` gives Lua configs the palette; `theme set` live-reloads apps | `theme/AGENTS.md` |
-| `pi/` | `~/.pi/agent/{settings,keybindings}.json`, `~/.pi/agent/{extensions/*,prompts,themes}` | `config/settings.json` lists packages, skills, theme | `pi/AGENTS.md` |
+| `pi/` | `~/.pi/agent/{settings,keybindings}.json`, `~/.pi/agent/AGENTS.md`, `~/.pi/agent/{extensions/*,prompts,themes}` | `config/settings.json` lists packages, skills, theme | `pi/AGENTS.md` |
 | `zsh/` | `~/.zshrc`, `~/.zshenv`, `~/.zshrc.local` → `.zshrc.local.linux`, `~/.dircolors` → `themes/.dircolors` | `.zshrc` (host), `ros.zsh` (ROS container), both source `shared/init.zsh` | `zsh/README.md` |
 | `scripts/` | `~/.local/bin/<cmd>` via `scripts/install` | One dir per tool; `install` holds the command list | `scripts/README.md` |
 | `scripts/tmux-sessionizer/` | `~/.local/bin/tmux-sessionizer`, `~/.config/tmux-sessionizer` | `tmux-sessionizer` (bash), `presets/`, `ros-tmux` for container panes; bound to `C-f` in tmux (host Claude Code panes, via the root binding), nvim, pi, and tmux `prefix C-f` everywhere | `scripts/tmux-sessionizer/ROS.md` (ROS) |
@@ -52,7 +53,7 @@ only says where things live and how they connect.
 | `dunst/` | `~/.config/dunst` | `dunstrc` + generated drop-in `dunstrc.d/99-palette.conf` | — |
 | `ghostty/` | `~/.config/ghostty` | `config.ghostty`; includes untracked per-host `arch.ghostty`/`mac.ghostty`; `theme = palette` (generated) | — |
 | `yazi/` | `~/.config/yazi` | `yazi.toml`, `keymap.toml`; `theme.toml` generated | — |
-| `claude/` | `~/.claude/settings.json`, `~/.claude/statusline.sh` | Claude Code settings and status line | — |
+| `claude/` | `~/.claude/settings.json`, `~/.claude/statusline.sh`, `~/.claude/CLAUDE.md` → `global.md` | Claude Code settings, status line, and global instructions | — |
 | `ruff/` | `~/.config/ruff` | `ruff.toml`: user-level fallback (80 columns), ignored by projects with their own ruff config; used by nvim's `gw` | — |
 | `btop/` | `~/.config/btop/themes` | Theme only (generated); `btop.conf` is untracked | — |
 | `fastfetch/` | `~/.config/fastfetch` | `config.jsonc` is fully generated; edit the template | — |

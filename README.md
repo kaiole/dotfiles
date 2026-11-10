@@ -28,7 +28,7 @@ place; [`AGENTS.md`](AGENTS.md) lists exactly where each one goes.
 | `ruff/` | ruff (fallback Python format settings) | both |
 | `scripts/` | Standalone commands, incl. `tmux-sessionizer` and `theme` | both |
 | `theme/` | Switchable palettes for every app's colors | both |
-| `claude/`, `pi/`, `agents/` | Claude Code and pi agent config, shared agent instructions | both |
+| `claude/`, `pi/` | Claude Code and pi agent config, each with its own global instructions | both |
 
 ## Required packages
 

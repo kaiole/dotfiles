@@ -16,7 +16,7 @@ links below point into this repo.
 | `~/.pi/agent/extensions/tmux-sessionizer` | `picosystem/tmux-sessionizer/` | Bare extension: `ctrl+f` → `~/.local/bin/tmux-sessionizer` |
 | `~/.pi/agent/extensions/notifi.json` | `config/notifi.json` | Settings for the notifi package |
 | `~/.pi/agent/extensions/split-editor.json` | `config/split-editor.json` | Settings for the split-editor package |
-| `~/.pi/agent/AGENTS.md` | `../agents/global.md` | User's global agent instructions, not pi docs |
+| `~/.pi/agent/AGENTS.md` | `config/global.md` | User's global instructions for pi, not pi docs; Claude Code has its own in `../claude/global.md` |
 
 pi loads code in two ways:
 
