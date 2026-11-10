@@ -17,9 +17,9 @@ only says where things live and how they connect.
   them first, then commit the pointer bump here.
 - **Platforms.** Linux (Hyprland) is primary. macOS-only: `aerospace/`,
   `zsh/.zshrc.local.macbook`, Ghostty's untracked `mac.ghostty`.
-- **Global agent instructions** are per harness and kept separate on purpose:
-  `claude/global.md` → `~/.claude/CLAUDE.md`, `pi/config/global.md` →
-  `~/.pi/agent/AGENTS.md`. They aren't about this repo; don't sync them.
+- **Global agent instructions** are per harness and kept separate on purpose.
+  pi's are `pi/config/global.md` → `~/.pi/agent/AGENTS.md`; they aren't about
+  this repo. Claude Code has none (no `~/.claude/CLAUDE.md`); don't copy pi's.
 - When you add, move or rewire a component, update its row here.
 
 ## Commits
@@ -53,7 +53,7 @@ only says where things live and how they connect.
 | `dunst/` | `~/.config/dunst` | `dunstrc` + generated drop-in `dunstrc.d/99-palette.conf` | — |
 | `ghostty/` | `~/.config/ghostty` | `config.ghostty`; includes untracked per-host `arch.ghostty`/`mac.ghostty`; `theme = palette` (generated) | — |
 | `yazi/` | `~/.config/yazi` | `yazi.toml`, `keymap.toml`; `theme.toml` generated | — |
-| `claude/` | `~/.claude/settings.json`, `~/.claude/statusline.sh`, `~/.claude/CLAUDE.md` → `global.md` | Claude Code settings, status line, and global instructions | — |
+| `claude/` | `~/.claude/settings.json`, `~/.claude/statusline.sh` | Claude Code settings and status line; no global instructions | — |
 | `ruff/` | `~/.config/ruff` | `ruff.toml`: user-level fallback (80 columns), ignored by projects with their own ruff config; used by nvim's `gw` | — |
 | `btop/` | `~/.config/btop/themes` | Theme only (generated); `btop.conf` is untracked | — |
 | `fastfetch/` | `~/.config/fastfetch` | `config.jsonc` is fully generated; edit the template | — |
