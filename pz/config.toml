@@ -1,0 +1,7 @@
+[sync]
+folder = "~/Dropbox/Apps/pz-pdf"
+
+[picker]
+inbox = "i"
+red = "r"
+gone = "x"
