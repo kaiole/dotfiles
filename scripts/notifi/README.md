@@ -6,11 +6,10 @@ and `notifi dismiss` when you're back. pi and Claude Code both use it.
 
 - **Super+N** closes the notification (`dunstctl close`) and leaves its agent
   **pending**: counted in waybar until you go to it.
-- **Super+Y**, or a click, runs its Focus action (`dunstctl action`): the
-  Hyprland window, tmux session, window and pane of that agent come to the
-  front. With no notification up, Super+Y goes to the next waiting agent
-  (`notifi next`): the pending ones, longest wait first, then round the ones
-  you have been to.
+- **Super+Y** (`notifi go`), or a click, runs its Focus action: the Hyprland
+  window, tmux session, window and pane of that agent come to the front.
+  With no notification up, Super+Y goes to the next waiting agent: the
+  pending ones, longest wait first, then round the ones you have been to.
 - **Super+X** forgets the agent in the focused window
   (`notifi dismiss --focused`).
 
@@ -25,6 +24,7 @@ notifi show [--event EVENT] [--app NAME] [--force] [-v]
 notifi dismiss [--app NAME | --focused]
 notifi pending [--waybar]
 notifi next
+notifi go
 notifi status
 ```
 
@@ -53,8 +53,11 @@ no Focus action.
 agents with class `pending` or, when none is pending, the seen ones with
 class `seen`; nothing for none, which hides the module. `next` brings the
 first waiting agent to the front as Focus would, marks it seen and prints its
-title; with none waiting it prints nothing. `pending`, `next` and
-`dismiss --focused` run from anywhere, not only from a pane.
+title; with none waiting it prints nothing. `go` is what Super+Y runs: with a
+notification on screen it runs the action of the top one, as
+`dunstctl action` does, whether or not it is an agent's; with none it is
+`next`. `pending`, `next`, `go` and `dismiss --focused` run from anywhere,
+not only from a pane.
 
 Exit status is 0 or 1, never 2, which Claude Code reads from a hook as "block
 this".
@@ -68,8 +71,8 @@ this".
 | `error` | Task Failed | critical | never | no |
 | `aborted` | Task Aborted | critical | 5 s | no |
 
-The title is `<session>:<window index>`. The table is `EVENTS` in the script;
-there is no config file.
+The title is `<session>:<window index>`. The table is `EVENTS` in
+`src/agents.rs`; there is no config file.
 
 ## Behavior
 
@@ -132,14 +135,85 @@ adds `seen`, the time of the visit, as `next` does.
 does, so it closes only an id the running daemon issued, and it checks the
 start time so a reused pid is never signalled.
 
-`pending`, `next` and `dismiss --focused` read every record, and ask tmux
-whether each pane is still there. Nothing runs in between: there is no
+`pending`, `next`, `go` and `dismiss --focused` read every record, and ask
+tmux whether each pane is still there. Nothing runs in between: there is no
 daemon, and the records are the only state. `dismiss --focused` finds the
 tmux client in the focused Hyprland window the way "on screen" does, when
 the key is pressed. Whenever the counts may have changed, notifi sends
-waybar `SIGRTMIN+8` (`pkill`), and `custom/agents` in `waybar/config.jsonc`
-runs `notifi pending --waybar` again; `waybar/style.css` dims class `seen`.
-Its `exec-if` keeps Python from starting while there are no records at all.
+waybar `SIGRTMIN+8`, and `custom/agents` in `waybar/config.jsonc` runs
+`notifi pending --waybar` again; `waybar/style.css` dims class `seen`.
+
+notifi is one static binary, a Rust crate:
+
+| File | What is in it |
+| --- | --- |
+| `src/main.rs` | The commands and their options |
+| `src/show.rs` | `show`, and the waiter it leaves behind |
+| `src/agents.rs` | The events; the waiting agents from the records; `next`, `go`, `dismiss` |
+| `src/desktop.rs` | Which Hyprland window a tmux client is in; "on screen"; Focus |
+| `src/state.rs` | The records, their lock, the signal to waybar |
+| `src/tmux.rs`, `src/hyprland.rs`, `src/dbus.rs` | Talking to tmux, Hyprland and dunst |
+| `src/run.rs` | Child processes, and what `/proc` says of a process |
+
+It speaks to each program directly instead of starting that program's
+command: to Hyprland over its request socket, as `hyprctl` does; to dunst
+over the session bus, as `gdbus` and `dunstctl` do, with the few messages it
+needs written out in `src/dbus.rs`; to waybar by signal, with waybar's pid
+found in `/proc`. tmux is the exception. Its client protocol is private to
+each version, so `tmux` is run.
+
+## Speed
+
+Super+Y and Super+X run this command, so how long it takes is felt. Medians
+of 40 runs with two agents waiting, timed from just before the process is
+started:
+
+| What | Takes |
+| --- | --- |
+| Super+Y's bind (`sh -c 'notifi go'`) until Hyprland is told the window | 3.5 ms |
+| The same until the command has exited | 5.3 ms |
+| Super+Y's bind with nothing waiting | 1.5 ms |
+| `notifi next` until Hyprland is told the window | 2.4 ms |
+| `notifi dismiss --focused` (Super+X) | 2.6 ms |
+| `notifi pending --waybar` | 2.3 ms; 0.4 ms with no records |
+
+The Python script this replaced took 40 ms for the first row. Of the 3.5 ms,
+0.9 is the shell that Hyprland starts every `exec` bind through (`/bin/sh`,
+bash here), 0.35 is notifi starting, which is what `/usr/bin/true` takes,
+and the rest is one tmux listing its server's panes and clients. tmux takes
+1.1 ms to start before it asks the server anything, so that and the shell
+are the floor: 2 of the 3.5 ms.
+
+What keeps it there, and what to keep to when changing it:
+
+- **Nothing is started that can be asked directly.** A process costs 0.4 ms
+  before it does anything. Hyprland's socket answers in 0.5 ms where
+  `hyprctl` takes 4; a connection to the session bus and a question to dunst
+  take 0.2 ms where `dunstctl` and `gdbus` take 5; finding waybar in `/proc`
+  takes 1 ms where `killall` takes 3, and its pid is then kept in
+  `$XDG_RUNTIME_DIR/notifi/bar` and only checked (remove that file if a
+  second bar is started while the first runs).
+- **One tmux per server**, asked everything at once: commands joined with
+  `;`, their lines told apart by the first field. It runs with an empty
+  environment, which a tmux client otherwise sends to the server (0.15 ms).
+- **Nothing waits for tmux that needn't.** tmux is started first, and the
+  records, Hyprland and dunst are read while it runs. Its answer ends with a
+  marker line, so it is read without waiting for tmux to exit.
+- **The tmux that answered also switches the pane.** It is started with
+  `source-file -` as its last command, so after answering it reads commands
+  from its input; `select-window`, `select-pane` and `switch-client` reach
+  the server 0.3 ms after they are written there, instead of the 1.6 ms a
+  second tmux takes. Hyprland is told the window right after, and the record
+  and waybar are done while the tmux server redraws (1 to 2 ms).
+- **Statically linked** (`.cargo/config.toml`): with a dynamic loader notifi
+  takes 0.57 ms to start instead of 0.35.
+- **Calls to the bus never start a daemon** (the no-auto-start flag): with
+  no dunst running nothing is on screen, and a key must not wait for one to
+  start.
+
+Reading `source-file -` from standard input is not in tmux's manual, though
+`load-buffer -` is, which reads the same way. The tests go through it, so
+they fail on a tmux that stops doing it.
 
 ## Callers
 
@@ -170,9 +244,12 @@ Killing an agent's tmux pane, session or server still runs its last dismiss
 
 ## Requirements
 
-Linux only. Python 3 (standard library), `notify-send` (libnotify), `gdbus`
-(glib2), `hyprctl`, `tmux`, `ghostty`, `pkill` (procps), and a notification
-daemon that supports actions (dunst). The pending count is shown by waybar.
+Linux only. To build, cargo (Rust 1.98 here) and glibc's static library,
+which Arch's `glibc` has; `scripts/install` builds it and links
+`target/release/notifi`. To run, `notify-send` (libnotify), `tmux` (3.8
+here), `ghostty`, Hyprland, and a notification daemon that supports actions.
+`go` asks dunst what is on screen (the interface `dunstctl` uses); with
+another daemon it is `next`. The pending count is shown by waybar.
 
 ## Tests
 
@@ -180,8 +257,9 @@ daemon that supports actions (dunst). The pending count is shown by waybar.
 python3 scripts/notifi/test_notifi.py
 ```
 
-They run the real command against disposable tmux servers with attached
-clients, with stubs on `PATH` for `notify-send`, `hyprctl`, `gdbus`,
-`ghostty` and `pkill` (needs `jq` and `script`). Nothing reaches the desktop.
-The pi
+They build the crate, then run the command against disposable tmux servers
+with attached clients (needs `script`), with stubs on `PATH` for
+`notify-send` and `ghostty`, and Hyprland and the session bus as sockets
+answered from the test. The test process stands in for waybar: `NOTIFI_BAR`
+names the process that notifi signals. Nothing reaches the desktop. The pi
 adapter has its own: `npm test` in `pi/picosystem/notifi/`.

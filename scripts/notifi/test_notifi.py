@@ -1,27 +1,38 @@
 #!/usr/bin/env python3
 """Tests for notifi. Run: python3 scripts/notifi/test_notifi.py
 
-Everything external is either a disposable tmux server on a private socket,
-with real attached clients in a pty, or a stub on PATH: no real
-notifications, Hyprland dispatches, terminals or signals to waybar, and no
-running server is touched.
+Builds notifi first. Everything external is a disposable tmux server on a
+private socket, with real attached clients in a pty, a stub on PATH or, for
+Hyprland and the session bus, a socket answered from here; this process
+stands in for waybar. So there are no real notifications, Hyprland
+dispatches, terminals, bus calls or signals to waybar, and no running server
+is touched.
 """
 
 import json
 import os
 import shutil
 import signal
+import socket
+import struct
 import subprocess
 import tempfile
+import threading
 import time
 import unittest
 from contextlib import suppress
 from pathlib import Path
 from typing import NamedTuple
 
-NOTIFI = Path(__file__).resolve().parent / "notifi"
+CRATE = Path(__file__).resolve().parent
+NOTIFI = CRATE / "target" / "release" / "notifi"
 ROOT = Path(tempfile.mkdtemp(prefix="notifi-test-"))
 BIN, LOGS, STATE = ROOT / "bin", ROOT / "logs", ROOT / "run" / "notifi"
+# Where notifi looks for Hyprland instances: one directory each.
+HYPR = ROOT / "run" / "hypr"
+# notifi signals the bar it finds by this name, which this process takes.
+BAR = f"bar-{os.getpid()}"
+BAR_SIGNAL = signal.SIGRTMIN + 8
 
 STUBS = {
     # Prints an id, then either the chosen action or nothing until killed.
@@ -31,33 +42,6 @@ echo >> "$NOTIFI_TEST_DIR/notify-send.log"
 echo 7
 if [ -n "$NOTIFI_TEST_ACTION" ]; then echo "$NOTIFI_TEST_ACTION"; exit 0; fi
 exec sleep 30
-""",
-    # Behaves like hyprctl: the instance list is read from disk, everything
-    # else needs the live signature and prints an error (exit 0) for a stale
-    # one.
-    "hyprctl": r"""
-f="$NOTIFI_TEST_DIR/hypr.json"; sig="$HYPRLAND_INSTANCE_SIGNATURE"
-if [ "$1" = --instance ]; then sig=$2; shift 2; fi
-if [ ! -f "$f" ]; then
-	[ "$1" = instances ] && echo '[]' || echo 'no instance signature!'
-	exit 0
-fi
-if [ "$1" = instances ]; then jq -c .instances "$f"; exit 0; fi
-if [ "$sig" != "$(jq -r '.instances[0].instance' "$f")" ]; then
-	echo "Couldn't connect to $sig"; exit 0
-fi
-case "$1" in
-	clients) jq -c .clients "$f" ;;
-	monitors) jq -c .monitors "$f" ;;
-	dispatch) printf '%s\n' "$2" >> "$NOTIFI_TEST_DIR/dispatch.log"; echo ok ;;
-esac
-""",
-    "gdbus": r"""
-printf '%s\n' "$*" >> "$NOTIFI_TEST_DIR/gdbus.log"
-case "$*" in *GetNameOwner*) cat "$NOTIFI_TEST_DIR/owner" ;; esac
-""",
-    "pkill": r"""
-printf '%s\n' "$*" >> "$NOTIFI_TEST_DIR/pkill.log"
 """,
     "ghostty": r"""
 {
@@ -80,7 +64,9 @@ def base_env() -> dict[str, str]:
         "PATH": f"{BIN}:{os.environ['PATH']}",
         "TERM": "xterm-256color",
         "NOTIFI_TEST_DIR": str(LOGS),
+        "NOTIFI_BAR": BAR,
         "XDG_RUNTIME_DIR": str(ROOT / "run"),
+        "DBUS_SESSION_BUS_ADDRESS": f"unix:path={ROOT / 'bus'}",
     }
 
 
@@ -179,7 +165,31 @@ def client_sessions() -> str:
     return tmux(servers["local"], "list-clients", "-F", "#{session_name}")
 
 
+# What the fake Hyprland answers each request with.
+desktop: dict[str, list] = {}
+
+
+def serve_hyprland(listener: socket.socket) -> None:
+    """Answers on Hyprland's request socket, and logs the dispatches."""
+    while True:
+        connection, _ = listener.accept()
+        with connection, suppress(OSError):
+            request = connection.recv(8192).decode()
+            if request.startswith("/dispatch "):
+                with open(LOGS / "dispatch.log", "a") as log:
+                    log.write(request.removeprefix("/dispatch ") + "\n")
+                reply = "ok"
+            else:
+                reply = json.dumps(desktop.get(request, "unknown request"))
+            connection.sendall(reply.encode())
+
+
 def hyprland(window_pid: int | None, workspace: int = 1) -> None:
+    """Has Hyprland running, with one window or none; workspace 1 is shown.
+
+    Until then, and again after each test, none is: without its lock file
+    the instance doesn't count.
+    """
     window = {
         "address": "0xabc",
         "pid": window_pid,
@@ -188,16 +198,141 @@ def hyprland(window_pid: int | None, workspace: int = 1) -> None:
         "focusHistoryID": 0,
         "workspace": {"id": workspace},
     }
-    snapshot = {
-        "instances": [
-            {"instance": "live", "time": 2, "wl_socket": "wayland-9"}
-        ],
-        "clients": [window] if window_pid else [],
-        "monitors": [
-            {"activeWorkspace": {"id": 1}, "specialWorkspace": {"id": 0}}
-        ],
-    }
-    (LOGS / "hypr.json").write_text(json.dumps(snapshot))
+    desktop["j/clients"] = [window] if window_pid else []
+    desktop["j/monitors"] = [
+        {"activeWorkspace": {"id": 1}, "specialWorkspace": {"id": 0}}
+    ]
+    (HYPR / "live" / "hyprland.lock").write_text(f"{os.getpid()}\nwayland-9\n")
+
+
+# The notification daemon on the fake session bus: its bus name, None while
+# none runs, and how many notifications it has on screen.
+daemon: dict = {"owner": None, "displayed": 0}
+# The calls made on that bus, as "<method> <arguments>".
+bus_log: list[str] = []
+
+
+def bus_text(text: str) -> bytes:
+    return struct.pack("<I", len(text)) + text.encode() + b"\0"
+
+
+def bus_message(kind: int, fields: dict, signature="", body=b"") -> bytes:
+    """A message in the bus's wire format; `fields` are its header fields."""
+    if signature:
+        fields = fields | {8: signature}
+    array = b""
+    for code, value in fields.items():
+        array += b"\0" * (-len(array) % 8)
+        if isinstance(value, int):
+            array += bytes([code, 1, ord("u"), 0]) + struct.pack("<I", value)
+        elif code == 8:
+            array += bytes([code, 1, ord("g"), 0, len(value)])
+            array += value.encode() + b"\0"
+        else:
+            kind_of = "o" if code == 1 else "s"
+            array += bytes([code, 1, ord(kind_of), 0]) + bus_text(value)
+    message = struct.pack("<cBBBIII", b"l", kind, 0, 1, len(body), 1, len(array))
+    message += array
+    return message + b"\0" * (-len(message) % 8) + body
+
+
+def bus_fields(array: bytes) -> dict:
+    """The header fields of a message, by code."""
+    fields, at = {}, 0
+    while at < len(array):
+        code, kind = array[at], chr(array[at + 2])
+        at += 4
+        if kind == "g":
+            length = array[at]
+            fields[code] = array[at + 1 : at + 1 + length].decode()
+            at += length + 2
+        else:
+            (number,) = struct.unpack_from("<I", array, at)
+            at += 4
+            if kind == "u":
+                fields[code] = number
+            else:
+                fields[code] = array[at : at + number].decode()
+                at += number + 1
+        at += -at % 8
+    return fields
+
+
+def bus_arguments(body: bytes, signature: str) -> list:
+    """The arguments of a call: strings and 32-bit numbers."""
+    arguments, at = [], 0
+    for kind in signature:
+        at += -at % 4
+        (number,) = struct.unpack_from("<I", body, at)
+        at += 4
+        if kind == "s":
+            arguments.append(body[at : at + number].decode())
+            at += number + 1
+        else:
+            arguments.append(number)
+    return arguments
+
+
+def answer_bus(connection: socket.socket) -> None:
+    """Answers one connection as the bus and as dunst would."""
+    with connection, connection.makefile("rb") as stream, suppress(OSError):
+        while (line := stream.readline()) != b"BEGIN\r\n":
+            if not line:
+                return
+            if b"AUTH" in line:
+                connection.sendall(b"OK 0123456789abcdef\r\n")
+        while header := stream.read(16):
+            body_length, serial, fields_length = struct.unpack("<4xIII", header)
+            fields = bus_fields(stream.read(fields_length))
+            stream.read(-fields_length % 8)
+            arguments = bus_arguments(
+                stream.read(body_length), fields.get(8, "")
+            )
+            method, reply = fields[3], {5: serial}
+            if method == "Hello":
+                # The bus says so twice, the second time in a signal.
+                named = {1: "/org/freedesktop/DBus", 2: "org.freedesktop.DBus"}
+                named |= {3: "NameAcquired"}
+                answer = bus_message(2, reply, "s", bus_text(":1.99"))
+                answer += bus_message(4, named, "s", bus_text(":1.99"))
+                connection.sendall(answer)
+                continue
+            bus_log.append(" ".join([method, *map(str, arguments)]))
+            if method == "GetNameOwner" and not daemon["owner"]:
+                error = "org.freedesktop.DBus.Error.NameHasNoOwner"
+                answer = bus_message(3, reply | {4: error})
+            elif method == "GetNameOwner":
+                answer = bus_message(2, reply, "s", bus_text(daemon["owner"]))
+            elif method == "Get":
+                shown = b"\1u\0\0" + struct.pack("<I", daemon["displayed"])
+                answer = bus_message(2, reply, "v", shown)
+            else:
+                answer = bus_message(2, reply)
+            connection.sendall(answer)
+
+
+def serve_bus(listener: socket.socket) -> None:
+    while True:
+        connection, _ = listener.accept()
+        threading.Thread(
+            target=answer_bus, args=[connection], daemon=True
+        ).start()
+
+
+def bus_calls(method: str) -> list[str]:
+    return [call for call in bus_log if call.startswith(method)]
+
+
+# A byte for each signal this process gets, written by Python itself.
+signals, signalled = os.pipe()
+
+
+def bar_refreshes() -> int:
+    """How often notifi has signalled the bar since this was last asked."""
+    try:
+        return os.read(signals, 4096).count(BAR_SIGNAL)
+    except BlockingIOError:
+        return 0
 
 
 def read(name: str) -> str:
@@ -207,10 +342,6 @@ def read(name: str) -> str:
 def deliveries() -> list[list[str]]:
     lines = filter(None, read("notify-send.log").split("\n"))
     return [line.split("\x1f")[:-1] for line in lines]
-
-
-def gdbus_calls(method: str) -> list[str]:
-    return [line for line in read("gdbus.log").split("\n") if method in line]
 
 
 def records() -> list[dict]:
@@ -252,11 +383,38 @@ def alive(pid: int) -> bool:
 
 
 def setUpModule() -> None:
-    for directory in (BIN, LOGS):
-        directory.mkdir()
+    # From its directory, where .cargo/config.toml is.
+    subprocess.run(
+        ["cargo", "build", "--release", "--locked"], cwd=CRATE, check=True
+    )
+    for directory in (BIN, LOGS, HYPR / "live", HYPR / "stale"):
+        directory.mkdir(parents=True)
+    Path("/proc/self/comm").write_text(BAR)
+    for end in (signals, signalled):
+        os.set_blocking(end, False)
+    signal.signal(BAR_SIGNAL, lambda *_: None)
+    signal.set_wakeup_fd(signalled)
+    bus = socket.socket(socket.AF_UNIX)
+    bus.bind(str(ROOT / "bus"))
+    bus.listen()
+    threading.Thread(target=serve_bus, args=[bus], daemon=True).start()
     for name, script in STUBS.items():
         (BIN / name).write_text(f"#!/bin/sh{script}")
         (BIN / name).chmod(0o755)
+    listener = socket.socket(socket.AF_UNIX)
+    listener.bind(str(HYPR / "live" / ".socket.sock"))
+    listener.listen()
+    threading.Thread(
+        target=serve_hyprland, args=[listener], daemon=True
+    ).start()
+    # A Hyprland that crashed leaves its directory behind. Its lock is the
+    # newest here, so only the dead pid tells that it is gone.
+    crashed = subprocess.Popen(["true"])
+    crashed.wait()
+    lock = HYPR / "stale" / "hyprland.lock"
+    lock.write_text(f"{crashed.pid}\nwayland-1\n")
+    later = time.time() + 3600
+    os.utime(lock, (later, later))
     start_server("local,with-comma")
     servers["local"] = servers.pop("local,with-comma")
     start_server("remote", ssh_started=True)
@@ -285,8 +443,12 @@ class NotifiTest(unittest.TestCase):
         for server in servers.values():
             tmux(server, "set-option", "-su", "@notifi-desktop")
         tmux(self.local, "select-window", "-t", self.local.window_id)
+        (HYPR / "live" / "hyprland.lock").unlink(missing_ok=True)
         shutil.rmtree(LOGS)
         LOGS.mkdir()
+        daemon.update(owner=None, displayed=0)
+        bus_log.clear()
+        bar_refreshes()
 
     def test_local_server_allows_delivery_despite_stale_ssh_variables(self):
         outcome = notifi(
@@ -339,7 +501,7 @@ class NotifiTest(unittest.TestCase):
 
     def test_each_event_has_its_own_text_urgency_and_expiry(self):
         notifi(self.local, "show", "--event", "aborted")
-        notifi(self.local, "show", "--event", "attention")
+        notifi(self.local, "show", "--event=attention")
         aborted, attention = deliveries()
         self.assertEqual(
             aborted[1:3], ["--urgency=critical", "--expire-time=5000"]
@@ -367,20 +529,20 @@ class NotifiTest(unittest.TestCase):
     def test_a_notification_is_replaced_and_closed_once_the_window_is_seen(
         self,
     ):
-        (LOGS / "owner").write_text("(':1.5',)\n")
+        daemon["owner"] = ":1.5"
         notifi(self.local, "show", "--event", "attention")
         (first,) = showing()
         notifi(self.local, "show")
         (second,) = showing()
         self.assertNotEqual(first, second)
         self.assertFalse(alive(first))
-        self.assertEqual(len(gdbus_calls("CloseNotification")), 1)
+        self.assertEqual(len(bus_calls("CloseNotification")), 1)
 
         hyprland(attach("test"))
         self.assertEqual(notifi(self.local, "show", "-v"), "visible")
         self.assertEqual(showing(), [])
         self.assertFalse(alive(second))
-        self.assertEqual(len(gdbus_calls("CloseNotification")), 2)
+        self.assertEqual(len(bus_calls("CloseNotification")), 2)
 
     def test_focus_after_a_hyprland_restart_reuses_the_live_window(self):
         hyprland(attach("other"))
@@ -391,10 +553,11 @@ class NotifiTest(unittest.TestCase):
             HYPRLAND_INSTANCE_SIGNATURE="stale",
             NOTIFI_TEST_ACTION="focus",
         )
-        until(lambda: client_sessions() == "test")
+        until(lambda: read("dispatch.log"))
         self.assertEqual(
             read("dispatch.log"), 'hl.dsp.focus({ window = "address:0xabc" })\n'
         )
+        until(lambda: client_sessions() == "test")
         self.assertFalse((LOGS / "ghostty.log").exists())
 
     def test_focus_opens_ghostty_when_no_window_hosts_a_client(self):
@@ -418,47 +581,45 @@ class NotifiTest(unittest.TestCase):
                 self.local.session_id,
             ],
         )
-        selected = tmux(
-            self.local, "display-message", "-p", "-t", "test", "#{window_id}"
-        )
-        self.assertEqual(selected, self.local.window_id)
+        window = ["display-message", "-p", "-t", "test", "#{window_id}"]
+        until(lambda: tmux(self.local, *window) == self.local.window_id)
         tmux(self.local, "kill-window", "-t", "test:1")
 
     def test_dismiss_closes_it_unless_the_daemon_that_issued_it_is_gone(self):
-        (LOGS / "owner").write_text("(':1.5',)\n")
+        daemon["owner"] = ":1.5"
         notifi(self.local, "show")
         (pid,) = showing()
         notifi(self.local, "dismiss")
         self.assertEqual(showing(), [])
         self.assertFalse(alive(pid))
-        (close,) = gdbus_calls("CloseNotification")
-        self.assertRegex(close, r"CloseNotification 7$")
+        (close,) = bus_calls("CloseNotification")
+        self.assertEqual(close, "CloseNotification 7")
         notifi(self.local, "dismiss")  # nothing left to close
-        self.assertEqual(len(gdbus_calls("GetNameOwner")), 2)
+        self.assertEqual(len(bus_calls("GetNameOwner")), 2)
 
         notifi(self.local, "show")
         (pid,) = showing()
-        (LOGS / "owner").write_text("(':1.6',)\n")  # dunst restarted
+        daemon["owner"] = ":1.6"  # dunst restarted
         notifi(self.local, "dismiss")
         self.assertFalse(alive(pid))
-        self.assertEqual(len(gdbus_calls("CloseNotification")), 1)
+        self.assertEqual(len(bus_calls("CloseNotification")), 1)
 
     def test_closing_the_notification_leaves_the_agent_pending(self):
         notifi(self.local, "show", "--event", "attention")
         self.assertEqual(notifi(None, "pending"), "")
-        self.assertEqual(read("pkill.log"), "")
+        self.assertEqual(bar_refreshes(), 0)
         close_notifications()
         self.assertEqual(
             notifi(None, "pending"), "test:0\tNeeds Input\tpending"
         )
         self.assertEqual(bar(), ("1", "pending"))
-        self.assertEqual(read("pkill.log"), "-RTMIN+8 -x waybar\n")
+        self.assertEqual(bar_refreshes(), 1)
 
         notifi(self.local, "dismiss")
         self.assertEqual(records(), [])
         self.assertIsNone(bar())
-        self.assertEqual(gdbus_calls("CloseNotification"), [])
-        self.assertEqual(read("pkill.log"), "-RTMIN+8 -x waybar\n" * 2)
+        self.assertEqual(bus_calls("CloseNotification"), [])
+        self.assertEqual(bar_refreshes(), 1)
 
     def test_a_new_notification_ends_the_pending_state(self):
         notifi(self.local, "show")
@@ -540,6 +701,26 @@ class NotifiTest(unittest.TestCase):
         notifi(self.local, "dismiss", TMUX_PANE=other)
         self.assertEqual(notifi(None, "pending"), "test:0\tTask Finished\tseen")
 
+    def test_go_runs_the_action_on_screen_or_else_goes_to_the_next(self):
+        notifi(self.local, "show")
+        close_notifications()
+        hyprland(attach("other"))
+        daemon["displayed"] = 1  # someone's notification, maybe not ours
+        self.assertEqual(notifi(None, "go"), "")
+        self.assertEqual(bus_calls("NotificationAction"), ["NotificationAction 0"])
+        self.assertEqual(read("dispatch.log"), "")
+        self.assertEqual(bar(), ("1", "pending"))
+
+        daemon["displayed"] = 0
+        self.assertEqual(notifi(None, "go"), "test:0")
+        self.assertEqual(client_sessions(), "test")
+        self.assertEqual(len(bus_calls("NotificationAction")), 1)
+        # Nor does it need the bus, or dunst on it.
+        nowhere = f"unix:path={ROOT / 'none'}"
+        out = notifi(None, "go", DBUS_SESSION_BUS_ADDRESS=nowhere)
+        self.assertEqual(out, "test:0")
+        self.assertEqual(bar(), ("1", "seen"))
+
     def test_the_focus_action_leaves_the_agent_seen(self):
         hyprland(attach("other"))
         notifi(self.local, "show", NOTIFI_TEST_ACTION="focus")
@@ -606,26 +787,37 @@ class NotifiTest(unittest.TestCase):
         self.assertEqual(records(), [])
 
     def test_a_notification_lost_with_its_daemon_is_pending(self):
-        (LOGS / "owner").write_text("(':1.5',)\n")
+        daemon["owner"] = ":1.5"
         notifi(self.local, "show")
         (pid,) = showing()
         self.assertIsNone(bar())
-        (LOGS / "owner").write_text("(':1.6',)\n")  # dunst restarted
+        daemon["owner"] = ":1.6"  # dunst restarted
         self.assertEqual(bar(), ("1", "pending"))
 
         hyprland(attach("other"))
         self.assertEqual(notifi(None, "next"), "test:0")
         until(lambda: not alive(pid))  # the notify-send left behind
-        self.assertEqual(gdbus_calls("CloseNotification"), [])
+        self.assertEqual(bus_calls("CloseNotification"), [])
         self.assertEqual(bar(), ("1", "seen"))
 
     def test_usage_errors_never_exit_with_status_2(self):
         # Claude Code treats exit status 2 from a hook as "block".
-        for args in (["bogus"], ["show", "--event", "nope"], []):
+        for args in (
+            [],
+            ["bogus"],
+            ["show", "--event", "nope"],
+            ["show", "--event"],
+            ["show", "--bogus"],
+            ["show", "extra"],
+            ["next", "--waybar"],
+        ):
             done = subprocess.run(
                 [str(NOTIFI), *args], env=base_env(), capture_output=True
             )
             self.assertEqual(done.returncode, 1, args)
+            self.assertIn(b"notifi", done.stderr, args)
+        self.assertEqual(deliveries(), [])
+        self.assertIn("notifi show", notifi(None, "--help"))
 
 
 if __name__ == "__main__":

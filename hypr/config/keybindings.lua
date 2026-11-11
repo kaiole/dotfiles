@@ -7,6 +7,7 @@ local toggle_rofi = home .. "/.config/hypr/scripts/toggle_rofi"
 local screenshot = home .. "/.config/hypr/scripts/screenshot"
 -- Built from scripts/wall_select by scripts/install.
 local wall_select = home .. "/.local/bin/wall_select"
+-- Built from scripts/notifi by scripts/install.
 local notifi = home .. "/.local/bin/notifi"
 
 hl.bind(main_mod .. " + Q", hl.dsp.window.close())
@@ -29,11 +30,10 @@ hl.bind(main_mod .. " + V", hl.dsp.exec_cmd(home .. "/personal/hyprcast/build/re
 -- pending. Super+Y runs the action of the one that is up (Focus, Edit), or
 -- with none up goes to the next waiting agent: the pending ones, then round
 -- those it has been to. Super+X forgets the agent in the focused window.
+-- `notifi go` asks dunst itself which of the two it is: dunstctl takes 5 ms
+-- to start, and the key is felt.
 hl.bind(main_mod .. " + N", hl.dsp.exec_cmd("dunstctl close"))
-hl.bind(
-	main_mod .. " + Y",
-	hl.dsp.exec_cmd('if [ "$(dunstctl count displayed)" -gt 0 ]; then dunstctl action; else ' .. notifi .. " next; fi")
-)
+hl.bind(main_mod .. " + Y", hl.dsp.exec_cmd(notifi .. " go"))
 hl.bind(main_mod .. " + X", hl.dsp.exec_cmd(notifi .. " dismiss --focused"))
 
 hl.bind(main_mod .. " + O", hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/toggle_swap_space"))

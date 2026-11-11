@@ -7,15 +7,18 @@ root="${0:A:h}"
 bin="${HOME}/.local/bin"
 mkdir -p -- "$bin"
 entries=(clang/cfmt clang/tidy scratch/scratch tmux-sessionizer/tmux-sessionizer theme/theme)
-if [[ $OSTYPE == linux* ]]; then entries+=(notifi/notifi tmux-orphans/tmux-orphans); fi
+if [[ $OSTYPE == linux* ]]; then entries+=(tmux-orphans/tmux-orphans); fi
 
-# wall_select is a Rust binary for Hyprland; build it in place.
+# notifi and wall_select are Rust binaries for Hyprland; build them in place,
+# each from its own directory, where cargo finds notifi's .cargo/config.toml.
 if [[ $OSTYPE == linux* ]]; then
   if (( $+commands[cargo] )); then
-    cargo build --release --locked --manifest-path "$root/wall_select/Cargo.toml"
-    entries+=(wall_select/target/release/wall_select)
+    for crate in notifi wall_select; do
+      (cd -- "$root/$crate" && cargo build --release --locked)
+      entries+=($crate/target/release/$crate)
+    done
   else
-    print -u2 -- "install: cargo not found, skipping wall_select"
+    print -u2 -- "install: cargo not found, skipping notifi and wall_select"
   fi
 fi
 
