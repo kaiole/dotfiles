@@ -59,7 +59,7 @@ return {
 	ansi9 = "#c76b64",
 	ansi10 = "#b0eed7",
 	ansi11 = "#fff1ac",
-	ansi12 = "#bbbbbb",
+	ansi12 = "#777777", -- dimmer than fg: Claude Code draws inline code in this slot
 	ansi13 = "#cba4a9",
 	ansi14 = "#dddddd",
 	ansi15 = "#ffffff",

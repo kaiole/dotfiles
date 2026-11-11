@@ -1,0 +1,41 @@
+{
+  "name": "Palette",
+  "base": "dark-ansi",
+  "overrides": {
+    "text": "{{fg}}",
+    "inverseText": "{{bg_alt}}",
+    "inactive": "{{fg_muted}}",
+    "inactiveShimmer": "{{fg_dim}}",
+    "subtle": "{{fg_faint}}",
+    "promptBorder": "{{fg_dim}}",
+    "promptBorderShimmer": "{{fg_faint}}",
+
+    "claude": "{{accent}}",
+    "claudeShimmer": "{{fg_dim}}",
+    "clawd_body": "{{accent}}",
+    "clawd_background": "{{bg}}",
+    "briefLabelClaude": "{{accent}}",
+    "briefLabelYou": "{{fg_dim}}",
+
+    "suggestion": "{{accent}}",
+    "permission": "{{fg_dim}}",
+    "permissionShimmer": "{{fg_faint}}",
+    "remember": "{{accent_muted}}",
+    "claudeBlue_FOR_SYSTEM_SPINNER": "{{accent_muted}}",
+    "claudeBlueShimmer_FOR_SYSTEM_SPINNER": "{{fg_dim}}",
+    "rate_limit_fill": "{{accent_muted}}",
+    "rate_limit_empty": "{{border}}",
+
+    "success": "{{success}}",
+    "error": "{{error}}",
+    "warning": "{{warning}}",
+    "warningShimmer": "{{fg_dim}}",
+
+    "userMessageBackground": "{{surface}}",
+    "userMessageBackgroundHover": "{{statusbar}}",
+    "bashMessageBackgroundColor": "{{popup}}",
+    "memoryBackgroundColor": "{{statusbar}}",
+    "composerSidebarBackground": "{{panel}}",
+    "selectionBg": "{{border}}"
+  }
+}

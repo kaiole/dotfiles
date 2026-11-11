@@ -11,6 +11,9 @@
     "pyright-lsp@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true
   },
+  "env": {
+    "CLAUDE_CODE_TMUX_TRUECOLOR": "1"
+  },
   "hooks": {
     "PermissionRequest": [
       {
@@ -94,5 +97,5 @@
     "command": "~/.claude/statusline.sh",
     "type": "command"
   },
-  "theme": "dark"
+  "theme": "custom:palette"
 }

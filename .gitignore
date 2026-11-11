@@ -22,6 +22,7 @@ hypr/hyprlock-colors.conf
 zsh/themes/.dircolors
 zsh/themes/colors.zsh
 zsh/themes/zsh.zsh-theme
+claude/themes/palette.json
 
 # Helium writes its compiled theme next to the unpacked manifest
 helium/theme/Cached Theme.pak

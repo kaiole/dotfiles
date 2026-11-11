@@ -70,17 +70,20 @@ theme set <name>    # switch, rebuild, reload running apps
 After `theme set`:
 
 - **Reload live:** tmux, Ghostty, Waybar, Hyprland, Dunst, running nvims.
-- **Reload themselves:** pi and the Hyprcast overlay (they watch their files).
+- **Reload themselves:** pi, Claude Code and the Hyprcast overlay (they watch
+  their files).
 - **Next launch:** rofi, yazi, btop, fastfetch, satty, hyprlock, new shells.
 - **By hand:** Helium (press **Reload** on the Palette theme in
   `chrome://extensions`).
-- **Not themed:** Sioyek, Claude Code.
+- **Not themed:** Sioyek.
 
 One-time setup for apps that need a link outside `~/.config/<dir>`:
 
 - **btop:** `ln -s ~/dotfiles/btop/themes ~/.config/btop/themes`, then set
   `color_theme = "palette"` in `btop.conf`.
 - **pi:** `ln -s ~/dotfiles/pi/themes ~/.pi/agent/themes` (see `pi/AGENTS.md`).
+- **Claude Code:** `ln -s ~/dotfiles/claude/themes ~/.claude/themes`, then
+  restart sessions that were already running.
 - **Helium:** `chrome://extensions` → Developer mode → **Load unpacked** →
   `~/dotfiles/helium/theme`.
 - **Ghostty on macOS** reloads through AppleScript; allow Automation access, or
