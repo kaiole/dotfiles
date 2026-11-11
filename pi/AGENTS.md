@@ -2,7 +2,7 @@
 
 Config and extensions for the pi coding agent. pi's runtime home is
 `~/.pi/agent/`, which holds untracked state (auth, sessions, models). Only the
-links below point into this repo.
+links below point into this repo; `scripts/install` makes them.
 
 ## Wiring
 

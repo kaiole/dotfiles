@@ -2,8 +2,8 @@
 
 ## dotfiles
 
-Personal config for Linux (Hyprland) and macOS. Each directory is symlinked into
-place; [`AGENTS.md`](AGENTS.md) lists exactly where each one goes.
+Personal config for Linux (Hyprland) and macOS. `scripts/install` symlinks each
+directory into place; [`AGENTS.md`](AGENTS.md) lists exactly where each one goes.
 
 ## What's configured
 
@@ -54,11 +54,14 @@ fallback would also restyle the prompt's `➜`/`✗`).
 
 ```bash
 git clone https://github.com/kyleqbnguyen/dotfiles ~/dotfiles
-~/dotfiles/scripts/install          # link commands into ~/.local/bin, render theme files
-ln -s ~/dotfiles/nvim ~/.config/nvim  # ...and so on, per AGENTS.md
+~/dotfiles/scripts/install          # link configs and commands, render theme files
 ```
 
-There's no bootstrap script; link what you want on each machine.
+`install` makes every link for the current platform and never replaces a file
+it didn't link: those are reported as conflicts. It also hooks git, so `git
+pull` reruns it and a link or template added on one machine reaches the
+other. `scripts/install --check` shows what it would do. See
+[`scripts/README.md`](scripts/README.md).
 
 ## Theming
 
@@ -68,6 +71,7 @@ after cloning (`scripts/install` does).
 
 ```bash
 theme               # rebuild with the current palette
+theme check         # list generated files that are out of date
 theme list          # * marks the active palette
 theme set <name>    # switch, rebuild, reload running apps
 ```
@@ -82,13 +86,11 @@ After `theme set`:
   `chrome://extensions`).
 - **Not themed:** Sioyek.
 
-One-time setup for apps that need a link outside `~/.config/<dir>`:
+One-time setup that `scripts/install` can't do:
 
-- **btop:** `ln -s ~/dotfiles/btop/themes ~/.config/btop/themes`, then set
-  `color_theme = "palette"` in `btop.conf`.
-- **pi:** `ln -s ~/dotfiles/pi/themes ~/.pi/agent/themes` (see `pi/AGENTS.md`).
-- **Claude Code:** `ln -s ~/dotfiles/claude/themes ~/.claude/themes`, then
-  restart sessions that were already running.
+- **btop:** set `color_theme = "palette"` in `btop.conf`.
+- **Claude Code:** restart sessions that were running before the first
+  install.
 - **Helium:** `chrome://extensions` → Developer mode → **Load unpacked** →
   `~/dotfiles/helium/theme`.
 - **Ghostty on macOS** reloads through AppleScript; allow Automation access, or

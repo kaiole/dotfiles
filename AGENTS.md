@@ -6,9 +6,9 @@ only says where things live and how they connect.
 
 ## Rules that apply everywhere
 
-- **Edits are live.** Directories are symlinked into place (table below), so
-  editing here changes the running config. Configs refer to the same files as
-  both `~/.config/<dir>` and `~/dotfiles/<dir>`.
+- **Edits are live.** `scripts/install` symlinks directories into place (table
+  below), so editing here changes the running config. Configs refer to the
+  same files as both `~/.config/<dir>` and `~/dotfiles/<dir>`.
 - **Generated files.** Every path under the `# theme:` block in `.gitignore` is
   rendered from `theme/templates/<same path>`. Never edit an output; edit the
   template and run `theme`. Any color change goes through `theme/AGENTS.md`.
@@ -22,7 +22,9 @@ only says where things live and how they connect.
   this repo. Claude Code's are `claude/CLAUDE.md` → `~/.claude/CLAUDE.md`,
   chosen by the runs in `evals/` (currently candidate `v2`); change them
   through a new candidate there, and don't copy pi's.
-- When you add, move or rewire a component, update its row here.
+- When you add, move or rewire a component, update its row here and its row
+  in the `links` table of `scripts/install`; the next pull links it on the
+  other machine.
 
 ## Commits
 
@@ -41,17 +43,17 @@ only says where things live and how they connect.
 | Dir | Linked as | Entry point and wiring | Read first |
 | --- | --- | --- | --- |
 | `nvim/` | `~/.config/nvim` | `init.lua` (load order); plugins via `vim.pack` | `nvim/AGENTS.md` |
-| `theme/` | `theme` command → `scripts/theme/theme` | `build.lua` renders `templates/`; `load.lua` gives Lua configs the palette; `theme set` live-reloads apps | `theme/AGENTS.md` |
+| `theme/` | `theme` command → `scripts/theme/theme` | `build.lua` renders `templates/`; `load.lua` gives Lua configs the palette; `theme set` live-reloads apps; `theme check` lists stale outputs | `theme/AGENTS.md` |
 | `pi/` | `~/.pi/agent/{settings,keybindings}.json`, `~/.pi/agent/AGENTS.md`, `~/.pi/agent/{extensions/*,prompts,themes}` | `config/settings.json` lists packages, skills, theme | `pi/AGENTS.md` |
 | `zsh/` | `~/.zshrc`, `~/.zshenv`, `~/.zshrc.local` → `.zshrc.local.linux`, `~/.dircolors` → `themes/.dircolors` | `.zshrc` (host), `ros.zsh` (ROS container), both source `shared/init.zsh` | `zsh/README.md` |
-| `scripts/` | `~/.local/bin/<cmd>` via `scripts/install` | One dir per tool; `install` holds the command list | `scripts/README.md` |
+| `scripts/` | `~/.local/bin/<cmd>` via `scripts/install` | One dir per tool; `install` applies the repo to the machine: its `links` table makes every link in this column, then it builds the Rust commands and runs `theme`; `install --check` only reports; `hooks/apply`, linked into `.git/hooks`, reruns it after a pull, rebase or branch switch; untracked `install.skip` lists links a machine keeps as its own files | `scripts/README.md` |
 | `scripts/tmux-sessionizer/` | `~/.local/bin/tmux-sessionizer`, `~/.config/tmux-sessionizer` | `tmux-sessionizer` (bash), `presets/`, `ros-tmux` for container panes; bound to `C-f` in tmux (host Claude Code panes, via the root binding), nvim, pi, and tmux `prefix C-f` everywhere | `scripts/tmux-sessionizer/ROS.md` (ROS) |
 | `scripts/notifi/` | `~/.local/bin/notifi` (Linux) | Rust crate, built by `scripts/install`; `src/main.rs` (commands), `show.rs` (`show` and its waiter), `agents.rs` (records, `next`, `go`, `dismiss`), `desktop.rs` (focus), `tmux.rs`/`hyprland.rs`/`dbus.rs` (speaks to each directly); key binds run it, so read Speed in the README before starting a process or waiting for one; `notifi show` raises a dunst notification for the agent in this tmux pane, whose Focus action (Super+Y) brings up its Hyprland window and tmux pane; closing it instead (Super+N) leaves the agent pending, counted by waybar's `custom/agents` (`notifi pending --waybar`); `notifi go` is Super+Y: that action, or with no notification up `notifi next`, which goes to the pending agents, then round the ones already seen, until the agent's own `notifi dismiss` or `notifi dismiss --focused` (Super+X) forgets it; state is one JSON record per pane in `$XDG_RUNTIME_DIR/notifi/`, no daemon; called by the hooks in `claude/settings.json` and by `pi/picosystem/notifi/`; Super+N/Super+Y/Super+X are bound in `hypr/config/keybindings.lua` | `scripts/notifi/README.md` |
 | `scripts/tmux-orphans/` | `~/.local/bin/tmux-orphans` (Linux) | Zsh; finds `tmux-spawn-*.scope` cgroups with no child of a tmux server, i.e. processes left by closed panes; skips `wl-copy` (Wayland clipboard owner); `-k` sends SIGTERM, then SIGKILL, to the listed PIDs | — |
 | `scripts/wall_select/` | `~/.local/bin/wall_select` (built by `scripts/install`) | Rust crate; `src/main.rs` (startup, toggle), `ui.rs` (layer shell, input), `draw.rs` (layout matching the old rofi theme); bound to Super+W in `hypr/config/keybindings.lua`; colors from a theme template | — |
 | `tmux/` | `~/.config/tmux` | `tmux.conf`; prefix is `C-Space`; sources generated `colors.conf`; `prefix r` reloads; `prefix b` toggles a floating, unfocused shell-shortcuts pane (`shortcuts.sh`), kept top-right by a `window-resized` hook; new-window/split binds go through `ros-tmux` only in ROS sessions (`@ros_container`) | — |
 | `hypr/` | `~/.config/hypr` | `hyprland.lua` (Lua, `hl.*` API) requires `config/*.lua`; bind targets in `scripts/`; `hypridle.conf`, `hyprlock.conf` | `hypr/AGENTS.md` |
-| `waybar/` | `~/.config/waybar` | `config.jsonc`, `style.css` imports generated `color.css`; modules run `mediaplayer.py`, `scripts/waybar_cava` (linked by hand into `~/.local/bin`) and `notifi pending --waybar` (`custom/agents`, rerun on signal 8 from notifi) | — |
+| `waybar/` | `~/.config/waybar` | `config.jsonc`, `style.css` imports generated `color.css`; modules run `mediaplayer.py`, `scripts/waybar_cava` (linked into `~/.local/bin`) and `notifi pending --waybar` (`custom/agents`, rerun on signal 8 from notifi) | — |
 | `rofi/` | `~/.config/rofi` | `config.rasi` → `themes/theme.rasi` → generated `share/colors.rasi` + `share/fonts.rasi`; opened by `hypr/scripts/toggle_rofi` | — |
 | `dunst/` | `~/.config/dunst` | `dunstrc` + generated drop-in `dunstrc.d/99-palette.conf` | — |
 | `ghostty/` | `~/.config/ghostty` | `config.ghostty`; includes untracked per-host `arch.ghostty`/`mac.ghostty`; `theme = palette` (generated) | — |
@@ -72,6 +74,7 @@ only says where things live and how they connect.
 
 ## Verify
 
+- Links and generated files: `scripts/install --check` exits 0.
 - Theme: `theme` exits 0 and `git status` shows no generated files.
 - nvim, zsh, pi, tmux-sessionizer, notifi: the checks in their docs.
 - Hyprland: the checks in `hypr/AGENTS.md`.

@@ -1,44 +1,185 @@
 #!/usr/bin/env zsh
-# Install command symlinks without replacing regular files or unrelated links.
+# Apply this repo to the machine: link every config and command into place,
+# build the Rust commands, render the theme and hook git so a pull reruns this.
+# Safe to rerun; it never replaces a file or a link that isn't its own.
+#   install           apply
+#   install --check   report what apply would change or can't, and change nothing
 emulate -L zsh
 setopt err_exit
 
-root="${0:A:h}"
-bin="${HOME}/.local/bin"
-mkdir -p -- "$bin"
-entries=(clang/cfmt clang/tidy scratch/scratch tmux-sessionizer/tmux-sessionizer theme/theme)
-if [[ $OSTYPE == linux* ]]; then entries+=(tmux-orphans/tmux-orphans); fi
+scripts="${0:A:h}"
+repo="${scripts:h}"
 
-# notifi and wall_select are Rust binaries for Hyprland; build them in place,
-# each from its own directory, where cargo finds notifi's .cargo/config.toml.
-if [[ $OSTYPE == linux* ]]; then
+check=0
+case "${1:-}" in
+  "") ;;
+  --check) check=1 ;;
+  *) print -u2 "usage: install [--check]"; exit 1 ;;
+esac
+
+case $OSTYPE in
+  linux*) os=linux ;;
+  darwin*) os=darwin ;;
+  *) os=other ;;
+esac
+
+# "<platform> <path in the repo> <link under ~>"; platform is all, linux or
+# darwin. Keep the Components table in AGENTS.md in step with this.
+links=(
+  'all    nvim                              .config/nvim'
+  'all    tmux                              .config/tmux'
+  'all    ghostty                           .config/ghostty'
+  'all    yazi                              .config/yazi'
+  'all    git                               .config/git'
+  'all    ruff                              .config/ruff'
+  'all    pz                                .config/pz'
+  'all    sioyek                            .config/sioyek'
+  'all    fastfetch                         .config/fastfetch'
+  'all    btop/themes                       .config/btop/themes'
+  'all    scripts/tmux-sessionizer          .config/tmux-sessionizer'
+  'all    zsh/.zshrc                        .zshrc'
+  'all    zsh/.zshenv                       .zshenv'
+  'linux  zsh/.zshrc.local.linux            .zshrc.local'
+  'darwin zsh/.zshrc.local.macbook          .zshrc.local'
+  'all    zsh/themes/.dircolors             .dircolors'
+  'all    claude/settings.json              .claude/settings.json'
+  'all    claude/statusline.sh              .claude/statusline.sh'
+  'all    claude/CLAUDE.md                  .claude/CLAUDE.md'
+  'all    claude/themes                     .claude/themes'
+  'all    pi/config/settings.json           .pi/agent/settings.json'
+  'all    pi/config/keybindings.json        .pi/agent/keybindings.json'
+  'all    pi/config/global.md               .pi/agent/AGENTS.md'
+  'all    pi/themes                         .pi/agent/themes'
+  'all    pi/prompts                        .pi/agent/prompts'
+  'all    pi/picosystem/immortalize         .pi/agent/extensions/immortalize'
+  'all    pi/picosystem/tmux-sessionizer    .pi/agent/extensions/tmux-sessionizer'
+  'all    pi/config/split-editor.json       .pi/agent/extensions/split-editor.json'
+  'all    scripts/clang/cfmt                .local/bin/cfmt'
+  'all    scripts/clang/tidy                .local/bin/tidy'
+  'all    scripts/scratch/scratch           .local/bin/scratch'
+  'all    scripts/theme/theme               .local/bin/theme'
+  'all    scripts/tmux-sessionizer/tmux-sessionizer  .local/bin/tmux-sessionizer'
+  'linux  scripts/tmux-orphans/tmux-orphans .local/bin/tmux-orphans'
+  'linux  waybar/scripts/waybar_cava        .local/bin/waybar_cava'
+  'linux  hypr                              .config/hypr'
+  'linux  waybar                            .config/waybar'
+  'linux  rofi                              .config/rofi'
+  'linux  dunst                             .config/dunst'
+  'linux  hyprcast                          .config/hyprcast'
+  'linux  satty                             .config/satty'
+  'linux  pacman                            .config/pacman'
+  'linux  fontconfig                        .config/fontconfig'
+  'linux  user-dirs.dirs                    .config/user-dirs.dirs'
+  'darwin aerospace                         .config/aerospace'
+)
+
+# notifi and wall_select are Rust binaries for Hyprland, built in place below.
+crates=()
+if [[ $os == linux ]]; then
   if (( $+commands[cargo] )); then
-    for crate in notifi wall_select; do
-      (cd -- "$root/$crate" && cargo build --release --locked)
-      entries+=($crate/target/release/$crate)
+    crates=(notifi wall_select)
+    for crate in $crates; do
+      links+=("linux scripts/$crate/target/release/$crate .local/bin/$crate")
     done
   else
     print -u2 -- "install: cargo not found, skipping notifi and wall_select"
   fi
 fi
 
-# Validate all destinations before changing any links.
-for entry in "${entries[@]}"; do
-  target="$root/$entry"
-  link="$bin/${entry:t}"
-  if [[ -e "$link" || -L "$link" ]]; then
-    if [[ ! -L "$link" || "${link:A}" != "$target" ]]; then
-      print -u2 -- "install: refusing to replace $link"
-      exit 1
+# install.skip (untracked) lists the links this machine keeps as its own
+# files, one per line, written as in the table or with a leading ~/.
+skip=()
+if [[ -r "$scripts/install.skip" ]]; then
+  for line in "${(@f)$(<"$scripts/install.skip")}"; do
+    words=(${=line%%\#*})
+    if (( $#words )); then skip+=("$HOME/${${words[1]#\~/}#$HOME/}"); fi
+  done
+fi
+
+targets=() dests=()
+for row in $links; do
+  words=(${=row})
+  [[ $words[1] == (all|$os) ]] || continue
+  dest="$HOME/$words[3]"
+  if (( $skip[(Ie)$dest] )); then
+    skip[$skip[(ie)$dest]]=()
+    continue
+  fi
+  targets+=("$repo/$words[2]") dests+=("$dest")
+done
+for dest in $skip; do
+  print -u2 -- "install: install.skip: ${dest/#$HOME/~} is not a link in the table"
+done
+
+# Git hooks rerun this after a pull, rebase or branch switch. With
+# core.hooksPath set, the hooks directory isn't this repo's to fill.
+if hooks="$(git -C "$repo" rev-parse --path-format=absolute --git-path hooks 2>/dev/null)" &&
+    [[ -z "$(git -C "$repo" config core.hooksPath)" ]]; then
+  for hook in post-merge post-checkout post-rewrite; do
+    targets+=("$scripts/hooks/apply") dests+=("$hooks/$hook")
+  done
+fi
+
+zmodload -F zsh/stat b:zstat
+short() { print -r -- "${${1/#$repo\//}/#$HOME/~}"; }
+
+# Link what's missing, and repoint a link that leads elsewhere in this repo
+# (a moved component). Anything else at a destination stays as it is.
+integer ok=0 linked=0 conflicts=0 broken=0
+for i in {1..$#dests}; do
+  target=$targets[i] dest=$dests[i] verb=link
+  if [[ -L "$dest" ]]; then
+    zstat -A cur +link -- "$dest"
+    if [[ "$cur" == "$target" || "${dest:A}" == "${target:A}" ]]; then
+      ok+=1
+      continue
     fi
+    [[ "$cur" == /* ]] && abs="$cur" || abs="${dest:h}/$cur"
+    if [[ "${abs:a}" != "$repo"/* ]]; then
+      print -u2 -- "install: conflict: $(short "$dest") links to $cur, not $(short "$target")"
+      conflicts+=1
+      continue
+    fi
+    verb=relink
+  elif [[ -e "$dest" ]]; then
+    print -u2 -- "install: conflict: $(short "$dest") is not a link to $(short "$target")"
+    conflicts+=1
+    continue
+  fi
+  linked+=1
+  if (( check )); then
+    print -- "would $verb $(short "$dest") -> $(short "$target")"
+  else
+    mkdir -p -- "${dest:h}"
+    ln -sfn -- "$target" "$dest"
+    print -- "${verb}ed $(short "$dest") -> $(short "$target")"
   fi
 done
 
-for entry in "${entries[@]}"; do
-  link="$bin/${entry:t}"
-  [[ -L "$link" ]] || ln -s -- "$root/$entry" "$link"
-  print -- "$link -> $root/$entry"
+if (( check )); then
+  "$scripts/theme/theme" check || broken+=1
+else
+  for crate in $crates; do
+    (cd -- "$scripts/$crate" && cargo build --release --locked) || {
+      print -u2 -- "install: $crate failed to build"
+      broken+=1
+    }
+  done
+  # Render theme templates (generated files are gitignored).
+  "$scripts/theme/theme" || broken+=1
+fi
+
+# A row whose source is gone is a typo, a moved component or an unbuilt crate.
+for target in $targets; do
+  [[ -e "$target" ]] && continue
+  print -u2 -- "install: $(short "$target") does not exist"
+  broken+=1
 done
 
-# Render theme templates (generated files are gitignored).
-"$root/theme/theme"
+if (( check )); then
+  print -- "install: $ok links ok, $linked to make, $conflicts conflicts"
+  (( linked + conflicts + broken == 0 ))
+else
+  print -- "install: $ok links ok, $linked made, $conflicts conflicts"
+  (( conflicts + broken == 0 ))
+fi

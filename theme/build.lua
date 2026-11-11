@@ -1,5 +1,7 @@
 -- Render theme/templates/<path> into <repo>/<path> using the active palette.
--- Usage: nvim -l theme/build.lua [palette]
+-- Usage: nvim -l theme/build.lua [palette | --check]
+-- --check writes nothing: it lists the outputs a build would change and exits 1
+-- if there are any.
 --
 -- Placeholders:
 --   {{key}}      #rrggbb
@@ -18,7 +20,8 @@ local function fail(msg)
 	os.exit(1)
 end
 
-local ok, palette, name = pcall(theme.palette, arg[1])
+local check_only = arg[1] == "--check"
+local ok, palette, name = pcall(theme.palette, not check_only and arg[1] or nil)
 if not ok then
 	fail(palette)
 end
@@ -106,10 +109,12 @@ for _, out in ipairs(outputs) do
 	local path = repo .. "/" .. out.rel
 	rels[#rels + 1] = out.rel
 	if read(path) ~= out.text then
-		vim.fn.mkdir(vim.fs.dirname(path), "p")
-		local f = assert(io.open(path, "w"))
-		f:write(out.text)
-		f:close()
+		if not check_only then
+			vim.fn.mkdir(vim.fs.dirname(path), "p")
+			local f = assert(io.open(path, "w"))
+			f:write(out.text)
+			f:close()
+		end
 		changed = changed + 1
 		io.stdout:write("  " .. out.rel .. "\n")
 	end
@@ -125,5 +130,9 @@ for _, rel in ipairs(rels) do
 	if not ignored[rel] then
 		io.stderr:write("theme: warning: " .. rel .. " is not in .gitignore\n")
 	end
+end
+if check_only then
+	io.stdout:write(("theme: %d of %d generated files are stale\n"):format(changed, #outputs))
+	os.exit(changed == 0 and 0 or 1)
 end
 io.stdout:write(("theme: rendered %d files with '%s' (%d changed)\n"):format(#outputs, name, changed))

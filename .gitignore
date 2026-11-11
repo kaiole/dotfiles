@@ -24,6 +24,9 @@ zsh/themes/colors.zsh
 zsh/themes/zsh.zsh-theme
 claude/themes/palette.json
 
+# install: links this machine keeps as its own files (see scripts/README.md)
+scripts/install.skip
+
 # Helium writes its compiled theme next to the unpacked manifest
 helium/theme/Cached Theme.pak
 

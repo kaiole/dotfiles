@@ -1,0 +1,14 @@
+#!/bin/sh
+# Git hook, linked by scripts/install as post-merge, post-checkout and
+# post-rewrite: apply the repo again after a pull, rebase or branch switch.
+case "${0##*/}" in
+  # Only a checkout that moved HEAD; not `git checkout -- <file>`.
+  post-checkout) [ "$3" = 1 ] && [ "$1" != "$2" ] || exit 0 ;;
+  post-rewrite) [ "$1" = rebase ] || exit 0 ;;
+esac
+
+# Linked worktrees share these hooks; only the main one is linked into ~.
+[ "$(git rev-parse --path-format=absolute --git-dir)" = \
+  "$(git rev-parse --path-format=absolute --git-common-dir)" ] || exit 0
+
+exec "$(git rev-parse --show-toplevel)/scripts/install"

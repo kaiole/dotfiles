@@ -31,6 +31,7 @@ app**. Both are below.
   | Command | Does |
   |---|---|
   | `theme` | rebuild with the current palette |
+  | `theme check` | list the outputs a rebuild would change, writing nothing; exits 1 if any (`scripts/install --check` runs it) |
   | `theme list` | list palettes (`*` = active) |
   | `theme set <name>` | switch, rebuild, live-reload running apps (`reload()` in `scripts/theme/theme`) |
 
@@ -93,7 +94,7 @@ A palette may give several keys the same value. `lackluster-red` sets `accent` a
    Replace every hex value with the key whose **role** matches. Don't pick a key because of how its value happens to look in the current palette; the next palette may look completely different. Afterwards there should be no raw hex left:
    `grep -rnE '#[0-9a-fA-F]{6}\b' theme/templates` prints nothing.
 3. **Add the output path to `.gitignore`** under the `# theme:` block. The build warns about any output that isn't ignored.
-4. **Point the app at the output.** Configs in this repo are symlinked from `~/.config`, so the output usually sits right where the app looks. When converting an existing file, render it and `diff` it against the original: the only difference should be the header line.
+4. **Point the app at the output.** Configs in this repo are symlinked from `~/.config`, so the output usually sits right where the app looks. If it doesn't, add a row for the link to the `links` table in `scripts/install`. When converting an existing file, render it and `diff` it against the original: the only difference should be the header line.
 5. **Live reload (optional).** If the app can reload without a restart (a signal, a CLI command or a socket), add a best-effort line to `reload()` in `scripts/theme/theme`. Skip it silently when the app isn't running, and update the "next launch:" message to match.
 6. **Verify:**
    - `theme` exits 0 and has no `.gitignore` warning.

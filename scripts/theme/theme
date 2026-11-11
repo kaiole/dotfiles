@@ -1,6 +1,7 @@
 #!/usr/bin/env zsh
 # Central theme: render theme/templates with a palette and reload running apps.
 #   theme              rebuild with the current palette
+#   theme check        list the files a rebuild would change; exit 1 if any
 #   theme list         list palettes (* = current)
 #   theme set <name>   switch palette, rebuild, reload
 emulate -L zsh
@@ -73,6 +74,9 @@ case "${1:-}" in
   "")
     build
     ;;
+  check)
+    build --check
+    ;;
   list)
     local cur="$(current)" p
     for p in "$dir"/palettes/*.lua; do
@@ -87,7 +91,7 @@ case "${1:-}" in
     reload
     ;;
   *)
-    print -u2 "usage: theme [list | set <name>]"
+    print -u2 "usage: theme [check | list | set <name>]"
     exit 1
     ;;
 esac
