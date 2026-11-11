@@ -27,12 +27,14 @@ hl.bind(main_mod .. " + V", hl.dsp.exec_cmd(home .. "/personal/hyprcast/build/re
 
 -- Notifications. Super+N closes the newest; an agent's (notifi) then stays
 -- pending. Super+Y runs the action of the one that is up (Focus, Edit), or
--- with none up goes to the agent that has been pending longest.
+-- with none up goes to the next waiting agent: the pending ones, then round
+-- those it has been to. Super+X forgets the agent in the focused window.
 hl.bind(main_mod .. " + N", hl.dsp.exec_cmd("dunstctl close"))
 hl.bind(
 	main_mod .. " + Y",
 	hl.dsp.exec_cmd('if [ "$(dunstctl count displayed)" -gt 0 ]; then dunstctl action; else ' .. notifi .. " next; fi")
 )
+hl.bind(main_mod .. " + X", hl.dsp.exec_cmd(notifi .. " dismiss --focused"))
 
 hl.bind(main_mod .. " + O", hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/toggle_swap_space"))
 

@@ -2,16 +2,17 @@
 """Desktop notifications for coding agents in tmux, on Hyprland with dunst.
 
     notifi show [--event EVENT] [--app NAME] [--force] [-v]
-    notifi dismiss [--app NAME]
-    notifi pending [--count]
+    notifi dismiss [--app NAME | --focused]
+    notifi pending [--waybar]
     notifi next
     notifi status
 
 `show` notifies for the agent in this tmux pane and returns at once; a
 detached waiter stays until the notification closes and runs its Focus
-action. An agent whose notification is closed without that stays pending:
-`pending` lists those agents and `next` focuses the one that has waited
-longest. `dismiss` ends either from any later process. See README.md.
+action. An agent whose notification is closed without that stays pending,
+and one that was gone to stays seen: `pending` lists both and `next` focuses
+the pending ones, then goes round the seen ones. `dismiss` forgets the agent
+from any later process. See README.md.
 """
 
 import argparse
@@ -350,7 +351,8 @@ def open_terminal(hypr: Hyprland, pane: Pane) -> None:
 # ---------------------------------------------------------------------------
 # Notifications. Each agent has at most one record: a state file that says
 # what it is waiting with and, while its notification is up, how to close it.
-# Without the notification the agent is pending.
+# Without the notification the agent is pending, or seen once the user went
+# to it.
 
 
 def gdbus(dest: str, path: str, method: str, *args: str) -> str | None:
@@ -502,48 +504,61 @@ def dismiss(app: str) -> None:
             close(path)
 
 
-class Waiting(NamedTuple):
-    since: float
+class Agent(NamedTuple):
     path: str
     pane: Pane
     event: Event
+    since: float
+    seen: float | None  # when the user last went to it; None while pending
+    notified: bool  # its notification is still up
 
 
-def waiting() -> list[Waiting]:
-    """The pending agents, the one that has waited longest first.
+def agents() -> list[Agent]:
+    """The agents on record that have a pane to go to.
 
-    An agent is pending when its notification is gone and nothing has
-    dismissed it. That needs a pane to go back to and an event that never
-    expires; records without are dropped, as are those whose pane died
+    Without its notification, an agent needs a live pane and an event that
+    never expires: other records are dropped, as are those whose pane died
     without a dismiss or belonged to an earlier tmux server on the same
     socket. Call it locked.
     """
-    agents, dropped = [], False
+    found, dropped = [], False
     for path in record_paths():
         state = read_state(path) or {}
-        if toast_up(state):
-            continue
+        notified = toast_up(state)
         pane = find_pane(state.get("socket"), state.get("pane"))
         event = EVENTS.get(str(state.get("event")))
-        since = state.get("since")
+        since, seen = state.get("since"), state.get("seen")
         if (
             pane
             and pane.server == state.get("server")
             and event
-            and not event.expire_ms
+            and (notified or not event.expire_ms)
             and isinstance(since, (int, float))
         ):
-            agents.append(Waiting(since, path, pane, event))
-        else:
+            seen = seen if isinstance(seen, (int, float)) else None
+            found.append(Agent(path, pane, event, since, seen, notified))
+        elif not notified:
             dropped = True
             with suppress(OSError):
                 os.unlink(path)
     if dropped:
         refresh_bar()
-    return sorted(agents, key=lambda agent: agent.since)
+    return found
 
 
-def pending() -> list[Waiting]:
+def waiting() -> list[Agent]:
+    """The agents left without a notification, in the order `next` goes.
+
+    The pending ones first, by how long they have waited, then the seen
+    ones, starting with the one visited longest ago. Call it locked.
+    """
+    return sorted(
+        (agent for agent in agents() if not agent.notified),
+        key=lambda agent: (agent.seen is not None, agent.seen or agent.since),
+    )
+
+
+def waiting_now() -> list[Agent]:
     if not record_paths():
         return []  # the usual case; waybar asks every 30 s
     with locked():
@@ -551,21 +566,75 @@ def pending() -> list[Waiting]:
 
 
 def focus_next() -> str | None:
-    """Focuses the pending agent that has waited longest and forgets it.
+    """Focuses the first waiting agent, which is seen from then on.
 
-    Returns its title, or None if no agent is pending.
+    Returns its title, or None if no agent is waiting.
     """
     if not record_paths():
         return None
     with locked():
-        agents = waiting()
-        if not agents:
+        found = waiting()
+        if not found:
             return None
-        agent = agents[0]
+        agent = found[0]
         if not focus_pane(agent.pane):
             sys.exit("notifi: no Hyprland to focus a window in")
-        close(agent.path)
+        state = read_state(agent.path) or {}
+        # A notify-send left behind by a daemon that died.
+        pid = toast_sender(state)
+        if pid is not None:
+            with suppress(OSError):
+                os.kill(pid, signal.SIGTERM)
+        state.pop("toast", None)
+        write_state(agent.path, state | {"seen": time.time()})
+        refresh_bar()
     return agent.pane.title
+
+
+def dismiss_focused() -> list[str]:
+    """Forgets the agent in the focused window; returns the titles.
+
+    That is the agent in the active pane of the tmux window that the focused
+    Hyprland window shows or, if that pane has none, every agent in that
+    tmux window.
+    """
+    if not record_paths():
+        return []
+    hypr = hyprland()
+    if not hypr:
+        sys.exit("notifi: no Hyprland to find the focused window in")
+    with locked():
+        found = agents()
+        shown = [
+            (client, socket)
+            for socket in {agent.pane.socket for agent in found}
+            for client in attached_clients(hypr, socket)
+            if any(
+                w.get("focusHistoryID") == 0
+                and (w.get("workspace") or {}).get("id")
+                in hypr.visible_workspaces
+                for w in client.windows
+            )
+        ]
+        if not shown:
+            return []
+        # A single-instance Ghostty has every client in one process, so
+        # several may match the focused window: take the one used last.
+        client, socket = max(shown, key=lambda pair: pair[0].activity)
+        active = tmux(
+            socket, "display-message", "-p", "-t", client.window_id, "#D"
+        )
+        here = [
+            agent
+            for agent in found
+            if agent.pane.socket == socket
+            and agent.pane.session_id == client.session_id
+            and agent.pane.window_id == client.window_id
+        ]
+        here = [a for a in here if a.pane.id == (active or "").strip()] or here
+        for agent in here:
+            close(agent.path)
+    return [agent.pane.title for agent in here]
 
 
 def show(app: str, event_name: str, force: bool) -> str:
@@ -647,15 +716,15 @@ def show(app: str, event_name: str, force: bool) -> str:
         pane = own_pane()  # as it is now
         if acted and pane:
             focus_pane(pane)
-        # Closed without the action, the agent is still waiting, so it stays
-        # pending. Not if its pane is on screen, where closing it means
-        # "seen"; nor if the notification expires, because a timeout looks
-        # the same from here.
+        # The agent is still waiting, so its record stays: seen after the
+        # action, pending if the notification was only closed. Not if it was
+        # closed with the pane on screen, which takes no going to; nor if
+        # the notification expires, because a timeout looks the same as a
+        # close from here.
         keep = (
             pane is not None
-            and not acted
             and not event.expire_ms
-            and not pane_visible(pane)
+            and (acted or not pane_visible(pane))
         )
         with locked():
             state = read_state(path) or {}
@@ -663,6 +732,8 @@ def show(app: str, event_name: str, force: bool) -> str:
             if isinstance(toast, dict) and toast.get("pid") == sender.pid:
                 if keep:
                     del state["toast"]
+                    if acted:
+                        state["seen"] = time.time()
                     write_state(path, state)
                 else:
                     os.unlink(path)
@@ -700,21 +771,26 @@ def main() -> None:
     show_parser.add_argument(
         "-v", "--verbose", action="store_true", help="print the outcome"
     )
-    commands.add_parser(
+    dismiss_parser = commands.add_parser(
         "dismiss",
         parents=[app],
-        help="close this pane's notification, or end its wait",
+        help="forget this pane's agent, closing its notification",
+    )
+    dismiss_parser.add_argument(
+        "--focused",
+        action="store_true",
+        help="the agent in the focused Hyprland window instead",
     )
     pending_parser = commands.add_parser(
-        "pending", help="list the agents left waiting by a closed notification"
+        "pending", help="list the agents waiting without a notification"
     )
     pending_parser.add_argument(
-        "--count",
+        "--waybar",
         action="store_true",
-        help="print how many there are instead, and nothing for none",
+        help="print the count as a waybar module instead, nothing for none",
     )
     commands.add_parser(
-        "next", help="focus the pending agent that has waited longest"
+        "next", help="focus the next waiting agent, pending ones first"
     )
     commands.add_parser(
         "status", help="print whether this desktop may be notified"
@@ -724,14 +800,25 @@ def main() -> None:
     if args.command == "status":
         print("allowed" if desktop_allowed() else "blocked")
     elif args.command == "dismiss":
-        dismiss(args.app)
+        if args.focused:
+            for title in dismiss_focused():
+                print(title)
+        else:
+            dismiss(args.app)
     elif args.command == "pending":
-        agents = pending()
-        if not args.count:
-            for agent in agents:
-                print(f"{agent.pane.title}\t{agent.event.body}")
-        elif agents:
-            print(len(agents))
+        found = waiting_now()
+        unseen = sum(agent.seen is None for agent in found)
+        if not args.waybar:
+            for agent in found:
+                state = "pending" if agent.seen is None else "seen"
+                print(f"{agent.pane.title}\t{agent.event.body}\t{state}")
+        elif found:
+            # The pending agents; only once all were gone to, the seen ones.
+            bar = {
+                "text": str(unseen or len(found)),
+                "class": "pending" if unseen else "seen",
+            }
+            print(json.dumps(bar))
     elif args.command == "next":
         title = focus_next()
         if title:

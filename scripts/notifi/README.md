@@ -5,20 +5,25 @@ dunst and Ghostty. An agent calls `notifi show` when it finishes or needs you,
 and `notifi dismiss` when you're back. pi and Claude Code both use it.
 
 - **Super+N** closes the notification (`dunstctl close`) and leaves its agent
-  **pending**: counted in waybar until you go to it, answer it or it exits.
+  **pending**: counted in waybar until you go to it.
 - **Super+Y**, or a click, runs its Focus action (`dunstctl action`): the
   Hyprland window, tmux session, window and pane of that agent come to the
-  front. With no notification up, Super+Y goes to the agent that has been
-  pending longest (`notifi next`).
+  front. With no notification up, Super+Y goes to the next waiting agent
+  (`notifi next`): the pending ones, longest wait first, then round the ones
+  you have been to.
+- **Super+X** forgets the agent in the focused window
+  (`notifi dismiss --focused`).
 
-Both binds are in `hypr/config/keybindings.lua` and work for any notification.
+An agent you went to stays **seen** until you answer it, it exits, or you
+press Super+X, so looking at it doesn't lose it. The binds are in
+`hypr/config/keybindings.lua`; Super+N and Super+Y work for any notification.
 
 ## Commands
 
 ```sh
 notifi show [--event EVENT] [--app NAME] [--force] [-v]
-notifi dismiss [--app NAME]
-notifi pending [--count]
+notifi dismiss [--app NAME | --focused]
+notifi pending [--waybar]
 notifi next
 notifi status
 ```
@@ -33,16 +38,23 @@ returns at once. It prints nothing unless `-v`, which prints the outcome:
 | `blocked` | Skipped: this tmux server may not notify the desktop |
 | `failed: <why>` | `notify-send` failed; also on stderr, exit status 1 |
 
-`dismiss` closes this pane's notification, or ends its pending state; it does
-nothing if the pane has neither. `status` prints `allowed` or `blocked`.
-`--app` is the notification's app name; outside tmux it is also the title and
-the identity, and there is no Focus action.
+`dismiss` forgets this pane's agent: it closes its notification, or ends its
+pending or seen state, and does nothing if the pane has none of them.
+`dismiss --focused` does that for the agent you are looking at instead: the
+one in the active pane of the tmux window in the focused Hyprland window or,
+if that pane has no agent, every agent in that tmux window. It prints the
+titles. `status` prints `allowed` or `blocked`. `--app` is the notification's
+app name; outside tmux it is also the title and the identity, and there is
+no Focus action.
 
-`pending` prints one line per pending agent, `<title><TAB><event text>`, the
-longest wait first. `--count` prints how many there are instead, and nothing
-for none, which hides the waybar module. `next` brings the first of them to
-the front as Focus would, ends its pending state and prints its title; with
-none pending it prints nothing. Both run from anywhere, not only from a pane.
+`pending` prints one line per waiting agent,
+`<title><TAB><event text><TAB>pending|seen`, in the order `next` takes them.
+`--waybar` prints the count as a waybar JSON module instead: the pending
+agents with class `pending` or, when none is pending, the seen ones with
+class `seen`; nothing for none, which hides the module. `next` brings the
+first waiting agent to the front as Focus would, marks it seen and prints its
+title; with none waiting it prints nothing. `pending`, `next` and
+`dismiss --focused` run from anywhere, not only from a pane.
 
 Exit status is 0 or 1, never 2, which Claude Code reads from a hook as "block
 this".
@@ -64,13 +76,17 @@ there is no config file.
 - **One notification per pane.** `show` first closes whatever that pane
   already has up, even when it then skips because the window is on screen.
 - **Pending.** An agent is pending when its notification was closed without
-  Focus and nothing has dismissed it since. Closing it is the only way in.
-  The ways out are the ones that end a notification (the agent's next `show`
-  or `dismiss`: you answered, or it exited) and `next`. Three cases never
-  become pending: an event that expires (`aborted`), because a timeout and
-  Super+N look the same to `notify-send`; a notification closed while its
-  pane is on screen, which counts as seen; and an agent outside tmux, which
-  has no pane to go back to.
+  Focus and nothing has dismissed it since. Three cases never become
+  pending: an event that expires (`aborted`), because a timeout and Super+N
+  look the same to `notify-send`; a notification closed while its pane is on
+  screen, which takes no going to; and an agent outside tmux, which has no
+  pane to go back to.
+- **Seen.** Going to an agent, with Focus or `next`, leaves it seen. `next`
+  takes the seen agents after the pending ones, the one visited longest ago
+  first, so repeating it goes round them. A notification is the only way in:
+  an agent that finishes on screen is not recorded at all.
+- **Forgetting** a pending or seen agent takes the agent's next `show` or
+  `dismiss` (you answered, or it exited) or `dismiss --focused`.
 - **A pane that died** without a `dismiss` (the agent was killed outright) is
   dropped the next time anything asks what is pending, which waybar does
   every 30 s. So is a record from an earlier tmux server on the same socket,
@@ -105,23 +121,25 @@ lives exactly as long as the notification, and writes a record to
 `$XDG_RUNTIME_DIR/notifi/<socket + pane id>.json`: the event, the time, the
 pane (socket, pane id, tmux server pid) and the notification (`toast`: id,
 daemon bus name, pid and start time of that `notify-send`). A detached waiter
-stays behind until the notification closes. `notify-send` prints `focus` if
-the action was chosen, and then the waiter runs it and removes the record.
-Otherwise it removes only `toast` from the record, which is what pending is:
-a record whose notification is gone. That also covers a notification lost
-because dunst restarted.
+stays behind until the notification closes, and then removes `toast` from
+the record, which is what pending is: a record whose notification is gone.
+That also covers a notification lost because dunst restarted. If
+`notify-send` printed `focus`, the action was chosen: the waiter runs it and
+adds `seen`, the time of the visit, as `next` does.
 
 `dismiss` reads the record from any later process and removes it, stops that
 `notify-send` and asks the daemon to close the id. Ids restart when dunst
 does, so it closes only an id the running daemon issued, and it checks the
 start time so a reused pid is never signalled.
 
-`pending` and `next` read every record, and ask tmux whether each pane is
-still there. Nothing runs in between: there is no daemon, and the records
-are the only state. Whenever the pending count may have changed, notifi sends
+`pending`, `next` and `dismiss --focused` read every record, and ask tmux
+whether each pane is still there. Nothing runs in between: there is no
+daemon, and the records are the only state. `dismiss --focused` finds the
+tmux client in the focused Hyprland window the way "on screen" does, when
+the key is pressed. Whenever the counts may have changed, notifi sends
 waybar `SIGRTMIN+8` (`pkill`), and `custom/agents` in `waybar/config.jsonc`
-runs `notifi pending --count` again. Its `exec-if` keeps Python from starting
-while there are no records at all.
+runs `notifi pending --waybar` again; `waybar/style.css` dims class `seen`.
+Its `exec-if` keeps Python from starting while there are no records at all.
 
 ## Callers
 
@@ -148,7 +166,7 @@ pi adds `/notifi on|off|test|status`; on/off is saved in the session.
 
 Killing an agent's tmux pane, session or server still runs its last dismiss
 (`SessionEnd`, `session_shutdown`), measured on Claude Code v2.1.321 and pi
-1.5.2, so nothing stays pending for a pane you closed.
+1.5.2, so nothing stays pending or seen for a pane you closed.
 
 ## Requirements
 

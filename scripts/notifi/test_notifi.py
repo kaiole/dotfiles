@@ -230,6 +230,15 @@ def close_notifications() -> None:
     until(lambda: not showing())
 
 
+def bar() -> tuple[str, str] | None:
+    """What waybar shows: the count and its class, or None while hidden."""
+    out = notifi(None, "pending", "--waybar")
+    if not out:
+        return None
+    module = json.loads(out)
+    return module["text"], module["class"]
+
+
 def pane_of(server: Server, target: str) -> str:
     return tmux(server, "display-message", "-p", "-t", target, "#{pane_id}")
 
@@ -439,13 +448,15 @@ class NotifiTest(unittest.TestCase):
         self.assertEqual(notifi(None, "pending"), "")
         self.assertEqual(read("pkill.log"), "")
         close_notifications()
-        self.assertEqual(notifi(None, "pending"), "test:0\tNeeds Input")
-        self.assertEqual(notifi(None, "pending", "--count"), "1")
+        self.assertEqual(
+            notifi(None, "pending"), "test:0\tNeeds Input\tpending"
+        )
+        self.assertEqual(bar(), ("1", "pending"))
         self.assertEqual(read("pkill.log"), "-RTMIN+8 -x waybar\n")
 
         notifi(self.local, "dismiss")
         self.assertEqual(records(), [])
-        self.assertEqual(notifi(None, "pending", "--count"), "")
+        self.assertIsNone(bar())
         self.assertEqual(gdbus_calls("CloseNotification"), [])
         self.assertEqual(read("pkill.log"), "-RTMIN+8 -x waybar\n" * 2)
 
@@ -457,7 +468,9 @@ class NotifiTest(unittest.TestCase):
         self.assertEqual(notifi(None, "pending"), "")
 
         close_notifications()
-        self.assertEqual(notifi(None, "pending"), "test:0\tTask Failed")
+        self.assertEqual(
+            notifi(None, "pending"), "test:0\tTask Failed\tpending"
+        )
         hyprland(attach("test"))
         self.assertEqual(notifi(self.local, "show", "-v"), "visible")
         self.assertEqual(records(), [])
@@ -469,20 +482,29 @@ class NotifiTest(unittest.TestCase):
         close_notifications()
         self.assertEqual(records(), [])
 
+        # Nor does a record that its waiter never got to remove.
+        notifi(self.local, "show")
+        close_notifications()
+        (record,) = STATE.glob("*.json")
+        left = json.loads(record.read_text()) | {"event": "aborted"}
+        record.write_text(json.dumps(left))
+        self.assertIsNone(bar())
+        self.assertEqual(records(), [])
+
     def test_closing_it_with_the_pane_on_screen_leaves_nothing_pending(self):
         notifi(self.local, "show", "--event", "error")
         hyprland(attach("test"))  # the user went to look
         close_notifications()
         self.assertEqual(records(), [])
 
-    def test_next_focuses_the_pending_agents_oldest_first(self):
+    def test_next_goes_to_the_pending_agents_then_round_the_seen_ones(self):
         other = pane_of(self.local, "other:")
         notifi(self.local, "show", "--event", "error", TMUX_PANE=other)
         notifi(self.local, "show")
         close_notifications()
         self.assertEqual(
             notifi(None, "pending"),
-            "other:0\tTask Failed\ntest:0\tTask Finished",
+            "other:0\tTask Failed\tpending\ntest:0\tTask Finished\tpending",
         )
 
         # Nowhere to focus: it fails and forgets nothing.
@@ -494,7 +516,7 @@ class NotifiTest(unittest.TestCase):
         )
         self.assertEqual(done.returncode, 1)
         self.assertIn("Hyprland", done.stderr)
-        self.assertEqual(notifi(None, "pending", "--count"), "2")
+        self.assertEqual(bar(), ("2", "pending"))
 
         hyprland(attach("test"))
         self.assertEqual(notifi(None, "next"), "other:0")
@@ -502,11 +524,65 @@ class NotifiTest(unittest.TestCase):
         self.assertEqual(
             read("dispatch.log"), 'hl.dsp.focus({ window = "address:0xabc" })\n'
         )
-        self.assertEqual(notifi(None, "pending"), "test:0\tTask Finished")
+        self.assertEqual(
+            notifi(None, "pending"),
+            "test:0\tTask Finished\tpending\nother:0\tTask Failed\tseen",
+        )
+        self.assertEqual(bar(), ("1", "pending"))
         self.assertEqual(notifi(None, "next"), "test:0")
         self.assertEqual(client_sessions(), "test")
-        self.assertEqual(notifi(None, "next"), "")
-        self.assertEqual(records(), [])
+        self.assertEqual(bar(), ("2", "seen"))
+
+        # Both were gone to: it keeps going round them.
+        for title in ("other:0", "test:0", "other:0"):
+            self.assertEqual(notifi(None, "next"), title)
+        # Only the agent's own dismiss, or the user's, ends it.
+        notifi(self.local, "dismiss", TMUX_PANE=other)
+        self.assertEqual(notifi(None, "pending"), "test:0\tTask Finished\tseen")
+
+    def test_the_focus_action_leaves_the_agent_seen(self):
+        hyprland(attach("other"))
+        notifi(self.local, "show", NOTIFI_TEST_ACTION="focus")
+        until(lambda: bar() == ("1", "seen"))
+        self.assertEqual(client_sessions(), "test")
+
+        # Not one whose notification expires.
+        notifi(self.local, "dismiss")
+        notifi(
+            self.local, "show", "--event", "aborted", NOTIFI_TEST_ACTION="focus"
+        )
+        until(lambda: records() == [])
+
+    def test_dismiss_focused_forgets_the_agent_in_the_focused_window(self):
+        tmux(self.local, "split-window", "-d", "-t", "test:0", "/bin/sh")
+        beside = pane_of(self.local, "test:0.1")
+        self.addCleanup(tmux, self.local, "kill-pane", "-t", beside)
+        other = pane_of(self.local, "other:")
+        for pane in (self.local.pane_id, beside, other):
+            notifi(self.local, "show", "--event", "error", TMUX_PANE=pane)
+        close_notifications()
+        self.assertEqual(bar(), ("3", "pending"))
+        hyprland(None)  # no window at all
+        self.assertEqual(notifi(None, "dismiss", "--focused"), "")
+
+        # Its active pane, when that has an agent.
+        client = attach("test")
+        hyprland(client, workspace=2)  # focused last, but not on screen
+        self.assertEqual(notifi(None, "dismiss", "--focused"), "")
+        hyprland(client)
+        self.assertEqual(notifi(None, "dismiss", "--focused"), "test:0")
+        self.assertEqual(
+            sorted(record["pane"] for record in records()),
+            sorted([beside, other]),
+        )
+        # Otherwise every agent in that tmux window, whatever its state.
+        notifi(self.local, "show", "--event", "error")
+        notifi(self.local, "dismiss")
+        notifi(self.local, "show", "--event", "error", TMUX_PANE=beside)
+        self.assertEqual(notifi(None, "dismiss", "--focused"), "test:0")
+        self.assertEqual(showing(), [])
+        self.assertEqual([record["pane"] for record in records()], [other])
+        self.assertEqual(notifi(None, "dismiss", "--focused"), "")
 
     def test_a_pane_that_died_is_no_longer_pending(self):
         tmux(self.local, "new-window", "-d", "-t", "test:", "/bin/sh")
@@ -514,9 +590,11 @@ class NotifiTest(unittest.TestCase):
         notifi(self.local, "show", TMUX_PANE=doomed)
         notifi(self.local, "show", "--event", "attention")
         close_notifications()
-        self.assertEqual(notifi(None, "pending", "--count"), "2")
+        self.assertEqual(bar(), ("2", "pending"))
         tmux(self.local, "kill-window", "-t", "test:1")  # no dismiss
-        self.assertEqual(notifi(None, "pending"), "test:0\tNeeds Input")
+        self.assertEqual(
+            notifi(None, "pending"), "test:0\tNeeds Input\tpending"
+        )
         self.assertEqual(len(records()), 1)
 
         # A later tmux server on the same socket numbers its panes from %0
@@ -531,15 +609,15 @@ class NotifiTest(unittest.TestCase):
         (LOGS / "owner").write_text("(':1.5',)\n")
         notifi(self.local, "show")
         (pid,) = showing()
-        self.assertEqual(notifi(None, "pending", "--count"), "")
+        self.assertIsNone(bar())
         (LOGS / "owner").write_text("(':1.6',)\n")  # dunst restarted
-        self.assertEqual(notifi(None, "pending", "--count"), "1")
+        self.assertEqual(bar(), ("1", "pending"))
 
         hyprland(attach("other"))
         self.assertEqual(notifi(None, "next"), "test:0")
         until(lambda: not alive(pid))  # the notify-send left behind
         self.assertEqual(gdbus_calls("CloseNotification"), [])
-        self.assertEqual(records(), [])
+        self.assertEqual(bar(), ("1", "seen"))
 
     def test_usage_errors_never_exit_with_status_2(self):
         # Claude Code treats exit status 2 from a hook as "block".

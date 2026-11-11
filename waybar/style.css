@@ -92,6 +92,11 @@ tooltip {
     padding: 5px 5px;
 }
 
+/* No agent is pending; the count is of those already gone to. */
+#custom-agents.seen {
+    color: @fg_dim;
+}
+
 #submap {
     margin: 0;
     padding: 5px 0;
