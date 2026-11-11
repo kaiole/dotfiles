@@ -7,6 +7,7 @@
     "modules-left": [
         "custom/spotify",
         "custom/cava_mviz",
+        "custom/tibi",
     ],
     "modules-center": [
         "hyprland/submap#left",
@@ -42,6 +43,17 @@
       "restart-interval": 2,
       "tooltip": false,
       "format": "{}"
+    },
+    // The running tibi session: "󰔛 name 00:23". Hidden when nothing is
+    // tracked; class "paused" (dimmed) after `tb pause`. tb escapes the
+    // Pango markup itself. Click pauses or resumes; waybar re-runs exec
+    // after a click, so the bar updates at once.
+    "custom/tibi": {
+      "exec": "$HOME/.cargo/bin/tb status --format waybar",
+      "return-type": "json",
+      "format": "{}",
+      "interval": 5,
+      "on-click": "$HOME/.cargo/bin/tb pause || $HOME/.cargo/bin/tb resume"
     },
     // Agents left waiting when their notification was closed (Super+N):
     // how many are pending or, once Super+Y has been to all of them, how

@@ -87,13 +87,19 @@ tooltip {
 #backlight,
 #custom-spotify,
 #custom-cava_mviz,
-#custom-agents
+#custom-agents,
+#custom-tibi
 {
     padding: 5px 5px;
 }
 
 /* No agent is pending; the count is of those already gone to. */
 #custom-agents.seen {
+    color: @fg_dim;
+}
+
+/* tb session paused; the timer is frozen. */
+#custom-tibi.paused {
     color: @fg_dim;
 }
 
