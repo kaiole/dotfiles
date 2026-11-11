@@ -8,6 +8,84 @@
     "type": "command",
     "command": "~/.claude/statusline.sh"
   },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v notifi >/dev/null || exit 0; notifi show --app claude",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v notifi >/dev/null || exit 0; notifi show --event error --app claude",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v notifi >/dev/null || exit 0; notifi show --event attention --app claude",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v notifi >/dev/null || exit 0; notifi dismiss --app claude",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v notifi >/dev/null || exit 0; notifi dismiss --app claude",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v notifi >/dev/null || exit 0; notifi dismiss --app claude",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v notifi >/dev/null || exit 0; notifi dismiss --app claude"
+          }
+        ]
+      }
+    ]
+  },
   "enabledPlugins": {
     "clangd-lsp@claude-plugins-official": true,
     "lua-lsp@claude-plugins-official": true,
