@@ -46,6 +46,7 @@ only says where things live and how they connect.
 | `zsh/` | `~/.zshrc`, `~/.zshenv`, `~/.zshrc.local` → `.zshrc.local.linux`, `~/.dircolors` → `themes/.dircolors` | `.zshrc` (host), `ros.zsh` (ROS container), both source `shared/init.zsh` | `zsh/README.md` |
 | `scripts/` | `~/.local/bin/<cmd>` via `scripts/install` | One dir per tool; `install` holds the command list | `scripts/README.md` |
 | `scripts/tmux-sessionizer/` | `~/.local/bin/tmux-sessionizer`, `~/.config/tmux-sessionizer` | `tmux-sessionizer` (bash), `presets/`, `ros-tmux` for container panes; bound to `C-f` in tmux (host Claude Code panes, via the root binding), nvim, pi, and tmux `prefix C-f` everywhere | `scripts/tmux-sessionizer/ROS.md` (ROS) |
+| `scripts/notifi/` | `~/.local/bin/notifi` (Linux) | Python; `notifi show` raises a dunst notification for the agent in this tmux pane, whose Focus action (Super+Y) brings up its Hyprland window and tmux pane; `notifi dismiss` closes it; called by the hooks in `claude/settings.json` and by `pi/picosystem/notifi/`; Super+N/Super+Y are bound in `hypr/config/keybindings.lua` | `scripts/notifi/README.md` |
 | `scripts/tmux-orphans/` | `~/.local/bin/tmux-orphans` (Linux) | Zsh; finds `tmux-spawn-*.scope` cgroups with no child of a tmux server, i.e. processes left by closed panes; skips `wl-copy` (Wayland clipboard owner); `-k` sends SIGTERM, then SIGKILL, to the listed PIDs | — |
 | `scripts/wall_select/` | `~/.local/bin/wall_select` (built by `scripts/install`) | Rust crate; `src/main.rs` (startup, toggle), `ui.rs` (layer shell, input), `draw.rs` (layout matching the old rofi theme); bound to Super+W in `hypr/config/keybindings.lua`; colors from a theme template | — |
 | `tmux/` | `~/.config/tmux` | `tmux.conf`; prefix is `C-Space`; sources generated `colors.conf`; `prefix r` reloads; `prefix b` toggles a floating, unfocused shell-shortcuts pane (`shortcuts.sh`), kept top-right by a `window-resized` hook; new-window/split binds go through `ros-tmux` only in ROS sessions (`@ros_container`) | — |
@@ -72,6 +73,6 @@ only says where things live and how they connect.
 ## Verify
 
 - Theme: `theme` exits 0 and `git status` shows no generated files.
-- nvim, zsh, pi, tmux-sessionizer: the checks in their docs.
+- nvim, zsh, pi, tmux-sessionizer, notifi: the checks in their docs.
 - Hyprland: the checks in `hypr/AGENTS.md`.
 - Ghostty: `ghostty +validate-config`. tmux: `tmux source-file ~/dotfiles/tmux/tmux.conf`.
