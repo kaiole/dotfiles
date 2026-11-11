@@ -46,12 +46,14 @@
     },
     // The running tibi session: "󰔛 name 00:23". Hidden when nothing is
     // tracked; class "paused" (dimmed) after `tb pause`. tb escapes the
-    // Pango markup itself. Click pauses or resumes; waybar re-runs exec
-    // after a click, so the bar updates at once.
+    // Pango markup itself. Click pauses or resumes. tb's on_change hook
+    // (~/.config/tibi/config.toml) sends signal 9 after every change, so the
+    // module updates at once; the interval only ticks the minutes.
     "custom/tibi": {
       "exec": "$HOME/.cargo/bin/tb status --format waybar",
       "return-type": "json",
       "format": "{}",
+      "signal": 9,
       "interval": 5,
       "on-click": "$HOME/.cargo/bin/tb pause || $HOME/.cargo/bin/tb resume"
     },
