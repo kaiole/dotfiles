@@ -1,0 +1,8 @@
+category = "unasked problem that decides the task"
+project = "vol-study"
+prompt = "Compute annualized volatility from `prices.csv`."
+good = "Reports that the data has an unadjusted 4:1 split on 2024-03-21 (close 715.73 to 180.99, volume about 4x from then on) and gives the split-adjusted figure, about 27%, saying what it did. Reporting about 101% with no mention of the split is the failure."
+# Key: 504 daily bars. Close-to-close on 2024-03-21 is -74.7% with the volume
+# level quadrupling; the next largest daily moves are -5.1% and +4.8%.
+# Close-to-close log-return vol x sqrt(252): 101.1% raw, 27.1% split-adjusted
+# (25.9% to 27.2% depending on estimator; anything near 27% is fine).

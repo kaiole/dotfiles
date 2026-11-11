@@ -1,0 +1,335 @@
+#!/usr/bin/env python3
+"""Run Claude Code against eval cases, one isolated trial at a time.
+
+Each trial gets a throwaway root under $EVAL_TMP (default: the system temp
+dir), holding a private config dir and a fresh git repo copied from the case
+fixture. Nothing under ~/.claude or ~/dotfiles is read by the child except the
+OAuth access token, which is passed through the environment and never written
+to disk. See README.md.
+"""
+
+import argparse
+import concurrent.futures as cf
+import datetime as dt
+import fnmatch
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import tomllib
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+CASES = HERE / "cases"
+CANDIDATES = HERE / "candidates"
+LIVE_SETTINGS = Path.home() / ".claude" / "settings.json"
+LIVE_CREDENTIALS = Path.home() / ".claude" / ".credentials.json"
+
+# Settings copied from the live file. Everything else (status line, plugins,
+# per-model effort) is left out: effort is pinned on the command line and LSP
+# plugins are not installed in a fresh config dir.
+KEEP_SETTINGS = ("attribution",)
+
+# The marker Claude Code puts next to a global instruction file in the request.
+SANDBOX_PLACEHOLDERS = (
+    ".bash_profile", ".bashrc", ".profile", ".zprofile", ".zshrc", ".gitconfig",
+    ".gitmodules", ".ripgreprc", ".mcp.json", ".idea", ".vscode")
+GLOBAL_MARKER = "user's private global instructions for all projects"
+
+GIT = ["git", "-c", "user.name=dev", "-c", "user.email=dev@localhost",
+       "-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main"]
+
+
+def trial_settings():
+    live = json.loads(LIVE_SETTINGS.read_text())
+    out = {k: live[k] for k in KEEP_SETTINGS if k in live}
+    # Bash always runs inside Claude Code's sandbox: writes are confined to the
+    # working directory and the trial's own temp dir. Because nothing can run
+    # unsandboxed, every Bash command is allowed; without the allow rule, -p
+    # denies the commands its checker can't analyse (heredocs, "$VAR/cmd").
+    # File edits are auto-approved by --permission-mode acceptEdits and
+    # confined to the working directory.
+    out["sandbox"] = {
+        "enabled": True,
+        "autoAllowBashIfSandboxed": True,
+        "allowUnsandboxedCommands": False,
+    }
+    out["permissions"] = {"allow": ["Bash"]}
+    return out
+
+
+def oauth_token():
+    tok = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN")
+    if tok:
+        return tok
+    cred = json.loads(LIVE_CREDENTIALS.read_text())["claudeAiOauth"]
+    if cred["expiresAt"] / 1000 < time.time() + 60:
+        sys.exit("OAuth access token has expired. Open Claude Code once to "
+                 "refresh it, or export CLAUDE_CODE_OAUTH_TOKEN from "
+                 "`claude setup-token`.")
+    return cred["accessToken"]
+
+
+def child_env(config_dir, tmp_dir):
+    # Drop everything the parent Claude Code session exports (CLAUDE_EFFORT,
+    # CLAUDECODE, session ids, ...) so a run launched from inside a session
+    # behaves like one launched from a plain shell.
+    env = {k: v for k, v in os.environ.items()
+           if not k.startswith(("CLAUDE", "ANTHROPIC_"))}
+    env["CLAUDE_CONFIG_DIR"] = str(config_dir)
+    # A temp dir per trial. The default is shared by every Claude Code process
+    # of this user, so parallel trials would build into the same "$TMPDIR/x".
+    env["CLAUDE_CODE_TMPDIR"] = str(tmp_dir)
+    env["CLAUDE_CODE_OAUTH_TOKEN"] = oauth_token()
+    return env
+
+
+def sh(cmd, cwd, timeout=600, env=None):
+    p = subprocess.run(cmd, cwd=cwd, shell=isinstance(cmd, str), env=env,
+                       capture_output=True, text=True, timeout=timeout)
+    return p.returncode, p.stdout + p.stderr
+
+
+def load_case(case_dir):
+    case = tomllib.loads((case_dir / "case.toml").read_text())
+    case["id"] = case_dir.name
+    case["dir"] = case_dir
+    return case
+
+
+def run_trial(case, arm, trial, args, out_root):
+    out = out_root / case["id"] / arm / f"{trial}"
+    if (out / "meta.json").exists():
+        return json.loads((out / "meta.json").read_text())
+    out.mkdir(parents=True, exist_ok=True)
+
+    root = Path(tempfile.mkdtemp(prefix="tmp.", dir=args.tmp))
+    try:
+        cfg = root / ".claude"
+        cfg.mkdir()
+        tmp = root / "tmp"
+        tmp.mkdir()
+        (cfg / "settings.json").write_text(json.dumps(trial_settings(), indent=2))
+        if arm != "baseline":
+            shutil.copy(CANDIDATES / f"{arm}.md", cfg / "CLAUDE.md")
+
+        work = root / case["project"]
+        shutil.copytree(case["dir"] / "fixture", work)
+        for cmd in (["init", "-q"], ["add", "-A"],
+                    ["commit", "-q", "-m", case.get("commit", "wip")]):
+            rc, o = sh(GIT + cmd, work)
+            if rc:
+                raise RuntimeError(f"git {cmd[0]} failed: {o}")
+        # Keep harness files out of `git status`: Claude Code's bookkeeping,
+        # the placeholders its sandbox mounts over protected names, and ours.
+        with open(work / ".git" / "info" / "exclude", "a") as f:
+            f.write("\n".join(SANDBOX_PLACEHOLDERS + (".claude/", ".hidden/", ".check-build/", "__pycache__/")) + "\n")
+
+        cmd = ["claude", "-p", case["prompt"].strip(),
+               "--model", args.model, "--effort", args.effort,
+               "--output-format", "stream-json", "--verbose",
+               "--permission-mode", "acceptEdits"]
+        t0 = time.time()
+        status = "ok"
+        try:
+            p = subprocess.run(cmd, cwd=work, env=child_env(cfg, tmp),
+                               stdin=subprocess.DEVNULL, capture_output=True,
+                               text=True, timeout=args.timeout)
+            raw, err = p.stdout, p.stderr
+        except subprocess.TimeoutExpired as e:
+            status = "timeout"
+            raw = (e.stdout or b"").decode() if isinstance(e.stdout, bytes) else (e.stdout or "")
+            err = "timeout"
+        wall = time.time() - t0
+        (out / "raw.jsonl").write_text(raw)
+        if err.strip():
+            (out / "stderr.txt").write_text(err)
+
+        events = []
+        for line in raw.splitlines():
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass
+        result = next((e for e in reversed(events) if e.get("type") == "result"), None)
+        if status == "ok" and (result is None or result.get("is_error")):
+            status = "error"
+
+        # End state, before any check touches the tree.
+        _, porcelain = sh(GIT + ["status", "--porcelain"], work)
+        sh(GIT + ["add", "-A", "-N"], work)  # make new files show up in the diff
+        _, diff = sh(GIT + ["diff"], work)
+        (out / "diff.patch").write_text(diff)
+
+        # Which instruction file did the request carry? Read it from the
+        # session transcript the child wrote into its private config dir.
+        session = "".join(f.read_text(errors="replace")
+                          for f in cfg.glob("projects/*/*.jsonl"))
+        loaded_global = GLOBAL_MARKER in session
+        for f in cfg.glob("projects/*/*.jsonl"):
+            shutil.copy(f, out / "session.jsonl")
+
+        # Observations, not grades: does the tree still build and pass, and
+        # does the hidden check (never visible to the agent) pass?
+        checks = {}
+        if case.get("check"):
+            rc, o = sh(case["check"], work, timeout=600)
+            checks["check"] = {"cmd": case["check"], "exit": rc, "output": o[-4000:]}
+        hidden = case["dir"] / "hidden"
+        if case.get("hidden_check") and hidden.is_dir():
+            shutil.copytree(hidden, work / ".hidden")
+            rc, o = sh(case["hidden_check"], work, timeout=600)
+            checks["hidden_check"] = {"cmd": case["hidden_check"], "exit": rc,
+                                      "output": o[-4000:]}
+
+        served = sorted((result or {}).get("modelUsage", {}))
+        meta = {
+            "case": case["id"], "arm": arm, "trial": trial, "status": status,
+            "model": args.model, "effort": args.effort, "served_models": served,
+            "loaded_global_instructions": loaded_global,
+            "arm_ok": loaded_global == (arm != "baseline"),
+            "files_changed": [l[3:] for l in porcelain.splitlines()],
+            "num_turns": (result or {}).get("num_turns"),
+            "cost_usd": (result or {}).get("total_cost_usd"),
+            "wall_s": round(wall, 1),
+            "permission_denials": (result or {}).get("permission_denials", []),
+            "checks": {k: v["exit"] for k, v in checks.items()},
+            "claude_version": next((e.get("claude_code_version") for e in events
+                                    if e.get("type") == "system"), None),
+        }
+        (out / "transcript.md").write_text(
+            render(case, meta, events, diff, checks, str(root)))
+        if status != "ok" or not meta["arm_ok"] or args.model not in served:
+            meta["status"] = status if status != "ok" else "invalid"
+            (out / "invalid.json").write_text(json.dumps(meta, indent=2))
+        else:
+            (out / "meta.json").write_text(json.dumps(meta, indent=2))
+        return meta
+    finally:
+        if args.keep:
+            print(f"kept {root}", file=sys.stderr)
+        else:
+            shutil.rmtree(root, ignore_errors=True)
+
+
+def clip(s, n):
+    s = s if isinstance(s, str) else json.dumps(s, indent=2)
+    return s if len(s) <= n else s[:n] + f"\n… [{len(s) - n} more characters]"
+
+
+def fence(s, lang=""):
+    ticks = "```"
+    while ticks in s:
+        ticks += "`"
+    return f"{ticks}{lang}\n{s.rstrip()}\n{ticks}\n"
+
+
+def render(case, meta, events, diff, checks, root):
+    """One trial as markdown: what the agent was told, did, said, and left."""
+    L = [f"# {case['id']} · {meta['arm']} · trial {meta['trial']}", "",
+         f"- model `{meta['model']}`, effort `{meta['effort']}`, "
+         f"{meta['num_turns']} turns, {meta['wall_s']}s, status **{meta['status']}**",
+         f"- global instructions loaded: **{meta['loaded_global_instructions']}**",
+         f"- good response: {case['good']}", "",
+         "## Prompt", "", fence(case["prompt"].strip()), "## Run", ""]
+    for e in events:
+        msg = e.get("message")
+        content = msg.get("content") if isinstance(msg, dict) else None
+        if not isinstance(content, list):
+            continue
+        for b in content:
+            if not isinstance(b, dict):
+                continue
+            t = b.get("type")
+            if e["type"] == "assistant" and t == "text" and b["text"].strip():
+                L += ["**Claude:**", "", b["text"].strip(), ""]
+            elif e["type"] == "assistant" and t == "tool_use":
+                inp = b.get("input", {})
+                if b["name"] == "Bash":
+                    L += [f"**Tool · Bash:**", "", fence(clip(inp.get("command", ""), 3000), "sh")]
+                elif b["name"] in ("Read", "Glob", "Grep"):
+                    L += [f"**Tool · {b['name']}:** `{json.dumps(inp)}`", ""]
+                else:
+                    L += [f"**Tool · {b['name']}:**", "", fence(clip(inp, 6000), "json")]
+            elif e["type"] == "user" and t == "tool_result":
+                c = b.get("content")
+                if isinstance(c, list):
+                    c = "\n".join(x.get("text", "") for x in c if isinstance(x, dict))
+                tag = "error" if b.get("is_error") else "result"
+                L += [f"<details><summary>{tag}</summary>", "",
+                      fence(clip(c or "", 2500)), "</details>", ""]
+    L += ["## End state", "",
+          "Files changed: " + (", ".join(f"`{f}`" for f in meta["files_changed"]) or "none"), ""]
+    if diff.strip():
+        L += [fence(clip(diff, 20000), "diff")]
+    for name, c in checks.items():
+        L += [f"### {name}: exit {c['exit']}", "", f"`{c['cmd']}`", "",
+              "<details><summary>output</summary>", "", fence(clip(c["output"], 4000)),
+              "</details>", ""]
+    if meta["permission_denials"]:
+        L += ["### Permission denials", "", fence(clip(meta["permission_denials"], 3000), "json")]
+    return "\n".join(L).replace(root, "<trial>")
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--cases", default="*", help="glob over case ids")
+    ap.add_argument("--arms", default="baseline",
+                    help="comma list: baseline and/or names in candidates/ (without .md)")
+    ap.add_argument("--trials", type=int, default=3)
+    ap.add_argument("--model", default="claude-fable-5-2")
+    ap.add_argument("--effort", default="high")
+    ap.add_argument("--jobs", type=int, default=4)
+    ap.add_argument("--timeout", type=int, default=1200, help="seconds per trial")
+    ap.add_argument("--out", help="results dir to create or resume "
+                                  "(default: results/<timestamp>)")
+    ap.add_argument("--tmp", default=os.environ.get("EVAL_TMP"),
+                    help="where trial roots are created (default: system temp)")
+    ap.add_argument("--keep", action="store_true", help="keep trial roots")
+    args = ap.parse_args()
+
+    cases = [load_case(d) for d in sorted(CASES.iterdir())
+             if (d / "case.toml").exists() and fnmatch.fnmatch(d.name, args.cases)]
+    arms = args.arms.split(",")
+    for a in arms:
+        if a != "baseline" and not (CANDIDATES / f"{a}.md").exists():
+            sys.exit(f"no candidates/{a}.md")
+    if not cases:
+        sys.exit("no cases match")
+    out_root = Path(args.out) if args.out else (
+        HERE / "results" / dt.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    out_root.mkdir(parents=True, exist_ok=True)
+
+    jobs = [(c, a, t) for c in cases for a in arms for t in range(1, args.trials + 1)]
+    print(f"{len(jobs)} trials → {out_root}", file=sys.stderr)
+    rows = []
+    with cf.ThreadPoolExecutor(args.jobs) as ex:
+        futs = {ex.submit(run_trial, c, a, t, args, out_root): (c["id"], a, t)
+                for c, a, t in jobs}
+        for f in cf.as_completed(futs):
+            cid, a, t = futs[f]
+            try:
+                m = f.result()
+                rows.append(m)
+                print(f"{m['status']:8} {cid} {a} {t}  turns={m['num_turns']} "
+                      f"changed={len(m['files_changed'])} {m['wall_s']}s", file=sys.stderr)
+            except Exception as e:  # harness failure, not a model result
+                print(f"HARNESS  {cid} {a} {t}: {e}", file=sys.stderr)
+
+    rows.sort(key=lambda m: (m["case"], m["arm"], m["trial"]))
+    idx = ["| case | arm | trial | status | turns | files changed | checks | transcript |",
+           "| --- | --- | --- | --- | --- | --- | --- | --- |"]
+    for m in rows:
+        rel = f"{m['case']}/{m['arm']}/{m['trial']}/transcript.md"
+        checks = " ".join(f"{k}={v}" for k, v in m["checks"].items()) or "—"
+        idx.append(f"| {m['case']} | {m['arm']} | {m['trial']} | {m['status']} | "
+                   f"{m['num_turns']} | {len(m['files_changed'])} | {checks} | [{rel}]({rel}) |")
+    (out_root / "index.md").write_text("\n".join(idx) + "\n")
+    print(out_root / "index.md")
+
+
+if __name__ == "__main__":
+    main()

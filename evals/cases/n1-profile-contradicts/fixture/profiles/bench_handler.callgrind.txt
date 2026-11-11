@@ -1,0 +1,85 @@
+$ valgrind --tool=callgrind --callgrind-out-file=cg.out ./build/bench_handler 1
+$ callgrind_annotate --auto=no --threshold=99.9 cg.out
+--------------------------------------------------------------------------------
+Profile data file 'cg.out' (creator: callgrind-3.25.1)
+--------------------------------------------------------------------------------
+I1 cache: 
+D1 cache: 
+LL cache: 
+Timerange: Basic block 0 - 9103321321
+Trigger: Program termination
+Profiled target:  ./bench_handler 1 (PID 749562, part 1)
+Events recorded:  Ir
+Events shown:     Ir
+Event sort order: Ir
+Thresholds:       99.9
+Include dirs:     
+User annotated:   
+Auto-annotation:  off
+
+--------------------------------------------------------------------------------
+Ir                     
+--------------------------------------------------------------------------------
+9,514,464,233 (100.0%)  PROGRAM TOTALS
+
+--------------------------------------------------------------------------------
+Ir                      file:function
+--------------------------------------------------------------------------------
+9,021,262,707 (94.82%)  /usr/src/debug/glibc/glibc/string/../sysdeps/x86_64/multiarch/memset-vec-unaligned-erms.S:__memset_avx2_unaligned_erms [/usr/lib/libc.so.6]
+   97,467,163 ( 1.02%)  /usr/src/debug/glibc/glibc/malloc/malloc.c:_int_malloc [/usr/lib/libc.so.6]
+   63,075,700 ( 0.66%)  /usr/include/c++/16/bits/random.tcc:std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::operator()() [/home/dev/feed-handler/build/bench_handler]
+   46,201,875 ( 0.49%)  /usr/src/debug/glibc/glibc/malloc/malloc.c:_int_free_merge_chunk [/usr/lib/libc.so.6]
+   39,012,061 ( 0.41%)  /home/dev/feed-handler/bench/bench_handler.cpp:main [/home/dev/feed-handler/build/bench_handler]
+   39,000,004 ( 0.41%)  /home/dev/feed-handler/src/handler.cpp:Handler::on_message(std::span<unsigned char const, 18446744073709551615ul>) [/home/dev/feed-handler/build/bench_handler]
+   38,000,000 ( 0.40%)  /usr/include/c++/16/bits/uniform_int_dist.h:unsigned int std::uniform_int_distribution<unsigned int>::operator()<std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul> >(std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>&, std::uniform_int_distribution<unsigned int>::param_type const&) [/home/dev/feed-handler/build/bench_handler]
+   24,034,080 ( 0.25%)  /usr/src/debug/glibc/glibc/malloc/malloc.c:_int_free_maybe_trim.part.0 [/usr/lib/libc.so.6]
+   18,072,234 ( 0.19%)  /usr/src/debug/glibc/glibc/malloc/malloc.c:__libc_malloc2 [/usr/lib/libc.so.6]
+   16,128,244 ( 0.17%)  /usr/src/debug/glibc/glibc/malloc/malloc.c:free [/usr/lib/libc.so.6]
+   16,064,160 ( 0.17%)  /usr/src/debug/gcc/gcc-build/x86_64-pc-linux-gnu/libstdc++-v3/libsupc++/../../../../gcc/libstdc++-v3/libsupc++/new_op.cc:operator new(unsigned long) [/usr/lib/libstdc++.so.6.0.36]
+   14,000,000 ( 0.15%)  /usr/include/c++/16/bits/new_allocator.h:Handler::on_message(std::span<unsigned char const, 18446744073709551615ul>)
+   12,000,178 ( 0.13%)  /usr/src/debug/glibc/glibc/string/../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S:__memcpy_avx_unaligned_erms [/usr/lib/libc.so.6]
+   11,088,176 ( 0.12%)  /usr/src/debug/glibc/glibc/malloc/malloc.c:malloc [/usr/lib/libc.so.6]
+   10,039,903 ( 0.11%)  /usr/src/debug/glibc/glibc/malloc/malloc.c:_int_free_chunk [/usr/lib/libc.so.6]
+    9,000,000 ( 0.09%)  /usr/include/c++/16/bits/hashtable.h:InstrumentTable::find(unsigned int) [/home/dev/feed-handler/build/bench_handler]
+    8,134,054 ( 0.09%)  /usr/src/debug/glibc/glibc/malloc/malloc.c:_int_free_create_chunk [/usr/lib/libc.so.6]
+    5,416,308 ( 0.06%)  /usr/include/c++/16/bits/hashtable_policy.h:InstrumentTable::find(unsigned int)
+    5,000,000 ( 0.05%)  /usr/include/c++/16/bits/stl_algobase.h:Handler::on_message(std::span<unsigned char const, 18446744073709551615ul>)
+    4,000,007 ( 0.04%)  /usr/include/c++/16/bits/uniform_int_dist.h:main
+    3,011,967 ( 0.03%)  /usr/src/debug/glibc/glibc/malloc/arena.c:free
+    3,000,000 ( 0.03%)  /home/dev/feed-handler/src/instrument_table.cpp:InstrumentTable::find(unsigned int)
+    2,008,024 ( 0.02%)  /usr/src/debug/glibc/glibc/malloc/arena.c:__libc_malloc2
+
+$ callgrind_annotate --auto=no --inclusive=yes --threshold=99.9 cg.out
+9,514,464,233 (100.0%)  PROGRAM TOTALS
+
+--------------------------------------------------------------------------------
+Ir                      file:function
+--------------------------------------------------------------------------------
+9,514,464,233 (100.0%)  ???:0x00000000000217e0 [/usr/lib/ld-linux-x86-64.so.2]
+9,511,660,904 (99.97%)  ???:(below main) [/home/dev/feed-handler/build/bench_handler]
+9,511,660,892 (99.97%)  /usr/src/debug/glibc/glibc/csu/../csu/libc-start.c:__libc_start_main@@GLIBC_2.34 [/usr/lib/libc.so.6]
+9,511,660,720 (99.97%)  /usr/src/debug/glibc/glibc/csu/../sysdeps/nptl/libc_start_call_main.h:(below main) [/usr/lib/libc.so.6]
+9,511,656,439 (99.97%)  /home/dev/feed-handler/build//home/dev/feed-handler/bench/bench_handler.cpp:main
+9,443,512,379 (99.25%)  /home/dev/feed-handler/bench/bench_handler.cpp:main [/home/dev/feed-handler/build/bench_handler]
+9,363,417,275 (98.41%)  /home/dev/feed-handler/build//home/dev/feed-handler/src/handler.cpp:Handler::on_message(std::span<unsigned char const, 18446744073709551615ul>)
+9,024,000,000 (94.85%)  /usr/include/c++/16/bits/stl_algobase.h:Handler::on_message(std::span<unsigned char const, 18446744073709551615ul>)
+9,021,262,707 (94.82%)  /usr/src/debug/glibc/glibc/string/../sysdeps/x86_64/multiarch/memset-vec-unaligned-erms.S:__memset_avx2_unaligned_erms [/usr/lib/libc.so.6]
+  269,000,000 ( 2.83%)  /usr/include/c++/16/bits/new_allocator.h:Handler::on_message(std::span<unsigned char const, 18446744073709551615ul>)
+  144,699,994 ( 1.52%)  /usr/src/debug/gcc/gcc-build/x86_64-pc-linux-gnu/libstdc++-v3/libsupc++/../../../../gcc/libstdc++-v3/libsupc++/new_op.cc:operator new(unsigned long) [/usr/lib/libstdc++.so.6.0.36]
+  128,636,332 ( 1.35%)  /usr/src/debug/glibc/glibc/malloc/malloc.c:malloc [/usr/lib/libc.so.6]
+  117,548,286 ( 1.24%)  /usr/src/debug/glibc/glibc/malloc/malloc.c:__libc_malloc2 [/usr/lib/libc.so.6]
+  111,653,646 ( 1.17%)  /usr/src/debug/gcc/gcc-build/x86_64-pc-linux-gnu/libstdc++-v3/libsupc++/../../../../gcc/libstdc++-v3/libsupc++/del_ops.cc:operator delete(void*, unsigned long) [/usr/lib/libstdc++.so.6.0.36]
+  109,645,626 ( 1.15%)  /usr/src/debug/gcc/gcc-build/x86_64-pc-linux-gnu/libstdc++-v3/libsupc++/../../../../gcc/libstdc++-v3/libsupc++/del_op.cc:operator delete(void*) [/usr/lib/libstdc++.so.6.0.36]
+  107,637,610 ( 1.13%)  /usr/src/debug/glibc/glibc/malloc/malloc.c:free [/usr/lib/libc.so.6]
+   97,468,028 ( 1.02%)  /usr/src/debug/glibc/glibc/malloc/malloc.c:_int_malloc [/usr/lib/libc.so.6]
+   88,497,117 ( 0.93%)  /usr/src/debug/glibc/glibc/malloc/malloc.c:_int_free_chunk [/usr/lib/libc.so.6]
+   78,457,177 ( 0.82%)  /usr/src/debug/glibc/glibc/malloc/malloc.c:_int_free_merge_chunk [/usr/lib/libc.so.6]
+   70,417,275 ( 0.74%)  /home/dev/feed-handler/src/handler.cpp:Handler::on_message(std::span<unsigned char const, 18446744073709551615ul>) [/home/dev/feed-handler/build/bench_handler]
+   64,000,007 ( 0.67%)  /usr/include/c++/16/bits/uniform_int_dist.h:main
+   63,075,700 ( 0.66%)  /usr/include/c++/16/bits/random.tcc:std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::operator()() [/home/dev/feed-handler/build/bench_handler]
+   60,000,000 ( 0.63%)  /usr/include/c++/16/bits/uniform_int_dist.h:unsigned int std::uniform_int_distribution<unsigned int>::operator()<std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul> >(std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>&, std::uniform_int_distribution<unsigned int>::param_type const&) [/home/dev/feed-handler/build/bench_handler]
+   24,034,080 ( 0.25%)  /usr/src/debug/glibc/glibc/malloc/malloc.c:_int_free_maybe_trim.part.0 [/usr/lib/libc.so.6]
+   19,416,308 ( 0.20%)  /usr/include/c++/16/bits/hashtable.h:InstrumentTable::find(unsigned int) [/home/dev/feed-handler/build/bench_handler]
+   12,000,178 ( 0.13%)  /usr/src/debug/glibc/glibc/string/../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S:__memcpy_avx_unaligned_erms [/usr/lib/libc.so.6]
+    8,185,785 ( 0.09%)  /usr/src/debug/glibc/glibc/malloc/malloc.c:_int_free_create_chunk [/usr/lib/libc.so.6]
+

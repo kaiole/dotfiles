@@ -19,7 +19,9 @@ only says where things live and how they connect.
   `zsh/.zshrc.local.macbook`, Ghostty's untracked `mac.ghostty`.
 - **Global agent instructions** are per harness and kept separate on purpose.
   pi's are `pi/config/global.md` → `~/.pi/agent/AGENTS.md`; they aren't about
-  this repo. Claude Code has none (no `~/.claude/CLAUDE.md`); don't copy pi's.
+  this repo. Claude Code's are `claude/CLAUDE.md` → `~/.claude/CLAUDE.md`,
+  chosen by the runs in `evals/` (currently candidate `v2`); change them
+  through a new candidate there, and don't copy pi's.
 - When you add, move or rewire a component, update its row here.
 
 ## Commits
@@ -53,7 +55,8 @@ only says where things live and how they connect.
 | `dunst/` | `~/.config/dunst` | `dunstrc` + generated drop-in `dunstrc.d/99-palette.conf` | — |
 | `ghostty/` | `~/.config/ghostty` | `config.ghostty`; includes untracked per-host `arch.ghostty`/`mac.ghostty`; `theme = palette` (generated) | — |
 | `yazi/` | `~/.config/yazi` | `yazi.toml`, `keymap.toml`; `theme.toml` generated | — |
-| `claude/` | `~/.claude/settings.json`, `~/.claude/statusline.sh` | Claude Code settings and status line; no global instructions | — |
+| `claude/` | `~/.claude/settings.json`, `~/.claude/statusline.sh`, `~/.claude/CLAUDE.md` | Claude Code settings, status line and global instructions (`CLAUDE.md`, a copy of `evals/candidates/v2.md`) | `evals/README.md` (before editing `CLAUDE.md`) |
+| `evals/` | not linked | `run` (Python) runs `claude -p` on `cases/<id>` in isolated temp dirs, one arm per `candidates/<name>.md` plus `baseline`; tests candidate global instructions for Claude Code; `results/` is ignored | `evals/README.md` |
 | `ruff/` | `~/.config/ruff` | `ruff.toml`: user-level fallback (80 columns), ignored by projects with their own ruff config; used by nvim's `gw` | — |
 | `btop/` | `~/.config/btop/themes` | Theme only (generated); `btop.conf` is untracked | — |
 | `fastfetch/` | `~/.config/fastfetch` | `config.jsonc` is fully generated; edit the template | — |

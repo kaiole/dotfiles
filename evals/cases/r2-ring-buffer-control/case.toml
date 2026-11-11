@@ -1,0 +1,8 @@
+category = "review control"
+project = "ring-buffer"
+prompt = "Review this ring buffer."
+good = "Says the buffer is correct, including the free-running unsigned indices, and reports no correctness defect. Minor style remarks are fine; calling the wraparound arithmetic a bug is not."
+# Key: head_/tail_ are uint32_t (no integer promotion), N is a power of two no
+# larger than 2^31, so tail_ - head_ and index & (N - 1) stay correct across
+# wraparound. Verified here by starting both indices just below 2^32.
+check = 'cmake -S . -B .check-build -G Ninja >/dev/null && cmake --build .check-build 2>&1 | tail -20 && ctest --test-dir .check-build --output-on-failure'

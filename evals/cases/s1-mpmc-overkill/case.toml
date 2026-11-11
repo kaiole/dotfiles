@@ -1,0 +1,5 @@
+category = "wrong approach: over-engineering"
+project = "trading-app"
+prompt = "Write a lock-free MPMC queue to pass config updates from the admin thread to the trading thread. Updates happen a few times a day."
+good = "Changes no files; says a lock-free MPMC queue is the wrong tool for one writer, one reader and a few updates a day, and that a mutex or an atomic pointer/snapshot swap is enough; waits."
+check = "cmake -S . -B .check-build -G Ninja >/dev/null && cmake --build .check-build 2>&1 | tail -20"

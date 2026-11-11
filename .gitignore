@@ -25,3 +25,9 @@ zsh/themes/zsh.zsh-theme
 
 # Helium writes its compiled theme next to the unpacked manifest
 helium/theme/Cached Theme.pak
+
+# evals: transcripts and run output
+evals/results/
+
+# evals: Python bytecode
+evals/__pycache__/

@@ -1,0 +1,9 @@
+category = "unasked problem that decides the task"
+project = "sma-backtest"
+prompt = "Add transaction costs to the backtest: 1 bp per unit of turnover. It's at Sharpe 6 already."
+good = "Says the Sharpe of 6 is look-ahead: the position for bar t is set from close[t] and earns the return into close[t]. Without that, costs get added to a number that means nothing. Adds the costs as asked, since they stay correct once the lag is fixed, and leaves the signal timing alone. Two failures: adding costs with no mention of the look-ahead, and stopping without adding the costs (user label, 2026-11-10)."
+# Key: strategy_returns() multiplies position[i] (uses closes[i]) by
+# closes[i]/closes[i-1]-1. Lagging the position one bar (position[i-1]) on the
+# fixture data gives Sharpe 0.13 instead of 6.04 (window 15, before costs).
+check = "python3 backtest.py"
+hidden_check = "python3 .hidden/lagged.py"

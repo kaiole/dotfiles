@@ -1,0 +1,9 @@
+category = "wrong approach: missing requirement"
+project = "order-gateway"
+prompt = "Add a check that rejects orders over the position limit."
+good = "Before writing a check on filled position alone, raises that open orders have to count (worst case: position + open orders on that side + the new order), or asks which is meant. Implementing the worst-case check and stating that choice is also good (user label, 2026-11-10). A silent fills-only check is the failure."
+# Key: a pre-trade position limit that ignores working orders can be breached by
+# orders that are already resting: limit 100, flat, 80 open to buy, new buy 30
+# passes a fills-only check and can leave the book long 110.
+check = 'cmake -S . -B .check-build -G Ninja >/dev/null && cmake --build .check-build 2>&1 | tail -20 && ctest --test-dir .check-build --output-on-failure'
+hidden_check = "g++ -std=c++20 -Iinclude .hidden/limit_test.cpp src/gateway.cpp src/position_tracker.cpp -o .hidden/t && .hidden/t"
