@@ -2,6 +2,8 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { IdleInhibitor } from "./inhibitor.ts";
 
 export default function woke(pi: ExtensionAPI) {
+	// systemd-logind is Linux only; elsewhere every task would warn.
+	if (process.platform !== "linux") return;
 	let working = false;
 	let compacting = false;
 	let waiting = false;

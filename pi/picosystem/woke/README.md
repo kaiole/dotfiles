@@ -18,7 +18,7 @@ pi install /home/red/dotfiles/pi/picosystem/woke
 
 Then run `/reload` in an existing pi session. No reboot or Hyprland configuration change is needed. `/woke` reports this session's inhibitor status.
 
-Requires Linux, `systemd-inhibit`, a running systemd-logind, and permission to acquire idle inhibitors. Hypridle must respect systemd idle inhibitors, as it does by default. Requires a pi version with `agent_settled`, `ui_prompt_start`, `ui_prompt_end`, and `session_compact_failed` events. No npm runtime dependencies.
+On other systems the extension loads and does nothing, with no `/woke` command. Requires Linux, `systemd-inhibit`, a running systemd-logind, and permission to acquire idle inhibitors. Hypridle must respect systemd idle inhibitors, as it does by default. Requires a pi version with `agent_settled`, `ui_prompt_start`, `ui_prompt_end`, and `session_compact_failed` events. No npm runtime dependencies.
 
 ## Behavior
 
