@@ -73,16 +73,17 @@ links=(
   'darwin aerospace                         .config/aerospace'
 )
 
-# notifi and wall_select are Rust binaries for Hyprland, built in place below.
+# notifi, wall_select and waybar_media are Rust binaries for Hyprland, built
+# in place below.
 crates=()
 if [[ $os == linux ]]; then
   if (( $+commands[cargo] )); then
-    crates=(notifi wall_select)
+    crates=(notifi wall_select waybar_media)
     for crate in $crates; do
       links+=("linux scripts/$crate/target/release/$crate .local/bin/$crate")
     done
   else
-    print -u2 -- "install: cargo not found, skipping notifi and wall_select"
+    print -u2 -- "install: cargo not found, skipping notifi, wall_select and waybar_media"
   fi
 fi
 

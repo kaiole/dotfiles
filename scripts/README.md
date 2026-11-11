@@ -11,6 +11,7 @@ Standalone commands, one directory per tool.
 | `tmux-orphans/` | `tmux-orphans`: lists processes that outlived their tmux pane (each pane is a systemd scope); `-k` stops them; skips `wl-copy`, which must outlive the copy (Linux/systemd only) |
 | `tmux-sessionizer/` | `tmux-sessionizer`, its config, presets and tests; ROS workflow in [`tmux-sessionizer/ROS.md`](tmux-sessionizer/ROS.md) |
 | `wall_select/` | `wall_select`, the Super+W wallpaper picker (Rust; Linux/Hyprland only) |
+| `waybar_media/` | `waybar_media`: what an MPRIS player is playing, for waybar's music module; scrolls a title wider than the module (Rust; Linux only) |
 
 ## Install
 
@@ -22,7 +23,7 @@ Standalone commands, one directory per tool.
    is made. A link that points elsewhere in this repo is repointed, so moving
    a component only needs its row changed. Anything else at a destination is
    a conflict: it is reported and left alone.
-2. **Build.** On Linux, `notifi` and `wall_select` are built with
+2. **Build.** On Linux, `notifi`, `wall_select` and `waybar_media` are built with
    `cargo build --release --locked`.
 3. **Theme.** `theme` renders the generated files.
 
@@ -52,10 +53,11 @@ on each machine.
 
 ## Dependencies
 
-Commands are Zsh scripts, except `tmux-sessionizer` (Bash), and `notifi`
-and `wall_select` (Rust, built with cargo). They use clang-format,
+Commands are Zsh scripts, except `tmux-sessionizer` (Bash), and `notifi`,
+`wall_select` and `waybar_media` (Rust, built with cargo). They use clang-format,
 clang-tidy, fzf, and `$EDITOR` (default nvim). `notifi` needs `notify-send`,
 tmux, Ghostty, Hyprland and dunst at runtime. `wall_select` needs Hyprland,
 `awww`, CaskaydiaCove Nerd Font and fontconfig (`fc-match`) at runtime. Its
 colors come from a theme template, and `WALL_SELECT_TRACE=1` logs startup
-timings.
+timings. `waybar_media` links libdbus (the `dbus` package), which it also
+needs, with `pkg-config`, to build.
