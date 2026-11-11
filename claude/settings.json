@@ -4,40 +4,21 @@
     "pr": "",
     "sessionUrl": false
   },
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude/statusline.sh"
+  "autoCompactWindow": 200000,
+  "enabledPlugins": {
+    "clangd-lsp@claude-plugins-official": true,
+    "lua-lsp@claude-plugins-official": true,
+    "pyright-lsp@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true
   },
   "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "command -v notifi >/dev/null || exit 0; notifi show --app claude",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "StopFailure": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "command -v notifi >/dev/null || exit 0; notifi show --event error --app claude",
-            "async": true
-          }
-        ]
-      }
-    ],
     "PermissionRequest": [
       {
         "hooks": [
           {
-            "type": "command",
+            "async": true,
             "command": "command -v notifi >/dev/null || exit 0; notifi show --event attention --app claude",
-            "async": true
+            "type": "command"
           }
         ]
       }
@@ -46,9 +27,9 @@
       {
         "hooks": [
           {
-            "type": "command",
+            "async": true,
             "command": "command -v notifi >/dev/null || exit 0; notifi dismiss --app claude",
-            "async": true
+            "type": "command"
           }
         ]
       }
@@ -57,20 +38,9 @@
       {
         "hooks": [
           {
-            "type": "command",
+            "async": true,
             "command": "command -v notifi >/dev/null || exit 0; notifi dismiss --app claude",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "command -v notifi >/dev/null || exit 0; notifi dismiss --app claude",
-            "async": true
+            "type": "command"
           }
         ]
       }
@@ -79,20 +49,50 @@
       {
         "hooks": [
           {
-            "type": "command",
-            "command": "command -v notifi >/dev/null || exit 0; notifi dismiss --app claude"
+            "command": "command -v notifi >/dev/null || exit 0; notifi dismiss --app claude",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "async": true,
+            "command": "command -v notifi >/dev/null || exit 0; notifi show --app claude",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "async": true,
+            "command": "command -v notifi >/dev/null || exit 0; notifi show --event error --app claude",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "async": true,
+            "command": "command -v notifi >/dev/null || exit 0; notifi dismiss --app claude",
+            "type": "command"
           }
         ]
       }
     ]
   },
-  "enabledPlugins": {
-    "clangd-lsp@claude-plugins-official": true,
-    "lua-lsp@claude-plugins-official": true,
-    "pyright-lsp@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true
-  },
-  "autoCompactWindow": 200000,
   "skipWorkflowUsageWarning": true,
+  "statusLine": {
+    "command": "~/.claude/statusline.sh",
+    "type": "command"
+  },
   "theme": "dark"
 }
