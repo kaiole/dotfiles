@@ -17,3 +17,7 @@
 	keepBackup = false
 [mergetool "nvimdiff"]
 	layout = LOCAL,MERGED,REMOTE
+[filter "claude-settings"]
+	# Claude Code writes /model and effort choices into the symlinked
+	# settings.json; keep them local (see dotfiles .gitattributes).
+	clean = jq --indent 2 'del(.model, .modelSettings)'

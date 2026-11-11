@@ -4,7 +4,6 @@
     "pr": "",
     "sessionUrl": false
   },
-  "model": "fable",
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh"
@@ -14,17 +13,6 @@
     "lua-lsp@claude-plugins-official": true,
     "pyright-lsp@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true
-  },
-  "modelSettings": {
-    "claude-opus-5-5": {
-      "effortLevel": "medium"
-    },
-    "claude-sonnet-5-5": {
-      "effortLevel": "low"
-    },
-    "claude-fable-5-2": {
-      "effortLevel": "low"
-    }
   },
   "autoCompactWindow": 200000,
   "skipWorkflowUsageWarning": true,

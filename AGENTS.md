@@ -55,7 +55,7 @@ only says where things live and how they connect.
 | `dunst/` | `~/.config/dunst` | `dunstrc` + generated drop-in `dunstrc.d/99-palette.conf` | — |
 | `ghostty/` | `~/.config/ghostty` | `config.ghostty`; includes untracked per-host `arch.ghostty`/`mac.ghostty`; `theme = palette` (generated) | — |
 | `yazi/` | `~/.config/yazi` | `yazi.toml`, `keymap.toml`; `theme.toml` generated | — |
-| `claude/` | `~/.claude/settings.json`, `~/.claude/statusline.sh`, `~/.claude/CLAUDE.md` | Claude Code settings, status line and global instructions (`CLAUDE.md`, a copy of `evals/candidates/v2.md`) | `evals/README.md` (before editing `CLAUDE.md`) |
+| `claude/` | `~/.claude/settings.json`, `~/.claude/statusline.sh`, `~/.claude/CLAUDE.md` | Claude Code settings, status line and global instructions (`CLAUDE.md`, a copy of `evals/candidates/v2.md`); `.gitattributes` runs `settings.json` through the `claude-settings` filter in `git/config` (needs `jq`), so `model`/`modelSettings` stay local | `evals/README.md` (before editing `CLAUDE.md`) |
 | `evals/` | not linked | `run` (Python) runs `claude -p` on `cases/<id>` in isolated temp dirs, one arm per `candidates/<name>.md` plus `baseline`; tests candidate global instructions for Claude Code; `results/` is ignored | `evals/README.md` |
 | `ruff/` | `~/.config/ruff` | `ruff.toml`: user-level fallback (80 columns), ignored by projects with their own ruff config; used by nvim's `gw` | — |
 | `btop/` | `~/.config/btop/themes` | Theme only (generated); `btop.conf` is untracked | — |
@@ -63,7 +63,7 @@ only says where things live and how they connect.
 | `helium/` | loaded unpacked in Helium (`chrome://extensions`) | `theme/manifest.json` is a generated theme extension; reload it there after `theme set` | — |
 | `hyprcast/` | `~/.config/hyprcast` | `overlay.toml` generated | — |
 | `satty/` | `~/.config/satty` | `config.toml`; `overrides.css` generated; opened by the Edit action on `hypr/scripts/screenshot` notifications | — |
-| `git/` | `~/.config/git` | `config` (global; replaces `~/.gitconfig`, which git would read too): identity, signing, zdiff3 conflicts, rerere, histogram diffs, `git mergetool` → nvimdiff (`LOCAL,MERGED,REMOTE`); `ignore` is the global gitignore | — |
+| `git/` | `~/.config/git` | `config` (global; replaces `~/.gitconfig`, which git would read too): identity, signing, zdiff3 conflicts, rerere, histogram diffs, `git mergetool` → nvimdiff (`LOCAL,MERGED,REMOTE`); `ignore` is the global gitignore; defines the `claude-settings` clean filter | — |
 | `pacman/` | `~/.config/pacman` (Linux) | `makepkg.conf`: user overrides sourced after `/etc/makepkg.conf` (`MAKEFLAGS` for AUR builds) | — |
 | `pz/` | `~/.config/pz` | `config.toml`: sync folder and picker keys; plain config, not themed | — |
 | `sioyek/`, `fontconfig/`, `user-dirs.dirs` | `~/.config/<name>` | Plain app configs, not themed | — |
