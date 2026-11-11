@@ -3,11 +3,14 @@
 //! Prints what one MPRIS player is playing, "artist - title", as a line of
 //! waybar JSON each time it changes, and an empty line, which hides the
 //! module, when the player is closed. Waybar keeps the module `width`
-//! characters wide (min-length and max-length in config.jsonc, which must
-//! match). A longer title scrolls through it while it plays: it rests at its
-//! start for HOLD, then moves one cell every STEP, with GAP between its end
-//! and its start. A title that fits, or is paused, is printed once, and the
-//! process then sleeps until the player's next signal.
+//! characters wide at most (max-length in config.jsonc, which must match).
+//! The title always ends with MARK, which also parts it from the visualizer
+//! next to the module. A title that fits, or is paused, is printed once (cut,
+//! if paused and too long), only as wide as it is, so the visualizer follows
+//! it; the process then sleeps until the player's next signal. A longer
+//! title scrolls while it plays, always at the full width, blank space and
+//! all, so that nothing after it jitters: it rests at its start for HOLD,
+//! then moves one cell every STEP, with GAP between its end and its start.
 
 use std::io::Write;
 use std::process::exit;
@@ -18,7 +21,9 @@ use dbus::arg::{PropMap, RefArg, prop_cast};
 use dbus::blocking::Connection;
 use unicode_width::UnicodeWidthChar;
 
-const GAP: &str = "     ";
+const GAP: &str = "  ";
+/// What follows the title, whatever it is.
+const MARK: &str = "...";
 const STEP: Duration = Duration::from_millis(300);
 const HOLD: Duration = Duration::from_secs(2);
 /// How long to wait for the bus when nothing scrolls; the length is arbitrary.
@@ -104,16 +109,24 @@ impl Banner {
             return None;
         }
         self.shown = Some((text.to_string(), playing));
+        if text.is_empty() {
+            self.next = None;
+            return Some(String::new()); // hides the module
+        }
+        let room = self.width - MARK.len();
         let cells = to_cells(text);
-        if playing && cells.len() > self.width {
+        if cells.len() <= room {
+            self.next = None;
+            let text: String = cells.into_iter().flatten().collect();
+            Some(format!("{text}{MARK}"))
+        } else if playing {
             self.cells = to_cells(&format!("{text}{GAP}"));
             self.offset = 0;
             self.next = Some(now + HOLD);
-            Some(window(&self.cells, 0, self.width))
+            Some(format!("{}{MARK}", window(&self.cells, 0, room)))
         } else {
-            // Waybar cuts a paused title that is too long with an ellipsis.
             self.next = None;
-            Some(cells.into_iter().flatten().collect())
+            Some(format!("{}{MARK}", window(&cells, 0, room)))
         }
     }
 
@@ -124,7 +137,8 @@ impl Banner {
         }
         self.offset = (self.offset + 1) % self.cells.len();
         self.next = Some(now + if self.offset == 0 { HOLD } else { STEP });
-        Some(window(&self.cells, self.offset, self.width))
+        let room = self.width - MARK.len();
+        Some(format!("{}{MARK}", window(&self.cells, self.offset, room)))
     }
 }
 
@@ -213,9 +227,9 @@ fn main() {
     let mut arguments = std::env::args().skip(1);
     let player_name = arguments.next();
     let width = arguments.next().and_then(|width| width.parse().ok());
-    let (Some(player_name), Some(width @ 1usize..), None) = (player_name, width, arguments.next())
+    let (Some(player_name), Some(width @ 4usize..), None) = (player_name, width, arguments.next())
     else {
-        eprintln!("usage: waybar_media <player> <width>");
+        eprintln!("usage: waybar_media <player> <width of 4 or more>");
         exit(2);
     };
     let name = format!("org.mpris.MediaPlayer2.{player_name}");
@@ -340,17 +354,14 @@ mod tests {
     #[test]
     fn a_long_title_scrolls_only_while_playing() {
         let start = Instant::now();
-        let mut banner = Banner::new(4);
-        assert_eq!(
-            banner.show("abcdef", false, start).as_deref(),
-            Some("abcdef")
-        );
+        let mut banner = Banner::new(7);
+        assert_eq!(banner.show("abcdef", false, start).as_deref(), Some("abcd..."));
         assert_eq!(banner.next, None);
 
-        assert_eq!(banner.show("abcdef", true, start).as_deref(), Some("abcd"));
+        assert_eq!(banner.show("abcdef", true, start).as_deref(), Some("abcd..."));
         assert_eq!(banner.show("abcdef", true, start), None);
         assert_eq!(banner.step(start + HOLD - STEP), None);
-        assert_eq!(banner.step(start + HOLD).as_deref(), Some("bcde"));
+        assert_eq!(banner.step(start + HOLD).as_deref(), Some("bcde..."));
         assert_eq!(banner.next, Some(start + HOLD + STEP));
 
         // Round the loop, title and GAP, to rest at the start again.
@@ -362,16 +373,26 @@ mod tests {
         assert_eq!(banner.offset, 0);
         assert_eq!(banner.next, Some(now + HOLD));
 
-        assert_eq!(banner.show("abcdef", false, now).as_deref(), Some("abcdef"));
+        assert_eq!(banner.show("abcdef", false, now).as_deref(), Some("abcd..."));
         assert_eq!(banner.step(now + HOLD), None);
     }
 
     #[test]
-    fn a_title_that_fits_stays_still() {
+    fn a_title_that_fits_stays_still_and_only_as_wide_as_it_is() {
         let now = Instant::now();
-        let mut banner = Banner::new(4);
-        assert_eq!(banner.show("abcd", true, now).as_deref(), Some("abcd"));
+        let mut banner = Banner::new(8);
+        assert_eq!(banner.show("abcde", true, now).as_deref(), Some("abcde..."));
         assert_eq!(banner.next, None);
+        assert_eq!(banner.show("ab", false, now).as_deref(), Some("ab..."));
+        assert_eq!(banner.show("", false, now).as_deref(), Some(""));
+    }
+
+    #[test]
+    fn the_mark_stays_after_blank_space() {
+        let now = Instant::now();
+        let mut banner = Banner::new(8);
+        assert_eq!(banner.show("abcd efg", false, now).as_deref(), Some("abcd ..."));
+        assert_eq!(banner.show("abcd efg", true, now).as_deref(), Some("abcd ..."));
     }
 
     #[test]

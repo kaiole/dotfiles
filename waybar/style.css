@@ -114,3 +114,19 @@ tooltip {
   color: @fg;
 }
 
+
+/* The bars are block characters, and the lowest (▁) sits at the bottom of
+   the font's line, under the text's baseline. More padding below than
+   above lifts the module ~3px so a quiet visualizer lines up with the text
+   beside it. Its left padding and margins, with none on the right of
+   #custom-spotify, leave about 7px between the music module
+   and the visualizer. */
+#custom-cava_mviz {
+    padding: 2px 5px 8px 0;
+    margin-left: 0;
+}
+
+#custom-spotify {
+    padding-right: 0;
+    margin-right: 0;
+}

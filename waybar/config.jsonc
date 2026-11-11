@@ -25,16 +25,16 @@
         "clock"
     ],
     // Modules configuration
-    // "artist - title", always 15 characters wide: min-length and max-length
-    // pin the width, and waybar_media (its second argument, which must
-    // match) scrolls a longer title through it while it plays. Hidden when
-    // Spotify is closed.
+    // "artist - title", at most 17 characters wide (max-length; waybar_media's
+    // second argument must match). waybar_media ends the title with "...",
+    // which also parts it from the visualizer. A still title is only as wide
+    // as it is; a longer one scrolls through the 14 cells before the "..."
+    // while it plays, at the full width. Hidden when Spotify is closed.
     "custom/spotify": {
       "tooltip": false,
-      "exec": "$HOME/.local/bin/waybar_media spotify 15",
+      "exec": "$HOME/.local/bin/waybar_media spotify 17",
       "format": "{}",
-      "min-length": 15,
-      "max-length": 15,
+      "max-length": 17,
       "align": 0,
       "return-type": "json",
       "escape": true,
