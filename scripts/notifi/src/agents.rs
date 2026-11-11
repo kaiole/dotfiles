@@ -55,7 +55,8 @@ pub struct Agent {
     pub pane: Pane,
     pub event: &'static Event,
     since: f64,
-    /// When the user last went to it; None while pending.
+    /// When the user last went to it, or it stopped in view; None while
+    /// pending.
     pub seen: Option<f64>,
     /// Its notification is still up.
     notified: bool,
@@ -154,10 +155,9 @@ pub struct Found {
 }
 
 impl Asked {
-    /// Without its notification, an agent needs a live pane and an event
-    /// that never expires: other records are dropped, as are those whose
-    /// pane died without a dismiss or belonged to an earlier tmux server on
-    /// the same socket.
+    /// Without its notification, an agent needs a live pane: other records
+    /// are dropped, those whose pane died without a dismiss or belonged to
+    /// an earlier tmux server on the same socket.
     pub fn finish(self, daemon: &mut Daemon) -> Found {
         let mut servers = HashMap::new();
         for (socket, asked) in self.servers {
@@ -171,8 +171,7 @@ impl Asked {
                 .get(text(&state, "socket"))
                 .and_then(|server| server.panes.get(text(&state, "pane")))
                 .filter(|pane| pane.server == text(&state, "server"));
-            let event =
-                find_event(text(&state, "event")).filter(|event| notified || event.expire_ms == 0);
+            let event = find_event(text(&state, "event"));
             let since = state.get("since").and_then(Value::as_f64);
             if let (Some(pane), Some(event), Some(since)) = (pane, event, since) {
                 let seen = state.get("seen").and_then(Value::as_f64);

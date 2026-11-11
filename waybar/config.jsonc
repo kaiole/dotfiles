@@ -65,10 +65,10 @@
       "interval": 1,
       "on-click": "$HOME/.cargo/bin/tb pause || $HOME/.cargo/bin/tb resume"
     },
-    // Agents left waiting when their notification was closed (Super+N):
-    // how many are pending or, once Super+Y has been to all of them, how
-    // many are seen (class "seen", dimmed). Super+X forgets the focused
-    // one. Hidden at zero. notifi sends signal 8 when the count changes
+    // Agents that stopped and wait for an answer: how many are pending
+    // (notification closed with Super+N) or, when none is, how many are
+    // seen (gone to with Super+Y, or stopped on screen; class "seen",
+    // dimmed). Super+X forgets the focused one. Hidden at zero. notifi sends signal 8 when the count changes
     // (WAYBAR_SIGNAL in scripts/notifi/src/state.rs); the interval only
     // catches panes that died without telling it.
     "custom/agents": {

@@ -3,8 +3,9 @@
 //! `show` notifies for the agent in this tmux pane and returns at once; a
 //! detached waiter stays until the notification closes and runs its Focus
 //! action. An agent whose notification is closed without that stays pending,
-//! and one that was gone to stays seen: `pending` lists both and `next`
-//! focuses the pending ones, then goes round the seen ones. `go` is `next`
+//! and one that was gone to, or that stopped in view, stays seen: `pending`
+//! lists both and `next` focuses the pending ones, then goes round the seen
+//! ones. Only a dismiss forgets an agent that stopped. `go` is `next`
 //! unless a notification is on screen, whose action it runs. `dismiss`
 //! forgets the agent from any later process. See README.md.
 //!

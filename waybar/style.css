@@ -93,7 +93,7 @@ tooltip {
     padding: 5px 5px;
 }
 
-/* No agent is pending; the count is of those already gone to. */
+/* No agent is pending; the count is of those already seen. */
 #custom-agents.seen {
     color: @fg_dim;
 }

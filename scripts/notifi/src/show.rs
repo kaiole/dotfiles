@@ -96,11 +96,24 @@ pub fn show(app: &str, event: &'static Event, force: bool) -> String {
     // Whatever the agent was waiting with is stale: it has moved on, or the
     // user is looking at it.
     agents::close(&path, &mut daemon);
+    let now = state::now();
+    let mut state = State::new();
+    state.insert("event".into(), event.name.into());
+    state.insert("since".into(), now.into());
+    if let Some(pane) = pane {
+        state.insert("socket".into(), pane.socket.as_str().into());
+        state.insert("pane".into(), pane.id.as_str().into());
+        state.insert("server".into(), pane.server.as_str().into());
+    }
     if let Some((pane, server)) = &own
         && event.focus_aware
         && !force
         && hyprland::snapshot().is_some_and(|hypr| desktop::visible(pane, &hypr, &server.clients))
     {
+        // In view, so there is nothing to go to, but it waits all the same.
+        state.insert("seen".into(), now.into());
+        state::write(&path, &state);
+        state::refresh_bar();
         return "visible".into();
     }
 
@@ -132,9 +145,6 @@ pub fn show(app: &str, event: &'static Event, force: bool) -> String {
         return format!("failed: {}", reason.unwrap_or("notify-send printed no id"));
     }
     let pid = sender.id() as i32;
-    let mut state = State::new();
-    state.insert("event".into(), event.name.into());
-    state.insert("since".into(), state::now().into());
     let toast = json!({
         "id": id.trim(),
         "owner": daemon.owner(),
@@ -142,11 +152,6 @@ pub fn show(app: &str, event: &'static Event, force: bool) -> String {
         "started": run::start_time(pid),
     });
     state.insert("toast".into(), toast);
-    if let Some(pane) = pane {
-        state.insert("socket".into(), pane.socket.as_str().into());
-        state.insert("pane".into(), pane.id.as_str().into());
-        state.insert("server".into(), pane.server.as_str().into());
-    }
     state::write(&path, &state);
     // Not for the waiter to keep.
     drop((lock, daemon));
@@ -167,12 +172,13 @@ pub fn show(app: &str, event: &'static Event, force: bool) -> String {
     let printed = String::from_utf8_lossy(&printed);
     let acted = printed.split_whitespace().any(|word| word == "focus");
     let (look, hypr) = (tmux::look(acted), hyprland::snapshot());
-    // The agent is still waiting, so its record stays: seen after the
-    // action, pending if the notification was only closed. Not if it was
-    // closed with the pane on screen, which takes no going to; nor if the
-    // notification expires, because a timeout looks the same as a close
-    // from here.
-    let mut keep = false;
+    // The agent is still waiting, so its record stays until a dismiss:
+    // pending if the notification was only closed, seen after the action
+    // or if the pane was on screen by then, which takes no going to. A
+    // notification that expires leaves it seen too: a timeout looks the
+    // same as a close from here, and the user was there for what it told.
+    // Outside tmux there is no pane to go back to, so nothing is kept.
+    let mut seen = None;
     if let Some((pane, mut server)) = look.and_then(Look::finish) {
         let visible = hypr.as_ref().is_some_and(|hypr| {
             if acted {
@@ -180,15 +186,15 @@ pub fn show(app: &str, event: &'static Event, force: bool) -> String {
             }
             desktop::visible(&pane, hypr, &server.clients)
         });
-        keep = event.expire_ms == 0 && (acted || !visible);
+        seen = Some(acted || visible || event.expire_ms != 0);
     }
     let _lock = state::lock();
     let mut state = state::read(&path).unwrap_or_default();
     let recorded = state::toast(&state).and_then(|toast| toast.get("pid"));
     if recorded.and_then(Value::as_i64) == Some(pid.into()) {
-        if keep {
+        if let Some(seen) = seen {
             state.remove("toast");
-            if acted {
+            if seen {
                 state.insert("seen".into(), state::now().into());
             }
             state::write(&path, &state);

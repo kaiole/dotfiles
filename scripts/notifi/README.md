@@ -14,8 +14,10 @@ and `notifi dismiss` when you're back. pi and Claude Code both use it.
   (`notifi dismiss --focused`).
 
 An agent you went to stays **seen** until you answer it, it exits, or you
-press Super+X, so looking at it doesn't lose it. The binds are in
-`hypr/config/keybindings.lua`; Super+N and Super+Y work for any notification.
+press Super+X, so looking at it doesn't lose it. So does one that stops while
+you can see it: nothing else decides that an agent is done with. The binds
+are in `hypr/config/keybindings.lua`; Super+N and Super+Y work for any
+notification.
 
 ## Commands
 
@@ -34,7 +36,7 @@ returns at once. It prints nothing unless `-v`, which prints the outcome:
 | Outcome | Meaning |
 | --- | --- |
 | `sent` | The notification is up |
-| `visible` | Skipped: the agent's tmux window is on screen |
+| `visible` | No notification: the agent's tmux window is on screen, so it is seen at once |
 | `blocked` | Skipped: this tmux server may not notify the desktop |
 | `failed: <why>` | `notify-send` failed; also on stderr, exit status 1 |
 
@@ -78,18 +80,20 @@ The title is `<session>:<window index>`. The table is `EVENTS` in
 
 - **One notification per pane.** `show` first closes whatever that pane
   already has up, even when it then skips because the window is on screen.
+- **Every stop is kept.** An agent in a tmux pane that called `show` is on
+  record, pending or seen, until it is forgotten. Only an agent outside
+  tmux is not: it has no pane to go back to.
 - **Pending.** An agent is pending when its notification was closed without
-  Focus and nothing has dismissed it since. Three cases never become
-  pending: an event that expires (`aborted`), because a timeout and Super+N
-  look the same to `notify-send`; a notification closed while its pane is on
-  screen, which takes no going to; and an agent outside tmux, which has no
-  pane to go back to.
-- **Seen.** Going to an agent, with Focus or `next`, leaves it seen. `next`
-  takes the seen agents after the pending ones, the one visited longest ago
-  first, so repeating it goes round them. A notification is the only way in:
-  an agent that finishes on screen is not recorded at all.
+  Focus while its pane was off screen.
+- **Seen.** Going to an agent, with Focus or `next`, leaves it seen. So does
+  what takes no going to: an event skipped because the pane is on screen, a
+  notification closed while it is, and one that expires (`aborted`), where
+  a timeout and Super+N look the same to `notify-send` and you were there
+  to abort it. `next` takes the seen agents after the pending ones, the one
+  seen longest ago first, so repeating it goes round them.
 - **Forgetting** a pending or seen agent takes the agent's next `show` or
-  `dismiss` (you answered, or it exited) or `dismiss --focused`.
+  `dismiss` (you answered, or it exited) or `dismiss --focused`. Nothing
+  else does: looking at an agent never marks it done.
 - **A pane that died** without a `dismiss` (the agent was killed outright) is
   dropped the next time anything asks what is pending, which waybar does
   every 30 s. So is a record from an earlier tmux server on the same socket,
@@ -128,7 +132,10 @@ stays behind until the notification closes, and then removes `toast` from
 the record, which is what pending is: a record whose notification is gone.
 That also covers a notification lost because dunst restarted. If
 `notify-send` printed `focus`, the action was chosen: the waiter runs it and
-adds `seen`, the time of the visit, as `next` does.
+adds `seen`, the time of the visit, as `next` does. It adds `seen` as well
+if the pane is on screen by then or the event expires. A `show` skipped
+because the pane is on screen writes the record itself, with `seen` and no
+`toast`.
 
 `dismiss` reads the record from any later process and removes it, stops that
 `notify-send` and asks the daemon to close the id. Ids restart when dunst
@@ -230,6 +237,9 @@ Claude Code notes, measured on v2.1.321:
 - Answering fires `PostToolUse`, which dismisses. Declining fires nothing, so
   that notification stays until your next prompt or the end of the turn.
 - `Stop` doesn't fire when you interrupt, so there is no `aborted` hook.
+  Nothing else fires then either: not `PostToolUse` or `PostToolUseFailure`
+  for a tool cut short, nor the `Notification` hook's `idle_prompt`, which
+  comes 60 s after a `Stop` and only then.
 - Don't hook `SubagentStop`: it also fires after every `Stop`.
 - The hooks are `async` so they never delay Claude, except `SessionEnd`,
   which must finish before Claude exits. Each starts with

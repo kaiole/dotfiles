@@ -1,6 +1,7 @@
 //! Records. Each agent has at most one: a file that says what it is waiting
 //! with and, while its notification is up, how to close it. Without the
-//! notification the agent is pending, or seen once the user went to it.
+//! notification the agent is pending, or seen once the user went to it or
+//! if it stopped in view.
 
 use std::env;
 use std::fs::{self, DirBuilder, File, OpenOptions};

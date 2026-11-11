@@ -517,7 +517,11 @@ class NotifiTest(unittest.TestCase):
         for event in ("finished", "attention"):
             outcome = notifi(self.local, "show", "--event", event, "-v")
             self.assertEqual(outcome, "visible")
+            # It stopped in view: nothing to go to, but it still waits.
+            self.assertEqual(bar(), ("1", "seen"))
+            self.assertGreaterEqual(bar_refreshes(), 1)
         self.assertEqual(deliveries(), [])
+        self.assertEqual(notifi(None, "pending"), "test:0\tNeeds Input\tseen")
         notifi(self.local, "show", "--event", "error")
         notifi(self.local, "show", "--force")
         self.assertEqual(len(deliveries()), 2)
@@ -634,28 +638,25 @@ class NotifiTest(unittest.TestCase):
         )
         hyprland(attach("test"))
         self.assertEqual(notifi(self.local, "show", "-v"), "visible")
-        self.assertEqual(records(), [])
+        self.assertEqual(notifi(None, "pending"), "test:0\tTask Finished\tseen")
 
-    def test_only_a_pane_whose_notification_never_expires_stays_pending(self):
+    def test_a_notification_that_expires_leaves_the_agent_seen(self):
         notifi(self.local, "show", "--event", "aborted")
+        # Outside tmux there is no pane to go back to: nothing is kept.
         notifi(None, "show", "--app", "claude", "--event", "error")
         self.assertEqual(len(showing()), 2)
-        close_notifications()
-        self.assertEqual(records(), [])
+        close_notifications()  # or a timeout, which looks the same
+        self.assertEqual(notifi(None, "pending"), "test:0\tTask Aborted\tseen")
+        self.assertEqual(len(records()), 1)
 
-        # Nor does a record that its waiter never got to remove.
-        notifi(self.local, "show")
-        close_notifications()
-        (record,) = STATE.glob("*.json")
-        left = json.loads(record.read_text()) | {"event": "aborted"}
-        record.write_text(json.dumps(left))
-        self.assertIsNone(bar())
-        self.assertEqual(records(), [])
-
-    def test_closing_it_with_the_pane_on_screen_leaves_nothing_pending(self):
+    def test_closing_it_with_the_pane_on_screen_leaves_the_agent_seen(self):
         notifi(self.local, "show", "--event", "error")
         hyprland(attach("test"))  # the user went to look
         close_notifications()
+        self.assertEqual(notifi(None, "pending"), "test:0\tTask Failed\tseen")
+
+        # Only a dismiss forgets it.
+        notifi(self.local, "dismiss")
         self.assertEqual(records(), [])
 
     def test_next_goes_to_the_pending_agents_then_round_the_seen_ones(self):
@@ -727,12 +728,12 @@ class NotifiTest(unittest.TestCase):
         until(lambda: bar() == ("1", "seen"))
         self.assertEqual(client_sessions(), "test")
 
-        # Not one whose notification expires.
+        # So does one whose notification expires.
         notifi(self.local, "dismiss")
         notifi(
             self.local, "show", "--event", "aborted", NOTIFI_TEST_ACTION="focus"
         )
-        until(lambda: records() == [])
+        until(lambda: notifi(None, "pending") == "test:0\tTask Aborted\tseen")
 
     def test_dismiss_focused_forgets_the_agent_in_the_focused_window(self):
         tmux(self.local, "split-window", "-d", "-t", "test:0", "/bin/sh")
