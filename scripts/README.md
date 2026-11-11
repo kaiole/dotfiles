@@ -5,7 +5,7 @@ Standalone commands, one directory per tool.
 | Directory | Commands |
 | --- | --- |
 | `clang/` | `cfmt`, `tidy` |
-| `notifi/` | `notifi`: desktop notifications for coding agents (pi, Claude Code) with a Focus action back to their tmux pane; see [`notifi/README.md`](notifi/README.md) (Linux/Hyprland only) |
+| `notifi/` | `notifi`: desktop notifications for coding agents (pi, Claude Code) with a Focus action back to their tmux pane, and a waybar count of the agents whose notification was closed unanswered; see [`notifi/README.md`](notifi/README.md) (Linux/Hyprland only) |
 | `scratch/` | `scratch` (completion: `zsh/completions/_scratch`) |
 | `theme/` | `theme` (see `../theme/AGENTS.md`) |
 | `tmux-orphans/` | `tmux-orphans`: lists processes that outlived their tmux pane (each pane is a systemd scope); `-k` stops them; skips `wl-copy`, which must outlive the copy (Linux/systemd only) |
@@ -30,6 +30,6 @@ ln -sfn ~/dotfiles/scripts/tmux-sessionizer ~/.config/tmux-sessionizer
 Commands are Zsh scripts, except `tmux-sessionizer` (Bash), `notifi`
 (Python 3, standard library only) and `wall_select` (Rust). They use
 clang-format, clang-tidy, fzf, and `$EDITOR` (default nvim). `notifi` needs
-`notify-send`, `gdbus`, `hyprctl`, tmux, Ghostty and dunst. `wall_select` needs cargo to build, then Hyprland, `awww`,
+`notify-send`, `gdbus`, `hyprctl`, `pkill`, tmux, Ghostty and dunst. `wall_select` needs cargo to build, then Hyprland, `awww`,
 CaskaydiaCove Nerd Font and fontconfig (`fc-match`) at runtime. Its colors
 come from a theme template, and `WALL_SELECT_TRACE=1` logs startup timings.

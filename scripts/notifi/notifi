@@ -3,16 +3,20 @@
 
     notifi show [--event EVENT] [--app NAME] [--force] [-v]
     notifi dismiss [--app NAME]
+    notifi pending [--count]
+    notifi next
     notifi status
 
 `show` notifies for the agent in this tmux pane and returns at once; a
 detached waiter stays until the notification closes and runs its Focus
-action. `dismiss` closes that notification from any later process. See
-README.md.
+action. An agent whose notification is closed without that stays pending:
+`pending` lists those agents and `next` focuses the one that has waited
+longest. `dismiss` ends either from any later process. See README.md.
 """
 
 import argparse
 import fcntl
+import functools
 import json
 import os
 import re
@@ -20,6 +24,7 @@ import select
 import signal
 import subprocess
 import sys
+import time
 from contextlib import contextmanager, suppress
 from typing import Any, NamedTuple
 
@@ -42,6 +47,9 @@ SSH_VARIABLES = ("SSH_CONNECTION", "SSH_TTY", "SSH_CLIENT")
 STATE_DIR = os.path.join(
     os.environ.get("XDG_RUNTIME_DIR") or f"/tmp/notifi-{os.getuid()}", "notifi"
 )
+# custom/agents in waybar/config.jsonc counts the pending agents again on
+# SIGRTMIN+8.
+WAYBAR_SIGNAL = 8
 
 
 def run(*command: str) -> str | None:
@@ -76,35 +84,44 @@ def tmux_socket() -> str | None:
     return ",".join(os.environ.get("TMUX", "").split(",")[:-2]) or None
 
 
-def tmux(*args: str) -> str | None:
-    socket = tmux_socket()
+def tmux(socket: str | None, *args: str) -> str | None:
     return run("tmux", "-N", "-S", socket, *args) if socket else None
 
 
 class Pane(NamedTuple):
     id: str
     socket: str
+    server: str  # the tmux server's pid; pane ids start over when it does
     session_id: str
     window_id: str
     title: str
 
 
-def current_pane() -> Pane | None:
-    """The agent's tmux pane. Looked up on each use because panes can move."""
-    socket, pane_id = tmux_socket(), os.environ.get("TMUX_PANE")
+def find_pane(socket: str | None, pane_id: str | None) -> Pane | None:
+    """A tmux pane as it is now, or None if it is gone.
+
+    Looked up on each use because panes move. tmux answers for a dead pane
+    too, with an empty session and window.
+    """
     if not socket or not pane_id:
         return None
     out = tmux(
+        socket,
         "display-message",
         "-p",
         "-t",
         pane_id,
-        "#{session_id}\t#{window_id}\t#S:#{window_index}",
+        "#{pid}\t#{session_id}\t#{window_id}\t#S:#{window_index}",
     )
     fields = (out or "").rstrip("\n").split("\t")
-    if len(fields) != 3 or not fields[0] or not fields[1]:
+    if len(fields) != 4 or not all(fields[:3]):
         return None
     return Pane(pane_id, socket, *fields)
+
+
+def own_pane() -> Pane | None:
+    """The tmux pane of the agent running this command."""
+    return find_pane(tmux_socket(), os.environ.get("TMUX_PANE"))
 
 
 def desktop_allowed() -> bool:
@@ -118,13 +135,14 @@ def desktop_allowed() -> bool:
     if not os.environ.get("TMUX"):
         return not any(os.environ.get(name) for name in SSH_VARIABLES)
 
-    mode = tmux("show-options", "-sqv", "@notifi-desktop")
+    socket = tmux_socket()
+    mode = tmux(socket, "show-options", "-sqv", "@notifi-desktop")
     mode = None if mode is None else mode.strip().lower()
     if mode == "on":
         return True
     if mode not in ("", "auto"):
         return False  # off, unreachable, or invalid
-    environment = tmux("show-environment", "-g")
+    environment = tmux(socket, "show-environment", "-g")
     return environment is not None and not any(
         re.search(f"^{name}=.", environment, re.M) for name in SSH_VARIABLES
     )
@@ -139,8 +157,9 @@ class Client(NamedTuple):
     windows: list[dict[str, Any]]  # the Hyprland windows it may be in
 
 
-def tmux_clients() -> list[Client]:
+def tmux_clients(socket: str) -> list[Client]:
     out = tmux(
+        socket,
         "list-clients",
         "-F",
         "#{client_pid}\t#{client_tty}\t#{session_id}\t#{window_id}"
@@ -218,14 +237,14 @@ def ancestors(pid: int) -> set[int]:
     return pids
 
 
-def attached_clients(hypr: Hyprland) -> list[Client]:
+def attached_clients(hypr: Hyprland, socket: str) -> list[Client]:
     """tmux clients running inside a Hyprland window, by process ancestry.
 
     A single-instance Ghostty serves every window from one process, so a
     client can match several windows.
     """
     attached = []
-    for client in tmux_clients():
+    for client in tmux_clients(socket):
         tree = ancestors(client.pid)
         windows = [
             w
@@ -249,7 +268,7 @@ def pane_visible(pane: Pane) -> bool:
             (w.get("workspace") or {}).get("id") in hypr.visible_workspaces
             for w in client.windows
         )
-        for client in attached_clients(hypr)
+        for client in attached_clients(hypr, pane.socket)
     )
 
 
@@ -258,29 +277,30 @@ def history_rank(window: dict[str, Any]) -> float:
     return rank if rank >= 0 else float("inf")
 
 
-def focus_pane() -> None:
-    """Brings the agent's pane to the front.
+def focus_pane(pane: Pane) -> bool:
+    """Brings a pane to the front; False if no Hyprland is running.
 
     Selects it in tmux, focuses the Hyprland window of the best attached
     client, and switches that client to the pane's session. Opens a new
     Ghostty only when no attached client lives in a Hyprland window. All of
     it is worked out now, not when the notification was sent.
     """
-    pane, hypr = current_pane(), hyprland()
-    if not pane or not hypr:
-        return
+    hypr = hyprland()
+    if not hypr:
+        return False
 
-    tmux("select-window", "-t", pane.id)
-    tmux("select-pane", "-t", pane.id)
+    tmux(pane.socket, "select-window", "-t", pane.id)
+    tmux(pane.socket, "select-pane", "-t", pane.id)
 
     # Prefer a client already on the pane's session, then the most recently
     # used one.
     clients = sorted(
-        attached_clients(hypr),
+        attached_clients(hypr, pane.socket),
         key=lambda c: (c.session_id != pane.session_id, -c.activity),
     )
     if not clients:
-        return open_terminal(hypr, pane)
+        open_terminal(hypr, pane)
+        return True
     client = clients[0]
 
     # With several windows in one process, assume the client is in the one
@@ -289,7 +309,15 @@ def focus_pane() -> None:
     if re.fullmatch(r"0x[0-9a-fA-F]+", address):
         hypr.dispatch(f'hl.dsp.focus({{ window = "address:{address}" }})')
     if client.session_id != pane.session_id:
-        tmux("switch-client", "-c", client.tty, "-t", pane.session_id)
+        tmux(
+            pane.socket,
+            "switch-client",
+            "-c",
+            client.tty,
+            "-t",
+            pane.session_id,
+        )
+    return True
 
 
 def open_terminal(hypr: Hyprland, pane: Pane) -> None:
@@ -320,8 +348,9 @@ def open_terminal(hypr: Hyprland, pane: Pane) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Notifications. Each agent has at most one, recorded in a state file so that
-# a later process can close it.
+# Notifications. Each agent has at most one record: a state file that says
+# what it is waiting with and, while its notification is up, how to close it.
+# Without the notification the agent is pending.
 
 
 def gdbus(dest: str, path: str, method: str, *args: str) -> str | None:
@@ -339,6 +368,7 @@ def gdbus(dest: str, path: str, method: str, *args: str) -> str | None:
     )
 
 
+@functools.cache
 def daemon_owner() -> str | None:
     """The bus name of the running notification daemon."""
     owner = gdbus(
@@ -350,13 +380,30 @@ def daemon_owner() -> str | None:
     return owner.strip() if owner else None
 
 
+def refresh_bar() -> None:
+    """Has waybar count the pending agents again."""
+    run("pkill", f"-RTMIN+{WAYBAR_SIGNAL}", "-x", "waybar")
+
+
 def state_path(app: str) -> str:
-    """One notification per tmux pane, or per app outside tmux."""
+    """One record per tmux pane, or per app outside tmux."""
     socket, pane_id = tmux_socket(), os.environ.get("TMUX_PANE")
     key = f"{socket}{pane_id}" if socket and pane_id else app
     return os.path.join(
         STATE_DIR, key.replace("%", "%25").replace("/", "%2F") + ".json"
     )
+
+
+def record_paths() -> list[str]:
+    try:
+        names = os.listdir(STATE_DIR)
+    except OSError:
+        return []
+    return [
+        os.path.join(STATE_DIR, name)
+        for name in names
+        if name.endswith(".json")
+    ]
 
 
 def read_state(path: str) -> dict[str, Any] | None:
@@ -368,9 +415,14 @@ def read_state(path: str) -> dict[str, Any] | None:
     return state if isinstance(state, dict) else None
 
 
+def write_state(path: str, state: dict[str, Any]) -> None:
+    with open(path, "w") as file:
+        json.dump(state, file)
+
+
 @contextmanager
 def locked():
-    """Serializes changes to the state files."""
+    """Serializes reads and changes of the state files."""
     os.makedirs(STATE_DIR, mode=0o700, exist_ok=True)
     lock = os.open(
         os.path.join(STATE_DIR, "lock"), os.O_CREAT | os.O_RDWR, 0o600
@@ -391,30 +443,55 @@ def start_time(pid: int) -> str | None:
         return None
 
 
+def toast_sender(state: dict[str, Any]) -> int | None:
+    """The live notify-send of the record's notification, if it has one.
+
+    notify-send exits with its notification, so without it the notification
+    is gone. It lingers if the daemon died (dunst exits with Hyprland).
+    """
+    toast = state.get("toast")
+    if not isinstance(toast, dict):
+        return None
+    pid, started = toast.get("pid"), toast.get("started")
+    if not isinstance(pid, int) or not started or start_time(pid) != started:
+        return None
+    return pid
+
+
+def toast_up(state: dict[str, Any]) -> bool:
+    """Whether the record's notification is still on the desktop."""
+    if toast_sender(state) is None:
+        return False
+    # A daemon started since then never had it.
+    return state["toast"].get("owner") in (None, daemon_owner())
+
+
 def close(path: str) -> None:
-    """Closes the notification recorded at `path`, if any. Call it locked."""
+    """Forgets the record at `path`, closing its notification if that is up.
+
+    Call it locked.
+    """
     state = read_state(path)
     with suppress(OSError):
         os.unlink(path)
     if not state:
         return
-    # notify-send exits with its notification, so if it is gone there is
-    # nothing to close. It lingers if the daemon died (dunst exits with
-    # Hyprland), so stop it either way.
-    pid = state.get("pid")
-    if not isinstance(pid, int) or start_time(pid) != state.get("started"):
+    refresh_bar()
+    pid = toast_sender(state)
+    if pid is None:
         return
+    # Stop a lingering notify-send too.
     with suppress(OSError):
         os.kill(pid, signal.SIGTERM)
     # Ids restart with the daemon, so only close one that the running daemon
     # issued; otherwise this could close someone else's.
-    owner = state.get("owner")
+    owner = state["toast"].get("owner")
     if owner and owner == daemon_owner():
         gdbus(
             "org.freedesktop.Notifications",
             "/org/freedesktop/Notifications",
             "org.freedesktop.Notifications.CloseNotification",
-            str(state.get("id")),
+            str(state["toast"].get("id")),
         )
 
 
@@ -425,12 +502,78 @@ def dismiss(app: str) -> None:
             close(path)
 
 
+class Waiting(NamedTuple):
+    since: float
+    path: str
+    pane: Pane
+    event: Event
+
+
+def waiting() -> list[Waiting]:
+    """The pending agents, the one that has waited longest first.
+
+    An agent is pending when its notification is gone and nothing has
+    dismissed it. That needs a pane to go back to and an event that never
+    expires; records without are dropped, as are those whose pane died
+    without a dismiss or belonged to an earlier tmux server on the same
+    socket. Call it locked.
+    """
+    agents, dropped = [], False
+    for path in record_paths():
+        state = read_state(path) or {}
+        if toast_up(state):
+            continue
+        pane = find_pane(state.get("socket"), state.get("pane"))
+        event = EVENTS.get(str(state.get("event")))
+        since = state.get("since")
+        if (
+            pane
+            and pane.server == state.get("server")
+            and event
+            and not event.expire_ms
+            and isinstance(since, (int, float))
+        ):
+            agents.append(Waiting(since, path, pane, event))
+        else:
+            dropped = True
+            with suppress(OSError):
+                os.unlink(path)
+    if dropped:
+        refresh_bar()
+    return sorted(agents, key=lambda agent: agent.since)
+
+
+def pending() -> list[Waiting]:
+    if not record_paths():
+        return []  # the usual case; waybar asks every 30 s
+    with locked():
+        return waiting()
+
+
+def focus_next() -> str | None:
+    """Focuses the pending agent that has waited longest and forgets it.
+
+    Returns its title, or None if no agent is pending.
+    """
+    if not record_paths():
+        return None
+    with locked():
+        agents = waiting()
+        if not agents:
+            return None
+        agent = agents[0]
+        if not focus_pane(agent.pane):
+            sys.exit("notifi: no Hyprland to focus a window in")
+        close(agent.path)
+    return agent.pane.title
+
+
 def show(app: str, event_name: str, force: bool) -> str:
     """Shows a notification; returns `sent` or why it was not sent."""
     if not desktop_allowed():
         return "blocked"
     event = EVENTS[event_name]
-    pane = current_pane()
+    pane = own_pane()
     path = state_path(app)
     command = [
         "notify-send",
@@ -445,8 +588,8 @@ def show(app: str, event_name: str, force: bool) -> str:
     command += ["--", pane.title if pane else app, event.body]
 
     with locked():
-        # Whatever is showing is stale: the agent has moved on, or the user
-        # is looking at it.
+        # Whatever the agent was waiting with is stale: it has moved on, or
+        # the user is looking at it.
         close(path)
         if event.focus_aware and not force and pane and pane_visible(pane):
             return "visible"
@@ -472,14 +615,23 @@ def show(app: str, event_name: str, force: bool) -> str:
             sender.kill()
             reason = sender.stderr.read().decode().strip()
             return f"failed: {reason or 'notify-send printed no id'}"
-        state = {
-            "id": notification_id,
-            "owner": daemon_owner(),
-            "pid": sender.pid,
-            "started": start_time(sender.pid),
+        state: dict[str, Any] = {
+            "event": event_name,
+            "since": time.time(),
+            "toast": {
+                "id": notification_id,
+                "owner": daemon_owner(),
+                "pid": sender.pid,
+                "started": start_time(sender.pid),
+            },
         }
-        with open(path, "w") as file:
-            json.dump(state, file)
+        if pane:
+            state |= {
+                "socket": pane.socket,
+                "pane": pane.id,
+                "server": pane.server,
+            }
+        write_state(path, state)
 
     # The caller (an agent hook) must not wait for the notification, so a
     # detached child stays behind for the action.
@@ -491,11 +643,30 @@ def show(app: str, event_name: str, force: bool) -> str:
     for stream in (0, 1, 2):
         os.dup2(null, stream)
     try:
-        if b"focus" in sender.stdout.read().split():
-            focus_pane()
+        acted = b"focus" in sender.stdout.read().split()
+        pane = own_pane()  # as it is now
+        if acted and pane:
+            focus_pane(pane)
+        # Closed without the action, the agent is still waiting, so it stays
+        # pending. Not if its pane is on screen, where closing it means
+        # "seen"; nor if the notification expires, because a timeout looks
+        # the same from here.
+        keep = (
+            pane is not None
+            and not acted
+            and not event.expire_ms
+            and not pane_visible(pane)
+        )
         with locked():
-            if (read_state(path) or {}).get("pid") == sender.pid:
-                os.unlink(path)
+            state = read_state(path) or {}
+            toast = state.get("toast")
+            if isinstance(toast, dict) and toast.get("pid") == sender.pid:
+                if keep:
+                    del state["toast"]
+                    write_state(path, state)
+                else:
+                    os.unlink(path)
+                refresh_bar()
     finally:
         os._exit(0)
 
@@ -530,7 +701,20 @@ def main() -> None:
         "-v", "--verbose", action="store_true", help="print the outcome"
     )
     commands.add_parser(
-        "dismiss", parents=[app], help="close this pane's notification"
+        "dismiss",
+        parents=[app],
+        help="close this pane's notification, or end its wait",
+    )
+    pending_parser = commands.add_parser(
+        "pending", help="list the agents left waiting by a closed notification"
+    )
+    pending_parser.add_argument(
+        "--count",
+        action="store_true",
+        help="print how many there are instead, and nothing for none",
+    )
+    commands.add_parser(
+        "next", help="focus the pending agent that has waited longest"
     )
     commands.add_parser(
         "status", help="print whether this desktop may be notified"
@@ -541,6 +725,17 @@ def main() -> None:
         print("allowed" if desktop_allowed() else "blocked")
     elif args.command == "dismiss":
         dismiss(args.app)
+    elif args.command == "pending":
+        agents = pending()
+        if not args.count:
+            for agent in agents:
+                print(f"{agent.pane.title}\t{agent.event.body}")
+        elif agents:
+            print(len(agents))
+    elif args.command == "next":
+        title = focus_next()
+        if title:
+            print(title)
     else:
         outcome = show(args.app, args.event, args.force)
         if args.verbose:

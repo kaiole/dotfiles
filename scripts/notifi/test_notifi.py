@@ -3,8 +3,8 @@
 
 Everything external is either a disposable tmux server on a private socket,
 with real attached clients in a pty, or a stub on PATH: no real
-notifications, Hyprland dispatches or terminals, and no running server is
-touched.
+notifications, Hyprland dispatches, terminals or signals to waybar, and no
+running server is touched.
 """
 
 import json
@@ -55,6 +55,9 @@ esac
     "gdbus": r"""
 printf '%s\n' "$*" >> "$NOTIFI_TEST_DIR/gdbus.log"
 case "$*" in *GetNameOwner*) cat "$NOTIFI_TEST_DIR/owner" ;; esac
+""",
+    "pkill": r"""
+printf '%s\n' "$*" >> "$NOTIFI_TEST_DIR/pkill.log"
 """,
     "ghostty": r"""
 {
@@ -128,13 +131,15 @@ def start_server(name: str, ssh_started: bool = False) -> Server:
 def notifi(server: Server | None, *args: str, **extra: str) -> str:
     """Runs notifi as an agent in the server's first pane would.
 
+    Without a server it runs outside tmux, as a key bind or waybar would.
     The timeout also checks that `show` returns while its notification is
     still up, without holding the caller's pipes open.
     """
-    env = base_env() | extra
+    env = base_env()
     if server:
         env["TMUX"] = f"{server.socket},{server.pid},0"
         env["TMUX_PANE"] = server.pane_id
+    env |= extra
     done = subprocess.run(
         [str(NOTIFI), *args],
         env=env,
@@ -208,11 +213,25 @@ def gdbus_calls(method: str) -> list[str]:
     return [line for line in read("gdbus.log").split("\n") if method in line]
 
 
+def records() -> list[dict]:
+    return [json.loads(path.read_text()) for path in STATE.glob("*.json")]
+
+
 def showing() -> list[int]:
     """The notify-send process of every notification notifi has on record."""
-    return [
-        json.loads(path.read_text())["pid"] for path in STATE.glob("*.json")
-    ]
+    return [record["toast"]["pid"] for record in records() if "toast" in record]
+
+
+def close_notifications() -> None:
+    """Closes every notification from the desktop, as Super+N would."""
+    for pid in showing():
+        with suppress(OSError):
+            os.kill(pid, signal.SIGTERM)
+    until(lambda: not showing())
+
+
+def pane_of(server: Server, target: str) -> str:
+    return tmux(server, "display-message", "-p", "-t", target, "#{pane_id}")
 
 
 def alive(pid: int) -> bool:
@@ -246,11 +265,9 @@ class NotifiTest(unittest.TestCase):
         self.local, self.remote = servers["local"], servers["remote"]
 
     def tearDown(self) -> None:
-        # A closed notification leaves no record behind.
-        for pid in showing():
-            with suppress(OSError):
-                os.kill(pid, signal.SIGTERM)
-        until(lambda: not showing())
+        close_notifications()
+        for record in STATE.glob("*.json"):
+            record.unlink()
         for client in clients:
             client.kill()
             client.communicate()
@@ -417,13 +434,112 @@ class NotifiTest(unittest.TestCase):
         self.assertFalse(alive(pid))
         self.assertEqual(len(gdbus_calls("CloseNotification")), 1)
 
-    def test_a_notification_the_user_closed_leaves_nothing_to_dismiss(self):
+    def test_closing_the_notification_leaves_the_agent_pending(self):
+        notifi(self.local, "show", "--event", "attention")
+        self.assertEqual(notifi(None, "pending"), "")
+        self.assertEqual(read("pkill.log"), "")
+        close_notifications()
+        self.assertEqual(notifi(None, "pending"), "test:0\tNeeds Input")
+        self.assertEqual(notifi(None, "pending", "--count"), "1")
+        self.assertEqual(read("pkill.log"), "-RTMIN+8 -x waybar\n")
+
+        notifi(self.local, "dismiss")
+        self.assertEqual(records(), [])
+        self.assertEqual(notifi(None, "pending", "--count"), "")
+        self.assertEqual(gdbus_calls("CloseNotification"), [])
+        self.assertEqual(read("pkill.log"), "-RTMIN+8 -x waybar\n" * 2)
+
+    def test_a_new_notification_ends_the_pending_state(self):
+        notifi(self.local, "show")
+        close_notifications()
+        notifi(self.local, "show", "--event", "error")
+        self.assertEqual(len(showing()), 1)
+        self.assertEqual(notifi(None, "pending"), "")
+
+        close_notifications()
+        self.assertEqual(notifi(None, "pending"), "test:0\tTask Failed")
+        hyprland(attach("test"))
+        self.assertEqual(notifi(self.local, "show", "-v"), "visible")
+        self.assertEqual(records(), [])
+
+    def test_only_a_pane_whose_notification_never_expires_stays_pending(self):
+        notifi(self.local, "show", "--event", "aborted")
+        notifi(None, "show", "--app", "claude", "--event", "error")
+        self.assertEqual(len(showing()), 2)
+        close_notifications()
+        self.assertEqual(records(), [])
+
+    def test_closing_it_with_the_pane_on_screen_leaves_nothing_pending(self):
+        notifi(self.local, "show", "--event", "error")
+        hyprland(attach("test"))  # the user went to look
+        close_notifications()
+        self.assertEqual(records(), [])
+
+    def test_next_focuses_the_pending_agents_oldest_first(self):
+        other = pane_of(self.local, "other:")
+        notifi(self.local, "show", "--event", "error", TMUX_PANE=other)
+        notifi(self.local, "show")
+        close_notifications()
+        self.assertEqual(
+            notifi(None, "pending"),
+            "other:0\tTask Failed\ntest:0\tTask Finished",
+        )
+
+        # Nowhere to focus: it fails and forgets nothing.
+        done = subprocess.run(
+            [str(NOTIFI), "next"],
+            env=base_env(),
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("Hyprland", done.stderr)
+        self.assertEqual(notifi(None, "pending", "--count"), "2")
+
+        hyprland(attach("test"))
+        self.assertEqual(notifi(None, "next"), "other:0")
+        self.assertEqual(client_sessions(), "other")
+        self.assertEqual(
+            read("dispatch.log"), 'hl.dsp.focus({ window = "address:0xabc" })\n'
+        )
+        self.assertEqual(notifi(None, "pending"), "test:0\tTask Finished")
+        self.assertEqual(notifi(None, "next"), "test:0")
+        self.assertEqual(client_sessions(), "test")
+        self.assertEqual(notifi(None, "next"), "")
+        self.assertEqual(records(), [])
+
+    def test_a_pane_that_died_is_no_longer_pending(self):
+        tmux(self.local, "new-window", "-d", "-t", "test:", "/bin/sh")
+        doomed = pane_of(self.local, "test:1")
+        notifi(self.local, "show", TMUX_PANE=doomed)
+        notifi(self.local, "show", "--event", "attention")
+        close_notifications()
+        self.assertEqual(notifi(None, "pending", "--count"), "2")
+        tmux(self.local, "kill-window", "-t", "test:1")  # no dismiss
+        self.assertEqual(notifi(None, "pending"), "test:0\tNeeds Input")
+        self.assertEqual(len(records()), 1)
+
+        # A later tmux server on the same socket numbers its panes from %0
+        # again, so the record of an earlier one must not pass for them.
+        (record,) = STATE.glob("*.json")
+        earlier = json.loads(record.read_text()) | {"server": "1"}
+        record.write_text(json.dumps(earlier))
+        self.assertEqual(notifi(None, "pending"), "")
+        self.assertEqual(records(), [])
+
+    def test_a_notification_lost_with_its_daemon_is_pending(self):
+        (LOGS / "owner").write_text("(':1.5',)\n")
         notifi(self.local, "show")
         (pid,) = showing()
-        os.kill(pid, signal.SIGTERM)  # as if closed from the desktop
-        until(lambda: not showing())
-        notifi(self.local, "dismiss")
+        self.assertEqual(notifi(None, "pending", "--count"), "")
+        (LOGS / "owner").write_text("(':1.6',)\n")  # dunst restarted
+        self.assertEqual(notifi(None, "pending", "--count"), "1")
+
+        hyprland(attach("other"))
+        self.assertEqual(notifi(None, "next"), "test:0")
+        until(lambda: not alive(pid))  # the notify-send left behind
         self.assertEqual(gdbus_calls("CloseNotification"), [])
+        self.assertEqual(records(), [])
 
     def test_usage_errors_never_exit_with_status_2(self):
         # Claude Code treats exit status 2 from a hook as "block".

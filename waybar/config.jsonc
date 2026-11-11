@@ -14,6 +14,7 @@
         "hyprland/submap#right"
     ],
     "modules-right": [
+        "custom/agents",
         "tray",
         "battery",
         "pulseaudio",
@@ -41,6 +42,20 @@
       "restart-interval": 2,
       "tooltip": false,
       "format": "{}"
+    },
+    // Agents left waiting when their notification was closed (Super+N);
+    // Super+Y goes to the oldest. Hidden at zero. notifi sends signal 8 when
+    // the count changes (WAYBAR_SIGNAL in scripts/notifi/notifi); the
+    // interval only catches panes that died without telling it. exec-if
+    // keeps Python from starting while notifi has no records at all.
+    "custom/agents": {
+      "tooltip": false,
+      "exec-if": "ls \"$XDG_RUNTIME_DIR\"/notifi/*.json >/dev/null 2>&1",
+      "exec": "$HOME/.local/bin/notifi pending --count",
+      "format": "󰂚 {}",
+      "signal": 8,
+      "interval": 30,
+      "on-click": "$HOME/.local/bin/notifi next"
     },
     "hyprland/submap#left": {
         "format": "⸸",

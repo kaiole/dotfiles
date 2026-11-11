@@ -7,6 +7,7 @@ local toggle_rofi = home .. "/.config/hypr/scripts/toggle_rofi"
 local screenshot = home .. "/.config/hypr/scripts/screenshot"
 -- Built from scripts/wall_select by scripts/install.
 local wall_select = home .. "/.local/bin/wall_select"
+local notifi = home .. "/.local/bin/notifi"
 
 hl.bind(main_mod .. " + Q", hl.dsp.window.close())
 hl.bind(main_mod .. " + M", hl.dsp.exit())
@@ -24,9 +25,14 @@ hl.bind(main_mod .. " + Z", hl.dsp.exec_cmd("pkill -USR1 -x waybar"))
 hl.bind(main_mod .. " + D", hl.dsp.exec_cmd(home .. "/personal/hyprcast/build/release/overlay/hyprcast-overlay toggle"))
 hl.bind(main_mod .. " + V", hl.dsp.exec_cmd(home .. "/personal/hyprcast/build/release/overlay/hyprcast-overlay restart"))
 
--- Notifications.
+-- Notifications. Super+N closes the newest; an agent's (notifi) then stays
+-- pending. Super+Y runs the action of the one that is up (Focus, Edit), or
+-- with none up goes to the agent that has been pending longest.
 hl.bind(main_mod .. " + N", hl.dsp.exec_cmd("dunstctl close"))
-hl.bind(main_mod .. " + Y", hl.dsp.exec_cmd("dunstctl action"))
+hl.bind(
+	main_mod .. " + Y",
+	hl.dsp.exec_cmd('if [ "$(dunstctl count displayed)" -gt 0 ]; then dunstctl action; else ' .. notifi .. " next; fi")
+)
 
 hl.bind(main_mod .. " + O", hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/toggle_swap_space"))
 
