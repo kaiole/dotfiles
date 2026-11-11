@@ -44,6 +44,11 @@ place; [`AGENTS.md`](AGENTS.md) lists exactly where each one goes.
 telescope-fzf-native).
 
 **Font:** CaskaydiaCove Nerd Font Mono, from [Nerd Fonts](https://www.nerdfonts.com/font-downloads).
+Adwaita Mono covers glyphs it lacks, such as tmux's `⸸`: Arch's
+`adwaita-fonts` (fontconfig picks it up), or on macOS
+`brew install --cask font-adwaita` plus
+`font-codepoint-map = U+2E38=Adwaita Mono` in `mac.ghostty` (a full
+fallback would also restyle the prompt's `➜`/`✗`).
 
 ## Install
 
