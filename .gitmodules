@@ -4,9 +4,6 @@
 [submodule "pi/picosystem/pdf-reader"]
 	path = pi/picosystem/pdf-reader
 	url = git@github.com:kyleqbnguyen/pdf-reader.git
-[submodule "pi/picosystem/notifi"]
-	path = pi/picosystem/notifi
-	url = git@github.com:kyleqbnguyen/pi-notifi.git
 [submodule "pi/skills"]
 	path = pi/skills
 	url = git@github.com:kaiole/skills.git

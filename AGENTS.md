@@ -13,7 +13,7 @@ only says where things live and how they connect.
   rendered from `theme/templates/<same path>`. Never edit an output; edit the
   template and run `theme`. Any color change goes through `theme/AGENTS.md`.
 - **Submodules are separate repos:** `pi/skills` and
-  `pi/picosystem/{notifi,pdf-reader,split-editor,sub-agents}`. Commit inside
+  `pi/picosystem/{pdf-reader,split-editor,sub-agents}`. Commit inside
   them first, then commit the pointer bump here.
 - **Platforms.** Linux (Hyprland) is primary. macOS-only: `aerospace/`,
   `zsh/.zshrc.local.macbook`, Ghostty's untracked `mac.ghostty`.

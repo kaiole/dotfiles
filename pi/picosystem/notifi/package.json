@@ -1,0 +1,11 @@
+{
+  "name": "pi-notifi",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Desktop notifications when pi finishes a task, through the notifi command.",
+  "type": "module",
+  "keywords": ["pi-package"],
+  "pi": { "extensions": ["./index.ts"] },
+  "scripts": { "test": "node --test test/*.test.ts" },
+  "peerDependencies": { "@earendil-works/pi-coding-agent": "*" }
+}
