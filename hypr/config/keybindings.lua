@@ -20,9 +20,9 @@ hl.bind(main_mod .. " + F", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(main_mod .. " + P", hl.dsp.exec_cmd("hyprpicker -a"))
 -- Zen: show/hide waybar.
 hl.bind(main_mod .. " + Z", hl.dsp.exec_cmd("pkill -USR1 -x waybar"))
--- Development build; replace this path when Hyprcast is installed.
-hl.bind(main_mod .. " + D", hl.dsp.exec_cmd(home .. "/personal/hyprcast/build/debug/overlay/hyprcast-overlay toggle"))
-hl.bind(main_mod .. " + V", hl.dsp.exec_cmd(home .. "/personal/hyprcast/build/debug/overlay/hyprcast-overlay restart"))
+-- Local release build; replace this path when Hyprcast is installed.
+hl.bind(main_mod .. " + D", hl.dsp.exec_cmd(home .. "/personal/hyprcast/build/release/overlay/hyprcast-overlay toggle"))
+hl.bind(main_mod .. " + V", hl.dsp.exec_cmd(home .. "/personal/hyprcast/build/release/overlay/hyprcast-overlay restart"))
 
 -- Notifications.
 hl.bind(main_mod .. " + N", hl.dsp.exec_cmd("dunstctl close"))
