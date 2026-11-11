@@ -193,6 +193,7 @@ local groups = {
 	["@markup.link.label"] = { fg = c.fg_muted },
 	["@markup.link.url"] = { fg = c.fg_faint },
 	["@markup.math"] = { fg = c.fg_muted },
+	["@markup.raw"] = { fg = c.fg_dim },
 	["@tag"] = { fg = c.syntax_tag },
 	["@tag.delimiter"] = { fg = c.syntax_tag },
 	["@tag.attribute"] = { fg = c.fg_faint },
@@ -293,7 +294,7 @@ local groups = {
 
 	-- Plugin: render-markdown
 	RenderMarkdownCode = {},
-	RenderMarkdownCodeInline = { fg = c.fg_muted },
+	RenderMarkdownCodeInline = { fg = c.fg_dim },
 	RenderMarkdownCodeBorder = {},
 	RenderMarkdownMath = { fg = c.fg_muted },
 
