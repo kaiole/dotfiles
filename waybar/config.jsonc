@@ -54,13 +54,15 @@
     // tracked; class "paused" (dimmed) after `tb pause`. tb escapes the
     // Pango markup itself. Click pauses or resumes. tb's on_change hook
     // (~/.config/tibi/config.toml) sends signal 9 after every change, so the
-    // module updates at once; the interval only ticks the minutes.
+    // module updates at once; the interval only ticks the minutes. It is 1s,
+    // like tmux's status-interval, so both bars turn the minute within a
+    // second of each other (tb status takes ~3ms).
     "custom/tibi": {
       "exec": "$HOME/.cargo/bin/tb status --format waybar",
       "return-type": "json",
       "format": "{}",
       "signal": 9,
-      "interval": 5,
+      "interval": 1,
       "on-click": "$HOME/.cargo/bin/tb pause || $HOME/.cargo/bin/tb resume"
     },
     // Agents left waiting when their notification was closed (Super+N):
