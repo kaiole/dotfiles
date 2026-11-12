@@ -102,7 +102,7 @@ tooltip {
     padding: 5px 2px;
 }
 
-/* An agent module with none: the icon alone, faint. */
+/* An agent module with none: faint. */
 #custom-running.none,
 #custom-pending.none,
 #custom-seen.none {

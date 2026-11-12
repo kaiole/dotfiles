@@ -69,10 +69,8 @@ no Focus action.
 `seen` prints only the seen ones, without the last field. With `--waybar`,
 `pending`, `seen` and `running` each print a waybar JSON module instead: the
 count of the pending, the seen or the running agents as `text`, their lines
-as `tooltip`, the command's name as `class` and `alt` `some`. With none, the
-module is still printed, with empty `text`, `alt` and `class` `none`, and
-`No agent <name>` as `tooltip`; `alt` picks the icon, with or without the
-space before a count, from `format-icons`. `next` brings the
+as `tooltip` and the command's name as `class`; with none, `0`, `No agent
+<name>` and class `none`. `next` brings the
 first waiting agent to the front as Focus would, marks it seen and prints its
 title; with none waiting it prints nothing. `go` is what Super+Y runs: with a
 notification on screen it runs the action of the top one, as

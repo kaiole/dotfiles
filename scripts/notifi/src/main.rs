@@ -168,13 +168,11 @@ fn main() {
 
 /// What waybar shows of the agents in one state: their count, and these
 /// lines, one per agent, as its tooltip. With none it still shows the
-/// module, with no count and class "none"; `alt` tells waybar which icon,
-/// with or without the space before a count, to use.
+/// module, with count 0 and class "none".
 fn module(state: &str, lines: &[String]) -> serde_json::Value {
     if lines.is_empty() {
         return json!({
-            "text": "",
-            "alt": "none",
+            "text": "0",
             "tooltip": format!("No agent {state}"),
             "class": "none",
         });
@@ -183,7 +181,6 @@ fn module(state: &str, lines: &[String]) -> serde_json::Value {
     let tooltip = lines.join("\n").replace('&', "&amp;");
     json!({
         "text": lines.len().to_string(),
-        "alt": "some",
         "tooltip": tooltip.replace('<', "&lt;").replace('>', "&gt;"),
         "class": state,
     })

@@ -72,25 +72,23 @@
     // (pending), and stopped and gone to with Super+Y, or stopped on screen
     // (seen). Each module lists its agents in the tooltip; click goes to the
     // next waiting one, pending first. Super+X forgets the focused one.
-    // Icons: cog (running), bell with a dot (pending), inbox (seen). Always shown:
-    // at zero, the icon alone (alt "none"; "some" adds the space before the
-    // count), faint; with a count, the bar's text color. notifi sends signal 8 when a count changes (WAYBAR_SIGNAL in
+    // Icons: cog (running), bell with a dot (pending), inbox (seen). Always
+    // shown: at zero, faint (class "none"); with a count, the bar's text
+    // color. notifi sends signal 8 when a count changes (WAYBAR_SIGNAL in
     // scripts/notifi/src/state.rs); the interval catches panes that died
     // without telling it, and is what finds a Claude Code that was
     // interrupted, which tells nobody.
     "custom/running": {
       "exec": "$HOME/.local/bin/notifi running --waybar",
       "return-type": "json",
-      "format": "{icon}{text}",
-      "format-icons": { "none": "󰒓", "some": "󰒓 " },
+      "format": "󰒓 {}",
       "signal": 8,
       "interval": 30
     },
     "custom/pending": {
       "exec": "$HOME/.local/bin/notifi pending --waybar",
       "return-type": "json",
-      "format": "{icon}{text}",
-      "format-icons": { "none": "󰂞", "some": "󰂞 " },
+      "format": "󰂞 {}",
       "signal": 8,
       "interval": 30,
       "on-click": "$HOME/.local/bin/notifi next"
@@ -98,8 +96,7 @@
     "custom/seen": {
       "exec": "$HOME/.local/bin/notifi seen --waybar",
       "return-type": "json",
-      "format": "{icon}{text}",
-      "format-icons": { "none": "󱉲", "some": "󱉲 " },
+      "format": "󱉲 {}",
       "signal": 8,
       "interval": 30,
       "on-click": "$HOME/.local/bin/notifi next"

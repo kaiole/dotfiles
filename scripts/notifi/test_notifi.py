@@ -369,11 +369,11 @@ def close_notifications() -> None:
 def module(state: str) -> tuple[int, str]:
     """One of waybar's agent modules: its count and its tooltip."""
     shown = json.loads(notifi(None, state, "--waybar"))
-    if shown["text"] == "":
-        none = {"text": "", "alt": "none", "class": "none"}
+    if shown["text"] == "0":
+        none = {"text": "0", "class": "none"}
         assert shown == none | {"tooltip": f"No agent {state}"}, shown
         return 0, ""
-    assert shown["alt"] == "some" and shown["class"] == state, shown
+    assert shown["class"] == state, shown
     return int(shown["text"]), shown["tooltip"]
 
 
