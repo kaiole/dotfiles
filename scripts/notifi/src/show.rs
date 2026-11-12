@@ -103,6 +103,7 @@ pub fn start(app: &str, hook: bool) {
     // Outside tmux there is no pane to tell that it still runs in.
     if let Some(((socket, pane), server)) = tmux::own().zip(tmux::server()) {
         let mut state = State::new();
+        state.insert("app".into(), app.into());
         state.insert("since".into(), state::now().into());
         state.insert("socket".into(), socket.into());
         state.insert("pane".into(), pane.into());
@@ -165,6 +166,7 @@ pub fn show(app: &str, event: &'static Event, force: bool) -> String {
     }
     let now = state::now();
     let mut state = State::new();
+    state.insert("app".into(), app.into());
     state.insert("event".into(), event.name.into());
     state.insert("since".into(), now.into());
     if let Some(pane) = pane {

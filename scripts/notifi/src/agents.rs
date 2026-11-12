@@ -61,6 +61,9 @@ static WORKING: Event = event("running", "Working", "low", 0, false);
 pub struct Agent {
     path: PathBuf,
     pub pane: Pane,
+    /// The harness it runs in, as its `--app` named it: claude, pi. Empty
+    /// for a record written before that was kept.
+    pub app: String,
     pub event: &'static Event,
     /// When it stopped or, if it is running, started.
     pub since: f64,
@@ -283,6 +286,7 @@ impl Asked {
                 let seen = state.get("seen").and_then(Value::as_f64);
                 let pane = pane.clone();
                 agents.push(Agent {
+                    app: text(&state, "app").into(),
                     path,
                     pane,
                     event,
@@ -331,6 +335,15 @@ impl Found {
         let mut waiting = self.stopped();
         waiting.retain(|agent| !agent.notified);
         waiting
+    }
+
+    /// The pane that the client on `session` used last shows, as `visit`
+    /// picks that client: the one a key was pressed in. None if no client
+    /// of the server is on that session.
+    pub fn shown(&self, socket: &str, session: &str) -> Option<&str> {
+        let server = self.servers.get(socket)?;
+        let client = tmux::latest(&server.clients, session)?;
+        (client.session_id == session).then_some(client.pane_id.as_str())
     }
 
     /// The agents at work, the one that has been longest first.

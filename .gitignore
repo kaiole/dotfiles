@@ -7,6 +7,7 @@
 waybar/color.css
 rofi/share/colors.rasi
 scripts/wall_select/colors
+scripts/notifi/colors
 dunst/dunstrc.d/99-palette.conf
 theme/current
 btop/themes/palette.theme

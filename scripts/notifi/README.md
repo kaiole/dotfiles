@@ -26,11 +26,14 @@ notification.
 
 In tmux, with or without that desktop (the binds are in `tmux/tmux.conf`):
 
-- **prefix a** opens the agents of this tmux server in a popup
+- **prefix g** opens the agents of this tmux server in a popup
   (`notifi pick`): the pending ones, the seen ones and the ones at work,
-  each by its session and window. `j`/`k` or the arrows move, Enter goes
-  to the selected agent and a digit to that row, `x` forgets the selected
-  one and leaves the list open, `q` or Esc closes.
+  each by its session (and window, where two share a session), its
+  harness, what it stopped with and for how long. A ⸸ marks the agent in
+  the pane the popup opened over, if it is one. The popup is as tall as
+  the list. `j`/`k` or the arrows move, Enter goes to the selected agent
+  and a digit to that row, `x` forgets the selected one and leaves the list
+  open, `q` or Esc closes.
 - **prefix y** goes to the next waiting agent of this tmux server
   (`notifi next --tmux`), in Super+Y's order.
 - **The status line** counts the three, as waybar does, on a server that
@@ -195,7 +198,7 @@ The title is `<session>:<window index>`. The table is `EVENTS` in
 `show` starts `notify-send --print-id --wait --action=focus=Focus`, which
 lives exactly as long as the notification, and writes a record to
 `$XDG_RUNTIME_DIR/notifi/<socket + pane id>.json`: the event, the time, the
-pane (socket, pane id, tmux server pid) and the notification (`toast`: id,
+harness (`app`, from `--app`), the pane (socket, pane id, tmux server pid) and the notification (`toast`: id,
 daemon bus name, pid and start time of that `notify-send`). A detached waiter
 stays behind until the notification closes, and then removes `toast` from
 the record, which is what pending is: a record whose notification is gone.
@@ -204,8 +207,9 @@ That also covers a notification lost because dunst restarted. If
 adds `seen`, the time of the visit, as `next` does. It adds `seen` as well
 if the pane is on screen by then or the event expires. A `show` skipped
 because the pane is on screen writes the record itself, with `seen` and no
-`toast`. `start` writes one with the time, the pane and, in place of the
-event, `running`: the transcript a hook named and how long that file was.
+`toast`. `start` writes one with the time, the harness, the pane and, in
+place of the event, `running`: the transcript a hook named and how long that
+file was.
 Without a desktop `show` writes the record with no `toast`, and `seen` if
 the pane was in view, and leaves no waiter.
 
@@ -231,8 +235,11 @@ with an interrupt. Nothing runs in between: there is no daemon, and the
 records are the only state. `dismiss --focused` finds the tmux client in
 the focused Hyprland window the way "on screen" does, when the key is
 pressed. `pick` reads the records of its server the same way, again every
-second while it is open, and holds no lock in between. It draws with bold,
-dim and reverse only, so it has no color to theme. Whenever the counts
+second while it is open, and holds no lock in between. Its colors are the
+palette's, in `colors` here, which `theme` renders from
+`theme/templates/scripts/notifi/colors` and `pick` reads as it starts.
+`tmux.conf` sizes its popup from the counts in `@notifi`, expanded by
+`run-shell -C` since `display-popup -h` takes no format. Whenever the counts
 may have changed, notifi sends waybar `SIGRTMIN+8`, and `custom/running`, `custom/pending` and `custom/seen` in
 `waybar/config.jsonc` run `notifi running --waybar`, `notifi pending
 --waybar` and `notifi seen --waybar` again; `waybar/style.css` makes the

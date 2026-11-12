@@ -1,14 +1,15 @@
 //! `pick`: the agents of this tmux server in a list, to go to one or to
-//! forget it. It is run in a tmux popup (`prefix a` in tmux.conf), and what
+//! forget it. It is run in a tmux popup (`prefix g` in tmux.conf), and what
 //! it goes to is shown by tmux alone, so it needs no desktop.
 //!
 //! The list is in the order `next` goes, the agents at work last. It is
 //! read again every second, and the records are not locked in between.
 
+use std::fs;
 use std::io::{self, ErrorKind, Write};
 use std::sync::OnceLock;
 
-use crate::agents::{self, Agent};
+use crate::agents::{self, Agent, Event};
 use crate::dbus::Daemon;
 use crate::{die, long, state, tmux};
 
@@ -16,15 +17,17 @@ use crate::{die, long, state, tmux};
 const RELOAD: libc::c_int = 1000;
 const GROUPS: [&str; 3] = ["pending", "seen", "running"];
 
-// Only what a terminal has of its own, so that there is no color to theme.
-const BOLD: &str = "\x1b[1m";
-const DIM: &str = "\x1b[2m";
-const REVERSE: &str = "\x1b[7m";
 const RESET: &str = "\x1b[m";
+/// The column names start in: after the selection's bar, the key and the
+/// cross of the agent the popup is over.
+const NAME: usize = 6;
 /// The other screen, with no cursor, and with lines cut at the edge, not
 /// wrapped: a wide character counts as one here.
 const ENTER: &str = "\x1b[?1049h\x1b[?25l\x1b[?7l";
 const LEAVE: &str = "\x1b[?7h\x1b[?25h\x1b[?1049l";
+/// A screen is drawn between these, at once.
+const BEGIN: &str = "\x1b[?2026h\x1b[H";
+const END: &str = "\x1b[?2026l";
 
 /// The terminal as it was, to leave it so.
 static COOKED: OnceLock<libc::termios> = OnceLock::new();
@@ -72,75 +75,240 @@ fn size() -> (usize, usize) {
     }
 }
 
+/// The palette's colors, as `theme` renders them from
+/// theme/templates/scripts/notifi/colors, each as the escape that sets it.
+/// Without that file there is no color, and the selected row is reversed.
+struct Colors {
+    text: String,
+    muted: String,
+    dim: String,
+    faint: String,
+    selected: String,
+    marker: String,
+    attention: String,
+    failed: String,
+}
+
+impl Colors {
+    fn load() -> Colors {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/colors");
+        let file = fs::read_to_string(path).unwrap_or_default();
+        let rgb = |role: &str| {
+            let (_, value) = file
+                .lines()
+                .filter_map(|line| line.split_once('='))
+                .find(|(key, _)| key.trim() == role)?;
+            let hex = u32::from_str_radix(value.trim().strip_prefix('#')?, 16).ok()?;
+            let [_, red, green, blue] = hex.to_be_bytes();
+            Some(format!("{red};{green};{blue}"))
+        };
+        let fg = |role| rgb(role).map_or("\x1b[39m".into(), |rgb| format!("\x1b[38;2;{rgb}m"));
+        Colors {
+            text: fg("text"),
+            muted: fg("muted"),
+            dim: fg("dim"),
+            faint: fg("faint"),
+            selected: rgb("selected").map_or("\x1b[7m".into(), |rgb| format!("\x1b[48;2;{rgb}m")),
+            marker: fg("marker"),
+            attention: fg("attention"),
+            failed: fg("failed"),
+        }
+    }
+
+    /// The color an event's words are in.
+    fn of(&self, event: &Event) -> &str {
+        match event.name {
+            "attention" => &self.attention,
+            "error" | "aborted" => &self.failed,
+            "running" => &self.faint,
+            _ => &self.muted,
+        }
+    }
+}
+
 struct Row {
     pane: String,
-    title: String,
-    body: &'static str,
+    session: String,
+    /// Its window's index, shown where another agent is in that session.
+    window: String,
+    /// Its harness, claude or pi.
+    app: String,
+    event: &'static Event,
     /// Which of GROUPS it is in.
     group: usize,
     /// How long it has waited, or worked.
     long: String,
+    /// It is in the pane the popup was opened over.
+    here: bool,
 }
 
-fn load(socket: &str) -> Vec<Row> {
+fn load(socket: &str, session: &str) -> Vec<Row> {
     let found = agents::ask_on(socket, false).finish(&mut Daemon::default());
     let now = state::now();
-    let row = |agent: &Agent| Row {
-        pane: agent.pane.id.clone(),
-        title: agent.pane.title.clone(),
-        body: if agent.running { "" } else { agent.event.body },
-        group: match (agent.running, agent.seen) {
-            (true, _) => 2,
-            (false, Some(_)) => 1,
-            (false, None) => 0,
-        },
-        long: long(agent.since, now),
+    let shown = found.shown(socket, session);
+    let row = |agent: &Agent| {
+        // tmux has no ':' in a session's name.
+        let title = &agent.pane.title;
+        let (session, window) = title.rsplit_once(':').unwrap_or((title, ""));
+        Row {
+            pane: agent.pane.id.clone(),
+            session: session.into(),
+            window: window.into(),
+            app: agent.app.clone(),
+            event: agent.event,
+            group: match (agent.running, agent.seen) {
+                (true, _) => 2,
+                (false, Some(_)) => 1,
+                (false, None) => 0,
+            },
+            long: long(agent.since, now),
+            here: shown == Some(agent.pane.id.as_str()),
+        }
     };
     let stopped = found.stopped().into_iter();
     stopped.chain(found.running()).map(row).collect()
 }
 
-fn draw(rows: &[Row], selected: usize) {
-    let (width, height) = size();
-    let fit = |text: &str| text.chars().take(width).collect::<String>();
-    let titles = rows.iter().map(|row| row.title.chars().count());
-    let title = titles
-        .max()
-        .unwrap_or(0)
-        .min(width.saturating_sub(30).max(8));
+/// A line of the screen and the columns it takes so far, a character each.
+#[derive(Default)]
+struct Line {
+    text: String,
+    columns: usize,
+}
 
-    let mut list = Vec::new();
+impl Line {
+    fn put(&mut self, color: &str, text: &str) {
+        self.text.push_str(color);
+        self.text.push_str(text);
+        self.columns += text.chars().count();
+    }
+
+    /// Spaces up to `column`.
+    fn pad(&mut self, column: usize) {
+        let spaces = column.saturating_sub(self.columns);
+        self.text.extend(std::iter::repeat_n(' ', spaces));
+        self.columns += spaces;
+    }
+}
+
+/// `text` in `columns`, its end given up for a '…' if it is longer.
+fn cut(text: &str, columns: usize) -> String {
+    if text.chars().count() <= columns {
+        return text.into();
+    }
+    let kept: String = text.chars().take(columns.saturating_sub(1)).collect();
+    if columns == 0 { kept } else { kept + "…" }
+}
+
+/// The rows of the list. A name is its session's, and its window's where
+/// another agent is in that session too.
+fn list(rows: &[Row], selected: usize, width: usize, colors: &Colors) -> (Vec<String>, usize) {
+    let shared = |row: &Row| {
+        rows.iter()
+            .filter(|other| other.session == row.session)
+            .count()
+            > 1
+    };
+    let name = |row: &Row| {
+        let window = row.window.chars().count() + 1;
+        row.session.chars().count() + if shared(row) { window } else { 0 }
+    };
+    let widest = |each: &dyn Fn(&Row) -> usize| rows.iter().map(each).max().unwrap_or(0);
+    let app = widest(&|row| row.app.chars().count());
+    let body = widest(&|row| row.event.body.chars().count());
+    let time = widest(&|row| row.long.chars().count());
+    // Marker, key, cross and margins, then each column after the name with
+    // its gap.
+    let rest = NAME + if app > 0 { app + 2 } else { 0 } + body + 2 + time + 2 + 1;
+    let names = widest(&name).min(width.saturating_sub(rest).max(6));
+
+    let mut lines = Vec::new();
     let mut at = 0;
-    // Every group has its header, empty or not.
-    for (group, name) in GROUPS.iter().enumerate() {
-        list.push(format!("{DIM}{}{RESET}", fit(&format!(" {name}"))));
+    if rows.is_empty() {
+        let mut line = Line::default();
+        line.pad(width.saturating_sub(9) / 2);
+        line.put(&colors.faint, "No agents");
+        lines.push(line.text);
+    }
+    for (group, title) in GROUPS.iter().enumerate() {
+        if !rows.iter().any(|row| row.group == group) {
+            continue;
+        }
+        if !lines.is_empty() {
+            lines.push(String::new());
+        }
+        lines.push(format!("  {}{title}", colors.dim));
         for (index, row) in rows.iter().enumerate() {
             if row.group != group {
                 continue;
+            }
+            let mut line = Line::default();
+            if index == selected {
+                at = lines.len();
+                line.text.push_str(&colors.selected);
+                line.put(&colors.marker, "▌ ");
+            } else {
+                line.put("", "  ");
             }
             let key = match index {
                 0..9 => (index + 1).to_string(),
                 _ => " ".into(),
             };
-            let name: String = row.title.chars().take(title).collect();
-            let text = format!("   {key} {name:<title$}  {:<13}  {:>6}", row.body, row.long);
-            let style = [BOLD, "", DIM][row.group];
-            if index == selected {
-                at = list.len();
-                list.push(format!("{style}{REVERSE}{:<width$}{RESET}", fit(&text)));
-            } else {
-                list.push(format!("{style}{}{RESET}", fit(&text)));
+            line.put(&colors.faint, &key);
+            if row.here {
+                line.pad(4);
+                line.put(&colors.marker, "⸸");
             }
+            line.pad(NAME);
+
+            let at_work = row.group == 2;
+            let color = if at_work { &colors.dim } else { &colors.text };
+            if shared(row) {
+                let session = names.saturating_sub(row.window.chars().count() + 1);
+                line.put(color, &cut(&row.session, session));
+                line.put(&colors.faint, &format!(":{}", row.window));
+            } else {
+                line.put(color, &cut(&row.session, names));
+            }
+            line.pad(NAME + names);
+            if app > 0 {
+                line.pad(line.columns + 2);
+                line.put(&colors.dim, &row.app);
+                line.pad(NAME + names + 2 + app);
+            }
+            line.pad(line.columns + 2);
+            let start = line.columns;
+            line.put(colors.of(row.event), row.event.body);
+            line.pad(start + body + 2 + time - row.long.chars().count());
+            line.put(&colors.faint, &row.long);
+            if index == selected {
+                line.pad(width);
+            }
+            lines.push(line.text);
         }
     }
+    (lines, at)
+}
 
+/// The list. Every line is drawn, so nothing of the last screen is left.
+fn draw(rows: &[Row], selected: usize, colors: &Colors) {
+    let (width, height) = size();
+    let (mut lines, at) = list(rows, selected, width, colors);
     // The list keeps the selected one in view.
     let top = (at + 1).saturating_sub(height);
-    let lines: Vec<String> = list.into_iter().skip(top).take(height).collect();
+    lines.drain(..top);
+    lines.resize(height, String::new());
 
-    let mut screen = String::from("\x1b[H");
-    screen.push_str(&lines.join("\x1b[K\r\n"));
-    screen.push_str("\x1b[K\x1b[J");
+    let mut screen = String::from(BEGIN);
+    for (index, line) in lines.iter().enumerate() {
+        if index > 0 {
+            screen.push_str("\r\n");
+        }
+        screen.push_str("\x1b[2K");
+        screen.push_str(line);
+        screen.push_str(RESET);
+    }
+    screen.push_str(END);
     write(&screen);
 }
 
@@ -212,10 +380,11 @@ pub fn pick() {
         die("notifi: pick is for a tmux popup");
     };
     take_terminal();
-    let mut rows = load(&socket);
+    let colors = Colors::load();
+    let mut rows = load(&socket, &session);
     let mut selected = 0;
     loop {
-        draw(&rows, selected);
+        draw(&rows, selected, &colors);
 
         let Some(pressed) = pressed() else {
             return;
@@ -258,7 +427,7 @@ pub fn pick() {
         }
         if reload {
             let pane = rows.get(selected).map(|row| row.pane.clone());
-            rows = load(&socket);
+            rows = load(&socket, &session);
             let same = rows.iter().position(|row| Some(&row.pane) == pane.as_ref());
             selected = same.unwrap_or(selected.min(rows.len().saturating_sub(1)));
         }

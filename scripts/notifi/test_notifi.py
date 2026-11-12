@@ -1171,6 +1171,13 @@ class NotifiTest(unittest.TestCase):
         )
         return pane, lambda: tmux(self.remote, "capture-pane", "-p", "-t", pane)
 
+    @staticmethod
+    def listed(screen: str) -> list[str]:
+        """The list's lines, each with its words only."""
+        lines = screen.split("\n")
+        words = (" ".join(line.replace("▌", "").split()) for line in lines)
+        return [line for line in words if line]
+
     def closed(self, pane: str) -> bool:
         panes = tmux(self.remote, "list-panes", "-a", "-F", "#{pane_id}")
         return pane not in panes.split("\n")
@@ -1184,14 +1191,26 @@ class NotifiTest(unittest.TestCase):
 
         # With none there is nothing to go to.
         picker, screen = self.pick()
-        until(lambda: "running" in screen())
-        self.assertEqual(screen().split(), ["pending", "seen", "running"])
+        until(lambda: "No agents" in screen())
+        self.assertEqual(screen().split(), ["No", "agents"])
         tmux(self.remote, "send-keys", "-t", picker, "Enter", "1", "x")
         time.sleep(2.2)  # read again twice, with nothing pressed
         self.assertFalse(self.closed(picker))
         # It holds no lock, and reads the records again.
-        notifi(self.remote, "show", "--event", "error", TMUX_PANE=other)
-        until(lambda: "other:0" in screen())
+        notifi(
+            self.remote,
+            "show",
+            "--event",
+            "error",
+            "--app",
+            "pi",
+            TMUX_PANE=other,
+        )
+        # By its session alone, the only agent there, with its harness.
+        until(lambda: "Task Failed" in screen())
+        self.assertEqual(
+            self.listed(screen()), ["pending", "1 other pi Task Failed <1m"]
+        )
         tmux(self.remote, "send-keys", "-t", picker, "Escape")
         until(lambda: self.closed(picker))
 
@@ -1201,18 +1220,19 @@ class NotifiTest(unittest.TestCase):
         attach("test", self.remote)
         picker, screen = self.pick()
         # The pending one first, then the seen ones, then those at work.
+        # Their windows tell apart the two in one session, and a cross marks
+        # the one in the pane the client shows.
         until(lambda: "other:1" in screen())
-        listed = [" ".join(line.split()) for line in screen().split("\n")]
         self.assertEqual(
-            [line for line in listed if line],
-            ["pending", "1 other:0 Task Failed <1m"]
-            + ["seen", "2 test:0 Task Aborted <1m"]
-            + ["running", "3 other:1 <1m"],
+            self.listed(screen()),
+            ["pending", "1 other:0 pi Task Failed <1m"]
+            + ["seen", "2 ⸸ test agent Task Aborted <1m"]
+            + ["running", "3 other:1 agent Working <1m"],
         )
 
         # x forgets the selected one, the second here, and stays.
         tmux(self.remote, "send-keys", "-t", picker, "k", "j", "j", "Up", "x")
-        until(lambda: "test:0" not in screen())
+        until(lambda: "Task Aborted" not in screen())
         self.assertEqual(
             marks(self.remote), {other: "pending", third: "running"}
         )
@@ -1232,6 +1252,8 @@ class NotifiTest(unittest.TestCase):
         # Enter goes to the selected one, which is seen from then on.
         picker, screen = self.pick("other")
         until(lambda: "other:0" in screen())
+        # The client is over the one at work now.
+        self.assertIn("2 ⸸ other:1 agent Working", self.listed(screen())[-1])
         tmux(self.remote, "send-keys", "-t", picker, "Enter")
         until(lambda: self.closed(picker))
         window = tmux(

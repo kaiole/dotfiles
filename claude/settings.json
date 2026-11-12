@@ -97,5 +97,6 @@
     "command": "~/.claude/statusline.sh",
     "type": "command"
   },
-  "theme": "custom:palette"
+  "theme": "custom:palette",
+  "tui": "fullscreen"
 }
