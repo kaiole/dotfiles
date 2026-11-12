@@ -34,7 +34,7 @@ pi loads code in two ways:
 | `woke/` | package | Inhibits sleep while pi works (systemd, hypridle) | in-repo |
 | `immortalize/` | bare extension | Session snapshot / branch persistence | in-repo |
 | `tmux-sessionizer/` | bare extension | `ctrl+f` sessionizer launcher | in-repo |
-| `notifi/` | package | Desktop notification when pi finishes; calls the `notifi` command (`../scripts/notifi/README.md`), which does the work | in-repo |
+| `notifi/` | package | Desktop notification when pi finishes, and a record that it runs until then; calls the `notifi` command (`../scripts/notifi/README.md`), which does the work | in-repo |
 | `pdf-reader/` | package | Read, search, render and OCR PDFs; ships its own skills | submodule |
 | `split-editor/` | package | Edit the prompt in a tmux split (`nvim`) | submodule |
 | `sub-agents/` | package | Background subagents in tmux windows; definitions in `agents/` | submodule |

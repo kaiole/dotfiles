@@ -88,6 +88,7 @@ tooltip {
 #custom-spotify,
 #custom-cava_mviz,
 #custom-agents,
+#custom-running,
 #custom-tibi
 {
     padding: 5px 5px;
@@ -95,6 +96,11 @@ tooltip {
 
 /* No agent is pending; the count is of those already seen. */
 #custom-agents.seen {
+    color: @fg_dim;
+}
+
+/* Agents at work: nothing to do about them yet. */
+#custom-running {
     color: @fg_dim;
 }
 

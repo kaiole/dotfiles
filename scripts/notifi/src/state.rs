@@ -1,7 +1,7 @@
-//! Records. Each agent has at most one: a file that says what it is waiting
-//! with and, while its notification is up, how to close it. Without the
-//! notification the agent is pending, or seen once the user went to it or
-//! if it stopped in view.
+//! Records. Each agent has at most one: a file that says that it is at
+//! work (running) or what it is waiting with and, while its notification is
+//! up, how to close it. Without the notification a waiting agent is
+//! pending, or seen once the user went to it or if it stopped in view.
 
 use std::env;
 use std::fs::{self, DirBuilder, File, OpenOptions};
@@ -15,8 +15,8 @@ use crate::{die, run, tmux};
 
 pub type State = Map<String, Value>;
 
-/// custom/agents in waybar/config.jsonc counts the waiting agents again on
-/// SIGRTMIN+8.
+/// custom/agents and custom/running in waybar/config.jsonc count the
+/// agents again on SIGRTMIN+8.
 const WAYBAR_SIGNAL: i32 = 8;
 
 pub fn directory() -> PathBuf {
@@ -105,7 +105,7 @@ pub fn sender(state: &State) -> Option<i32> {
     same.then_some(pid)
 }
 
-/// Has waybar count the waiting agents again.
+/// Has waybar count the agents again.
 ///
 /// killall takes 3 ms to find waybar and reading /proc here takes 1, so
 /// the pids found are kept in a file and only checked from then on: for a

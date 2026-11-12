@@ -16,6 +16,7 @@
     ],
     "modules-right": [
         "custom/agents",
+        "custom/running",
         "tray",
         "battery",
         "pulseaudio",
@@ -68,9 +69,10 @@
     // Agents that stopped and wait for an answer: how many are pending
     // (notification closed with Super+N) or, when none is, how many are
     // seen (gone to with Super+Y, or stopped on screen; class "seen",
-    // dimmed). Super+X forgets the focused one. Hidden at zero. notifi sends signal 8 when the count changes
-    // (WAYBAR_SIGNAL in scripts/notifi/src/state.rs); the interval only
-    // catches panes that died without telling it.
+    // dimmed). Super+X forgets the focused one. Hidden at zero. notifi
+    // sends signal 8 when the count changes (WAYBAR_SIGNAL in
+    // scripts/notifi/src/state.rs); the interval only catches panes that
+    // died without telling it.
     "custom/agents": {
       "tooltip": false,
       "exec": "$HOME/.local/bin/notifi pending --waybar",
@@ -79,6 +81,17 @@
       "signal": 8,
       "interval": 30,
       "on-click": "$HOME/.local/bin/notifi next"
+    },
+    // Agents at work on what you sent them: how many, with each one and how
+    // long it has been in the tooltip. Hidden at zero. Signal 8 as above;
+    // here the interval is also what finds a Claude Code that was
+    // interrupted, which tells nobody.
+    "custom/running": {
+      "exec": "$HOME/.local/bin/notifi running --waybar",
+      "return-type": "json",
+      "format": "󰒊 {}",
+      "signal": 8,
+      "interval": 30
     },
     "hyprland/submap#left": {
         "format": "⸸",

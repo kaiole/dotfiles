@@ -75,7 +75,8 @@ test("nothing is sent with queued messages, without a UI, or after /notifi off",
 	h.ctx.hasUI = true;
 	await h.command("off");
 	await h.end();
-	assert.deepEqual(calls(), []);
+	assert.deepEqual(calls(), ["dismiss --app pi"]);
+	rmSync(log);
 
 	// The choice is saved in the session and restored by the next pi.
 	const entries = [{ type: "custom", customType: "notifi-state", data: { enabled: false } }];
@@ -88,11 +89,21 @@ test("nothing is sent with queued messages, without a UI, or after /notifi off",
 	assert.equal(calls().length, 1);
 });
 
-test("the next run and shutdown dismiss the notification", async () => {
+test("a run starts the agent, and shutdown dismisses it", async () => {
 	const h = harness();
 	await h.fire("agent_start");
 	await h.fire("session_shutdown");
-	assert.deepEqual(calls(), ["dismiss --app pi", "dismiss --app pi"]);
+	assert.deepEqual(calls(), ["start --app pi", "dismiss --app pi"]);
+});
+
+test("a run that will not notify at its end only dismisses", async () => {
+	const h = harness();
+	h.ctx.hasUI = false;
+	await h.fire("agent_start");
+	h.ctx.hasUI = true;
+	await h.command("off");
+	await h.fire("agent_start");
+	assert.deepEqual(calls(), ["dismiss --app pi", "dismiss --app pi", "dismiss --app pi"]);
 });
 
 test("/notifi test forces a notification and /notifi status reports delivery", async () => {

@@ -31,7 +31,7 @@
         "hooks": [
           {
             "async": true,
-            "command": "command -v notifi >/dev/null || exit 0; notifi dismiss --app claude",
+            "command": "command -v notifi >/dev/null || exit 0; notifi start --app claude --hook",
             "type": "command"
           }
         ]
@@ -42,7 +42,7 @@
         "hooks": [
           {
             "async": true,
-            "command": "command -v notifi >/dev/null || exit 0; notifi dismiss --app claude",
+            "command": "command -v notifi >/dev/null || exit 0; notifi start --app claude --hook",
             "type": "command"
           }
         ]
@@ -85,7 +85,7 @@
         "hooks": [
           {
             "async": true,
-            "command": "command -v notifi >/dev/null || exit 0; notifi dismiss --app claude",
+            "command": "command -v notifi >/dev/null || exit 0; notifi start --app claude --hook",
             "type": "command"
           }
         ]

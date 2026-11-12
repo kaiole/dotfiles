@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { execFile } from "node:child_process";
 
 // pi's side of the `notifi` command (scripts/notifi), which does the work:
-// this only says when pi finished and when the notification went stale.
+// this only says when pi starts, when it finished and when it went away.
 
 const STATE_ENTRY = "notifi-state";
 
@@ -40,8 +40,11 @@ export default function (pi: ExtensionAPI) {
 		}
 	});
 
-	// You're back at pi, or it is going away: the notification is stale.
-	pi.on("agent_start", async () => void (await dismiss()));
+	// You're back at pi, so the notification is stale, and pi is at work
+	// until `agent_end` says otherwise, which it only does with these.
+	pi.on("agent_start", async (_event, ctx) => {
+		await (ctx.hasUI && enabled ? notifi("start", "--app", "pi") : dismiss());
+	});
 	pi.on("session_shutdown", async () => void (await dismiss()));
 
 	pi.on("agent_end", async (event, ctx) => {
@@ -57,6 +60,8 @@ export default function (pi: ExtensionAPI) {
 			if (subcommand === "on" || subcommand === "off") {
 				enabled = subcommand === "on";
 				pi.appendEntry(STATE_ENTRY, { enabled });
+				// No `agent_end` will end what a run under way was recorded as.
+				if (!enabled) await dismiss();
 				ctx.ui.notify(`notifi ${enabled ? "enabled" : "disabled"}`, "info");
 			} else if (subcommand === "test") {
 				const outcome = await show(ctx, "finished", true);

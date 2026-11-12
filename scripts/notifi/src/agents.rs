@@ -2,7 +2,8 @@
 
 use std::cmp::{Ordering, Reverse};
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, File};
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use serde_json::Value;
@@ -50,11 +51,18 @@ pub fn find_event(name: &str) -> Option<&'static Event> {
     EVENTS.iter().find(|event| event.name == name)
 }
 
+/// What an agent at work is listed with. It is no event to `show`: `start`
+/// records it, and nothing is notified.
+static WORKING: Event = event("running", "Working", "low", 0, false);
+
 pub struct Agent {
     path: PathBuf,
     pub pane: Pane,
     pub event: &'static Event,
-    since: f64,
+    /// When it stopped or, if it is running, started.
+    pub since: f64,
+    /// It is at work, so there is nothing to go to it for.
+    pub running: bool,
     /// When the user last went to it, or it stopped in view; None while
     /// pending.
     pub seen: Option<f64>,
@@ -75,17 +83,19 @@ fn toast_up(state: &State, daemon: &mut Daemon) -> bool {
 }
 
 /// Forgets the record at `path`, closing its notification if that is up.
+/// Returns whether there was one: the bar is then to be told, which is
+/// left to the caller, who may be about to write another.
 ///
 /// Call it locked.
-pub fn close(path: &Path, daemon: &mut Daemon) {
+#[must_use]
+pub fn close(path: &Path, daemon: &mut Daemon) -> bool {
     let state = state::read(path).unwrap_or_default();
     let _ = fs::remove_file(path);
     if state.is_empty() {
-        return;
+        return false;
     }
-    state::refresh_bar();
     let (Some(pid), Some(toast)) = (state::sender(&state), state::toast(&state)) else {
-        return;
+        return true;
     };
     // Stop a lingering notify-send too.
     unsafe { libc::kill(pid, libc::SIGTERM) };
@@ -99,6 +109,7 @@ pub fn close(path: &Path, daemon: &mut Daemon) {
     {
         daemon.close(id);
     }
+    true
 }
 
 /// Forgets the agent running this command.
@@ -106,8 +117,62 @@ pub fn dismiss(app: &str) {
     let path = state::path(app);
     if path.exists() {
         let _lock = state::lock();
-        close(&path, &mut Daemon::default());
+        if close(&path, &mut Daemon::default()) {
+            state::refresh_bar();
+        }
     }
+}
+
+/// How much of the end of a transcript is read: the rows after an
+/// interrupt are a few hundred bytes each.
+const TAIL: u64 = 64 * 1024;
+/// What Claude Code writes as the user's turn when a turn is interrupted,
+/// followed by "]" or by " for tool use]".
+const INTERRUPT: &str = "[Request interrupted by user";
+
+/// Whether a running agent was interrupted since it started, which no hook
+/// of Claude Code tells: `running` is what `start` recorded, the session's
+/// transcript and how long that was then. Its last turn is then the
+/// interrupt, and it is the user's.
+///
+/// The format is not documented (measured on v2.1.321). If it changes this
+/// is false, and the agent stays running until its next prompt.
+fn interrupted(running: &Value) -> bool {
+    let read = || {
+        let offset = running.get("offset")?.as_u64()?;
+        let mut file = File::open(running.get("transcript")?.as_str()?).ok()?;
+        let length = file.metadata().ok()?.len();
+        // The prompt it started with is written after its hook has run.
+        if length <= offset {
+            return None;
+        }
+        let from = offset.max(length.saturating_sub(TAIL));
+        file.seek(SeekFrom::Start(from)).ok()?;
+        let mut tail = Vec::new();
+        file.read_to_end(&mut tail).ok()?;
+        Some(tail)
+    };
+    let tail = read().unwrap_or_default();
+    // A row cut by `from` is no JSON, and is passed over like the rows
+    // that are no turn.
+    let rows = String::from_utf8_lossy(&tail);
+    let rows = rows
+        .lines()
+        .rev()
+        .filter_map(|row| serde_json::from_str(row).ok());
+    for row in rows {
+        let row: Value = row;
+        match row.get("type").and_then(Value::as_str) {
+            Some("user") => {
+                let content = &row["message"]["content"];
+                let said = content.as_str().or_else(|| content[0]["text"].as_str());
+                return said.is_some_and(|said| said.starts_with(INTERRUPT));
+            }
+            Some("assistant") => return false,
+            _ => {}
+        }
+    }
+    false
 }
 
 /// The records, and the tmux servers they name, each asked for its panes
@@ -164,14 +229,29 @@ impl Asked {
             let server = tmux::read(&socket, asked);
             servers.insert(socket, server);
         }
-        let (mut agents, mut dropped) = (Vec::new(), false);
-        for (path, state) in self.records {
+        let (mut agents, mut changed) = (Vec::new(), false);
+        for (path, mut state) in self.records {
             let notified = toast_up(&state, daemon);
             let pane = servers
                 .get(text(&state, "socket"))
                 .and_then(|server| server.panes.get(text(&state, "pane")))
                 .filter(|pane| pane.server == text(&state, "server"));
-            let event = find_event(text(&state, "event"));
+            // Interrupted, it waits like one that was aborted: seen,
+            // because the user was there to do it.
+            if pane.is_some() && state.get("running").is_some_and(interrupted) {
+                state.remove("running");
+                state.insert("event".into(), "aborted".into());
+                state.insert("since".into(), state::now().into());
+                state.insert("seen".into(), state::now().into());
+                state::write(&path, &state);
+                changed = true;
+            }
+            let running = state.contains_key("running");
+            let event = if running {
+                Some(&WORKING)
+            } else {
+                find_event(text(&state, "event"))
+            };
             let since = state.get("since").and_then(Value::as_f64);
             if let (Some(pane), Some(event), Some(since)) = (pane, event, since) {
                 let seen = state.get("seen").and_then(Value::as_f64);
@@ -181,15 +261,16 @@ impl Asked {
                     pane,
                     event,
                     since,
+                    running,
                     seen,
                     notified,
                 });
             } else if !notified {
-                dropped = true;
+                changed = true;
                 let _ = fs::remove_file(path);
             }
         }
-        if dropped {
+        if changed {
             state::refresh_bar();
         }
         Found {
@@ -201,14 +282,23 @@ impl Asked {
 }
 
 impl Found {
-    /// The agents left without a notification, in the order `next` goes:
-    /// the pending ones first, by how long they have waited, then the seen
-    /// ones, starting with the one visited longest ago.
+    /// The agents that stopped and are left without a notification, in
+    /// the order `next` goes: the pending ones first, by how long they have
+    /// waited, then the seen ones, starting with the one visited longest
+    /// ago.
     pub fn waiting(&self) -> Vec<&Agent> {
         let turn = |agent: &Agent| (agent.seen.is_some(), agent.seen.unwrap_or(agent.since));
-        let mut waiting: Vec<&Agent> = self.agents.iter().filter(|agent| !agent.notified).collect();
+        let stopped = |agent: &&Agent| !agent.notified && !agent.running;
+        let mut waiting: Vec<&Agent> = self.agents.iter().filter(stopped).collect();
         waiting.sort_by(|a, b| turn(a).partial_cmp(&turn(b)).unwrap_or(Ordering::Equal));
         waiting
+    }
+
+    /// The agents at work, the one that has been longest first.
+    pub fn running(&self) -> Vec<&Agent> {
+        let mut running: Vec<&Agent> = self.agents.iter().filter(|agent| agent.running).collect();
+        running.sort_by(|a, b| a.since.partial_cmp(&b.since).unwrap_or(Ordering::Equal));
+        running
     }
 }
 
@@ -253,7 +343,8 @@ pub fn go() -> Option<String> {
     None
 }
 
-/// Forgets the agent in the focused window; returns the titles.
+/// Forgets the agent in the focused window, at work or not; returns the
+/// titles.
 ///
 /// That is the agent in the active pane of the tmux window that the focused
 /// Hyprland window shows or, if that pane has none, every agent in that
@@ -301,8 +392,12 @@ pub fn dismiss_focused() -> Vec<String> {
     if here.iter().any(|agent| agent.pane.id == client.pane_id) {
         here.retain(|agent| agent.pane.id == client.pane_id);
     }
+    let mut closed = false;
     for agent in &here {
-        close(&agent.path, &mut daemon);
+        closed |= close(&agent.path, &mut daemon);
+    }
+    if closed {
+        state::refresh_bar();
     }
     here.iter().map(|agent| agent.pane.title.clone()).collect()
 }

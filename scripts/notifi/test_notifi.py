@@ -114,7 +114,9 @@ def start_server(name: str, ssh_started: bool = False) -> Server:
     return server
 
 
-def notifi(server: Server | None, *args: str, **extra: str) -> str:
+def notifi(
+    server: Server | None, *args: str, stdin: str = "", **extra: str
+) -> str:
     """Runs notifi as an agent in the server's first pane would.
 
     Without a server it runs outside tmux, as a key bind or waybar would.
@@ -129,6 +131,7 @@ def notifi(server: Server | None, *args: str, **extra: str) -> str:
     done = subprocess.run(
         [str(NOTIFI), *args],
         env=env,
+        input=stdin,
         capture_output=True,
         text=True,
         timeout=10,
@@ -370,6 +373,52 @@ def bar() -> tuple[str, str] | None:
     return module["text"], module["class"]
 
 
+def working() -> tuple[str, str] | None:
+    """What waybar shows of the agents at work: the count and the tooltip."""
+    out = notifi(None, "running", "--waybar")
+    if not out:
+        return None
+    module = json.loads(out)
+    assert module["class"] == "running"
+    return module["text"], module["tooltip"]
+
+
+TRANSCRIPT = ROOT / "transcript.jsonl"
+
+
+def hook(event: str) -> str:
+    """What Claude Code gives a hook on its standard input."""
+    return json.dumps(
+        {"hook_event_name": event, "transcript_path": str(TRANSCRIPT)}
+    )
+
+
+def transcribe(*rows: dict) -> None:
+    """Adds rows to the transcript, as Claude Code does during a turn."""
+    with TRANSCRIPT.open("a") as transcript:
+        for row in rows:
+            transcript.write(json.dumps(row) + "\n")
+
+
+def said(who: str, *content: dict | str) -> dict:
+    """A turn in the transcript: its text, or its blocks."""
+    text = len(content) == 1 and isinstance(content[0], str)
+    content = content[0] if text else list(content)
+    return {"type": who, "message": {"role": who, "content": content}}
+
+
+INTERRUPTED = {"type": "text", "text": "[Request interrupted by user]"}
+TOOL_INTERRUPTED = [
+    said("assistant", {"type": "tool_use", "id": "1", "name": "Bash"}),
+    said("user", {"type": "tool_result", "tool_use_id": "1", "content": "no"}),
+    said(
+        "user",
+        {"type": "text", "text": "[Request interrupted by user for tool use]"},
+    ),
+    {"type": "system", "subtype": "turn_duration"},
+]
+
+
 def pane_of(server: Server, target: str) -> str:
     return tmux(server, "display-message", "-p", "-t", target, "#{pane_id}")
 
@@ -446,6 +495,7 @@ class NotifiTest(unittest.TestCase):
         (HYPR / "live" / "hyprland.lock").unlink(missing_ok=True)
         shutil.rmtree(LOGS)
         LOGS.mkdir()
+        TRANSCRIPT.unlink(missing_ok=True)
         daemon.update(owner=None, displayed=0)
         bus_log.clear()
         bar_refreshes()
@@ -766,6 +816,120 @@ class NotifiTest(unittest.TestCase):
         self.assertEqual([record["pane"] for record in records()], [other])
         self.assertEqual(notifi(None, "dismiss", "--focused"), "")
 
+    def test_an_agent_that_starts_is_running_until_it_stops(self):
+        notifi(self.local, "show", "--event", "attention")
+        (pid,) = showing()
+        notifi(self.local, "start", "--app", "pi")  # answered
+        self.assertFalse(alive(pid))
+        self.assertEqual(notifi(None, "running"), "test:0\t<1m")
+        self.assertEqual(working(), ("1", "test:0\t&lt;1m"))
+        self.assertEqual(bar_refreshes(), 1)
+        # Nothing to go to, and it is not waiting.
+        self.assertEqual(notifi(None, "pending"), "")
+        self.assertIsNone(bar())
+        hyprland(attach("other"))
+        self.assertEqual(notifi(None, "next"), "")
+        self.assertEqual(client_sessions(), "other")
+
+        # The one at work longest comes first.
+        (record,) = STATE.glob("*.json")
+        earlier = json.loads(record.read_text())
+        record.write_text(
+            json.dumps(earlier | {"since": earlier["since"] - 3900})
+        )
+        notifi(self.local, "start", TMUX_PANE=pane_of(self.local, "other:"))
+        self.assertEqual(working(), ("2", "test:0\t1h05m\nother:0\t&lt;1m"))
+
+        notifi(self.local, "show")
+        self.assertEqual(notifi(None, "running"), "other:0\t<1m")
+        close_notifications()
+        self.assertEqual(bar(), ("1", "pending"))
+        notifi(self.local, "start")
+        self.assertIsNone(bar())
+        notifi(self.local, "dismiss")  # it exited
+        self.assertEqual(notifi(None, "running"), "other:0\t<1m")
+
+        # Super+X forgets one at work too.
+        self.assertEqual(notifi(None, "dismiss", "--focused"), "other:0")
+        self.assertEqual(records(), [])
+        self.assertIsNone(working())
+
+    def test_start_records_nothing_where_show_would_not_notify(self):
+        notifi(self.remote, "start")
+        notifi(None, "start", "--app", "claude")
+        tmux(self.local, "set-option", "-s", "@notifi-desktop", "off")
+        notifi(self.local, "start")
+        self.assertEqual(records(), [])
+        self.assertEqual(bar_refreshes(), 0)
+
+        # Outside tmux it still ends the notification.
+        notifi(None, "show", "--app", "claude", "--event", "error")
+        notifi(None, "start", "--app", "claude")
+        self.assertEqual(showing(), [])
+        self.assertEqual(records(), [])
+
+    def test_a_tool_hook_starts_only_an_agent_that_stopped(self):
+        after_tool = hook("PostToolUse")
+        # Forgotten, or never on record: it stays that way.
+        notifi(self.local, "start", "--hook", stdin=after_tool)
+        self.assertEqual(records(), [])
+
+        notifi(self.local, "start", "--hook", stdin=hook("UserPromptSubmit"))
+        (record,) = records()
+        notifi(self.local, "start", "--hook", stdin=after_tool)
+        self.assertEqual(records(), [record])  # at work already
+        self.assertEqual(bar_refreshes(), 1)
+
+        # It asked, was answered, and went on.
+        notifi(self.local, "show", "--event", "attention")
+        notifi(self.local, "start", "--hook", stdin=after_tool)
+        self.assertEqual(showing(), [])
+        self.assertEqual(notifi(None, "running"), "test:0\t<1m")
+        # A prompt starts it anew.
+        transcribe(said("user", "more"))
+        notifi(self.local, "start", "--hook", stdin=hook("UserPromptSubmit"))
+        (again,) = records()
+        self.assertGreater(again["since"], record["since"])
+        self.assertEqual(
+            again["running"],
+            {
+                "transcript": str(TRANSCRIPT),
+                "offset": TRANSCRIPT.stat().st_size,
+            },
+        )
+
+    def test_an_agent_interrupted_at_work_is_seen_as_aborted(self):
+        # The turn before was interrupted too, and its prompt is not
+        # written yet when the hook runs.
+        transcribe(said("user", "first"), said("user", INTERRUPTED))
+        notifi(self.local, "start", "--hook", stdin=hook("UserPromptSubmit"))
+        self.assertEqual(notifi(None, "running"), "test:0\t<1m")
+        transcribe(
+            said("user", "second"),
+            said("assistant", {"type": "tool_use", "id": "0", "name": "Read"}),
+            said("user", {"type": "tool_result", "tool_use_id": "0"}),
+            {"type": "api-request"},
+        )
+        self.assertEqual(notifi(None, "running"), "test:0\t<1m")
+        self.assertEqual(bar_refreshes(), 1)
+
+        transcribe(said("user", INTERRUPTED), {"type": "system"})
+        self.assertIsNone(working())
+        self.assertEqual(bar_refreshes(), 1)
+        self.assertEqual(notifi(None, "pending"), "test:0\tTask Aborted\tseen")
+        self.assertEqual(deliveries(), [])
+
+        # During a tool, and with more before it than is read.
+        notifi(self.local, "start", "--hook", stdin=hook("UserPromptSubmit"))
+        transcribe(said("user", "x" * 100_000), *TOOL_INTERRUPTED)
+        self.assertEqual(notifi(None, "running"), "")
+        self.assertEqual(bar(), ("1", "seen"))
+
+        # Without a transcript it runs until it says otherwise.
+        notifi(self.local, "start")
+        transcribe(said("user", INTERRUPTED))
+        self.assertEqual(notifi(None, "running"), "test:0\t<1m")
+
     def test_a_pane_that_died_is_no_longer_pending(self):
         tmux(self.local, "new-window", "-d", "-t", "test:", "/bin/sh")
         doomed = pane_of(self.local, "test:1")
@@ -811,6 +975,8 @@ class NotifiTest(unittest.TestCase):
             ["show", "--bogus"],
             ["show", "extra"],
             ["next", "--waybar"],
+            ["start", "--event", "error"],
+            ["running", "--hook"],
         ):
             done = subprocess.run(
                 [str(NOTIFI), *args], env=base_env(), capture_output=True

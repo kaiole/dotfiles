@@ -60,6 +60,14 @@ pub fn socket() -> Option<String> {
     (!socket.is_empty()).then_some(socket)
 }
 
+/// The pid of that server, which its panes are told from an earlier
+/// server's by.
+pub fn server() -> Option<String> {
+    let tmux = env::var("TMUX").ok()?;
+    let pid = tmux.rsplit(',').nth(1)?;
+    (!pid.is_empty()).then(|| pid.into())
+}
+
 /// The pane this command runs in, by $TMUX_PANE.
 fn pane_id() -> Option<String> {
     env::var("TMUX_PANE").ok().filter(|pane| !pane.is_empty())

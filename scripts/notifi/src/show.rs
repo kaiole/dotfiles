@@ -1,8 +1,9 @@
-//! `show`: the notification, and the waiter that stays behind with it.
+//! What an agent says of itself. `show`: it stopped, with the notification
+//! and the waiter that stays behind with it. `start`: it is at work.
 
 use std::env;
 use std::fs;
-use std::io::Read;
+use std::io::{self, Read};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -69,6 +70,57 @@ impl Desktop {
     }
 }
 
+/// Records that the agent in this pane is at work, which ends whatever it
+/// was waiting with: you answered it.
+///
+/// With `hook`, the input is what Claude Code gives a hook. A prompt starts
+/// the agent anew. The other hooks only say that it is still going, and
+/// they come after every tool, so they count for an agent that stopped and
+/// went on, as after a question, and cost the others no more than reading
+/// the record: one at work already, and one with none, which was forgotten
+/// or may not notify. The transcript is kept for `agents::interrupted`.
+pub fn start(app: &str, hook: bool) {
+    let mut input = String::new();
+    if hook {
+        let _ = io::stdin().read_to_string(&mut input);
+    }
+    let input: Value = serde_json::from_str(&input).unwrap_or_default();
+    let path = state::path(app);
+    if hook && input["hook_event_name"] != "UserPromptSubmit" {
+        let stopped = |state: State| !state.contains_key("running");
+        if !state::read(&path).is_some_and(stopped) {
+            return;
+        }
+    }
+    // Outside tmux there is no pane to tell that it still runs in.
+    let desktop = tmux::own().map(|own| (own, Desktop::ask()));
+    let own = desktop.and_then(|(own, desktop)| desktop.allowed().then_some(own));
+
+    let _lock = state::lock();
+    let closed = agents::close(&path, &mut Daemon::default());
+    if let Some(((socket, pane), server)) = own.zip(tmux::server()) {
+        let mut state = State::new();
+        state.insert("since".into(), state::now().into());
+        state.insert("socket".into(), socket.into());
+        state.insert("pane".into(), pane.into());
+        state.insert("server".into(), server.into());
+        let transcript = input["transcript_path"].as_str();
+        // How long it is now: only what comes after is of this turn.
+        let offset = transcript.and_then(|path| fs::metadata(path).ok());
+        state.insert(
+            "running".into(),
+            json!({
+                "transcript": transcript,
+                "offset": offset.map_or(0, |file| file.len()),
+            }),
+        );
+        state::write(&path, &state);
+    } else if !closed {
+        return;
+    }
+    state::refresh_bar();
+}
+
 /// Shows a notification; returns `sent` or why it was not sent.
 pub fn show(app: &str, event: &'static Event, force: bool) -> String {
     let (desktop, look) = (Desktop::ask(), tmux::look(false));
@@ -94,8 +146,10 @@ pub fn show(app: &str, event: &'static Event, force: bool) -> String {
     let lock = state::lock();
     let mut daemon = Daemon::default();
     // Whatever the agent was waiting with is stale: it has moved on, or the
-    // user is looking at it.
-    agents::close(&path, &mut daemon);
+    // user is looking at it. Nor is it at work any more.
+    if agents::close(&path, &mut daemon) {
+        state::refresh_bar();
+    }
     let now = state::now();
     let mut state = State::new();
     state.insert("event".into(), event.name.into());
