@@ -46,6 +46,7 @@ links=(
   'all    claude/statusline.sh              .claude/statusline.sh'
   'all    claude/CLAUDE.md                  .claude/CLAUDE.md'
   'all    claude/themes                     .claude/themes'
+  'all    claude/agents                     .claude/agents'
   'all    pi/config/settings.json           .pi/agent/settings.json'
   'all    pi/config/keybindings.json        .pi/agent/keybindings.json'
   'all    pi/config/global.md               .pi/agent/AGENTS.md'
