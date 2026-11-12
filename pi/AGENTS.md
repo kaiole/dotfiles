@@ -15,7 +15,7 @@ links below point into this repo; `scripts/install` makes them.
 | `~/.pi/agent/extensions/immortalize` | `picosystem/immortalize/` | Loaded as a bare extension, not a package |
 | `~/.pi/agent/extensions/tmux-sessionizer` | `picosystem/tmux-sessionizer/` | Bare extension: `ctrl+f` → `~/.local/bin/tmux-sessionizer` |
 | `~/.pi/agent/extensions/split-editor.json` | `config/split-editor.json` | Settings for the split-editor package |
-| `~/.pi/agent/AGENTS.md` | `config/global.md` | User's global instructions for pi, not pi docs; pi-only, Claude Code has none |
+| `~/.pi/agent/AGENTS.md` | `config/global.md` | User's global instructions for pi, not pi docs; pi-only; Claude Code's are `../claude/CLAUDE.md` |
 
 pi loads code in two ways:
 

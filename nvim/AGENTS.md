@@ -5,19 +5,12 @@ This is `~/dotfiles/nvim`, symlinked to `~/.config/nvim`. Leader is `<Space>`.
 
 ## How to investigate
 
-- Treat questions here as questions about the user's configured editing and
-  development workflows unless they indicate otherwise. This repo defines
-  project templates and tool policies, not just Neovim UI settings.
-- Use the maps below to find the owning definitions. Read those and follow
-  their connections before asking the user where something lives or giving
-  generic tool advice. Search contents, not just filenames: a tool's policy
-  may be embedded in a snippet for another filetype.
-- Distinguish inserted/generated text, editor behavior, and external tool
-  transformations. Trace the relevant path from shortcut/command through
-  provider to policy, including files outside this directory.
-- Snippets are the user's reusable templates. Tools consume the resulting
-  project files, not the snippets directly; inspect the actual project file
-  when available before assuming it still matches its template.
+Questions here are usually about the user's editing and development
+workflows, not just Neovim UI: this repo defines project templates and tool
+policies. A tool's policy may live in a snippet for another filetype, and the
+path from a shortcut to its policy often leaves this directory. Snippets are
+templates; tools read the project files generated from them, which may have
+drifted from the template.
 
 ## Templates and development policy
 

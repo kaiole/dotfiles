@@ -101,7 +101,7 @@ A palette may give several keys the same value. `lackluster-red` sets `accent` a
    - The app accepts the output (use its validator, e.g. `ghostty +validate-config`, or parse the TOML/JSON).
    - Copy the active palette to `palettes/test.lua`, set `accent` and `error` to `#00ff00`, and run `theme set test`; the app's highlights should change. Then switch back with `theme set <previous>` and delete `test.lua`.
    - `git status` shows no generated files.
-7. **Docs:** add the app to the README table, and remove it from the "Not themed yet" line under `## Theming` if it's there.
+7. **Docs:** add the app to the README table, and remove it from the `**Not themed:**` line under `## Theming` if it's there.
 
 ## nvim
 
