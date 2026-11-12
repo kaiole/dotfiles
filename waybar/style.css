@@ -95,13 +95,7 @@ tooltip {
     padding: 5px 5px;
 }
 
-/* Only pending agents ask for you: the agents at work and those already
-   seen are dimmed, and a module with none, the icon alone, more so. */
-#custom-running,
-#custom-seen {
-    color: @fg_dim;
-}
-
+/* An agent module with none: the icon alone, faint. */
 #custom-running.none,
 #custom-pending.none,
 #custom-seen.none {

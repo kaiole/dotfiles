@@ -184,8 +184,8 @@ the focused Hyprland window the way "on screen" does, when the key is
 pressed. Whenever the counts may have changed, notifi sends waybar
 `SIGRTMIN+8`, and `custom/running`, `custom/pending` and `custom/seen` in
 `waybar/config.jsonc` run `notifi running --waybar`, `notifi pending
---waybar` and `notifi seen --waybar` again; `waybar/style.css` dims the
-running and seen counts, and the class `none` of each further.
+--waybar` and `notifi seen --waybar` again; `waybar/style.css` makes the
+class `none` of each faint.
 
 notifi is one static binary, a Rust crate:
 
