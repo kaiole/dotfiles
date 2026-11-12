@@ -1,7 +1,8 @@
 //! Records. Each agent has at most one: a file that says that it is at
 //! work (running) or what it is waiting with and, while its notification is
 //! up, how to close it. Without the notification a waiting agent is
-//! pending, or seen once the user went to it or if it stopped in view.
+//! pending, or seen once the user went to it or if it stopped in view. The
+//! agent's tmux pane says the same in an option, for tmux's status line.
 
 use std::env;
 use std::fs::{self, DirBuilder, File, OpenOptions};
@@ -11,12 +12,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{Map, Value};
 
-use crate::{die, run, tmux};
+use crate::run::{self, Running};
+use crate::{die, tmux};
 
 pub type State = Map<String, Value>;
 
 /// custom/running, custom/pending and custom/seen in waybar/config.jsonc
 /// count the agents again on SIGRTMIN+8.
+#[cfg(target_os = "linux")]
 const WAYBAR_SIGNAL: i32 = 8;
 
 pub fn directory() -> PathBuf {
@@ -82,6 +85,39 @@ pub fn write(path: &Path, state: &State) {
     }
 }
 
+/// What the record says its agent is, in a word.
+pub fn label(state: &State) -> &'static str {
+    if state.contains_key("running") {
+        "running"
+    } else if state.contains_key("seen") {
+        "seen"
+    } else {
+        "pending"
+    }
+}
+
+/// Has the pane of the record say what `write` wrote of it or, with
+/// `forgotten`, that it has no agent any more. Outside tmux there is none.
+///
+/// The tmux that tells it is returned: a later one may overtake it, so
+/// wait for it (`finish`) wherever another word for the pane may follow.
+pub fn publish(state: &State, forgotten: bool) -> Running {
+    let text = |key| state.get(key).and_then(Value::as_str);
+    match (text("socket"), text("pane")) {
+        (Some(socket), Some(pane)) => tmux::mark(socket, pane, (!forgotten).then(|| label(state))),
+        _ => Running::default(),
+    }
+}
+
+/// As `publish`, by a tmux of the record's server that stayed (`asked`),
+/// and waited for.
+pub fn publish_by(asked: Running, state: &State, forgotten: bool) {
+    match state.get("pane").and_then(Value::as_str) {
+        Some(pane) => tmux::mark_by(asked, pane, (!forgotten).then(|| label(state))),
+        None => drop(asked.finish()),
+    }
+}
+
 pub fn now() -> f64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -105,11 +141,16 @@ pub fn sender(state: &State) -> Option<i32> {
     same.then_some(pid)
 }
 
-/// Has waybar count the agents again.
+/// Has waybar count the agents again. Only Linux has one; tmux's status
+/// line needs no telling, it reads the panes.
 ///
 /// killall takes 3 ms to find waybar and reading /proc here takes 1, so
 /// the pids found are kept in a file and only checked from then on: for a
 /// second bar started while the first runs, remove the file.
+#[cfg(not(target_os = "linux"))]
+pub fn refresh_bar() {}
+
+#[cfg(target_os = "linux")]
 pub fn refresh_bar() {
     let bar = env::var("NOTIFI_BAR").unwrap_or_else(|_| "waybar".into());
     let is_bar = |pid: &i32| {

@@ -34,6 +34,8 @@ pub struct Client {
     /// The active pane of the window it shows.
     pub pane_id: String,
     pub activity: i64,
+    /// Its terminal has focus, as far as the terminal tells tmux.
+    pub focused: bool,
 }
 
 /// What a tmux server answered: its panes by id, and its clients.
@@ -47,7 +49,10 @@ pub struct Server {
 
 const PANE: &str = "P\t#{pane_id}\t#{pid}\t#{session_id}\t#{window_id}\t#S:#{window_index}";
 const CLIENT: &str = "C\t#{client_pid}\t#{client_tty}\t#{session_id}\
-    \t#{window_id}\t#{pane_id}\t#{client_activity}";
+    \t#{window_id}\t#{pane_id}\t#{client_activity}\t#{client_flags}";
+/// The pane option that says what the pane's agent is: running, pending or
+/// seen. tmux.conf counts them in the status line, with nothing run.
+const MARK: &str = "@notifi";
 /// The last line of an answer, which can then be read without waiting for
 /// tmux to exit.
 const END: &str = ".";
@@ -66,6 +71,14 @@ pub fn server() -> Option<String> {
     let tmux = env::var("TMUX").ok()?;
     let pid = tmux.rsplit(',').nth(1)?;
     (!pid.is_empty()).then(|| pid.into())
+}
+
+/// The server and the session a tmux key bind or popup ran this command
+/// from: the socket, and the id of the session its client is on.
+pub fn here() -> Option<(String, String)> {
+    let tmux = env::var("TMUX").ok()?;
+    let session = tmux.rsplit(',').next().filter(|id| !id.is_empty())?;
+    Some((socket()?, format!("${session}")))
 }
 
 /// The pane this command runs in, by $TMUX_PANE.
@@ -126,12 +139,54 @@ pub fn survey(socket: &str, stay: bool) -> Running {
     ask(socket, &[&panes[..], &clients[..]].concat(), stay)
 }
 
+/// Has the pane say what its agent is, or with None that it has none: a
+/// tmux to wait for, where another may follow it, or to leave to itself.
+pub fn mark(socket: &str, pane: &str, label: Option<&str>) -> Running {
+    match label {
+        Some(label) => start(socket, &["set-option", "-p", "-t", pane, MARK, label]),
+        None => start(socket, &["set-option", "-p", "-u", "-t", pane, MARK]),
+    }
+}
+
+/// As `mark`, by a tmux that stayed, which takes 0.3 ms where another takes
+/// 1.6; it is waited for, and has nothing more to be told.
+pub fn mark_by(mut asked: Running, pane: &str, label: Option<&str>) {
+    let command = match label {
+        Some(label) => format!("set-option -p -t '{pane}' {MARK} {label}\n"),
+        None => format!("set-option -p -u -t '{pane}' {MARK}\n"),
+    };
+    if !pane.contains(['\'', '\n']) {
+        asked.tell(&command);
+    }
+    asked.finish();
+}
+
+/// The client a key was pressed in: of those on `session`, or else of them
+/// all, the one used last.
+pub fn latest<'a>(clients: &'a [Client], session: &str) -> Option<&'a Client> {
+    clients
+        .iter()
+        .max_by_key(|client| (client.session_id == session, client.activity))
+}
+
+/// Whether a client whose terminal has focus is showing the pane's window:
+/// what tmux knows of "on screen", for where no desktop is asked.
+pub fn visible(pane: &Pane, clients: &[Client]) -> bool {
+    clients.iter().any(|client| {
+        client.focused && client.session_id == pane.session_id && client.window_id == pane.window_id
+    })
+}
+
 /// Has tmux show a pane: selects it in its window and session and, given a
-/// client, switches that one to its session. `asked` is a tmux that stayed.
-pub fn show(asked: &mut Running, pane: &Pane, client: Option<&Client>) {
+/// client, switches that one to its session. With `seen`, the pane then
+/// says so. `asked` is a tmux that stayed.
+pub fn show(asked: &mut Running, pane: &Pane, client: Option<&Client>, seen: bool) {
     // tmux reads these as it reads its configuration, where nothing between
     // single quotes is special: not the $ of a session id either.
     let mut commands = format!("select-window -t '{0}'\nselect-pane -t '{0}'\n", pane.id);
+    if seen {
+        commands.push_str(&format!("set-option -p -t '{}' {MARK} seen\n", pane.id));
+    }
     if let Some(client) = client {
         let switch = format!(
             "switch-client -c '{}' -t '{}'\n",
@@ -147,6 +202,17 @@ pub fn show(asked: &mut Running, pane: &Pane, client: Option<&Client>) {
     ];
     if values.iter().all(|value| !value.contains(['\'', '\n'])) {
         asked.tell(&commands);
+    }
+}
+
+/// Has tmux tell a client something in its status line. `asked` is a tmux
+/// that stayed.
+pub fn say(asked: &mut Running, client: &Client, message: &str) {
+    if !client.tty.contains('\'') && !message.contains(['\'', '\n']) {
+        asked.tell(&format!(
+            "display-message -c '{}' '{message}'\n",
+            client.tty
+        ));
     }
 }
 
@@ -179,7 +245,7 @@ pub fn read(socket: &str, mut asked: Running) -> Server {
                 fields.first().and_then(|pid| pid.parse().ok()),
                 fields.get(5).and_then(|activity| activity.parse().ok()),
             );
-            if let (6, (Some(pid), Some(activity))) = (fields.len(), numbers) {
+            if let (7, (Some(pid), Some(activity))) = (fields.len(), numbers) {
                 server.clients.push(Client {
                     pid,
                     tty: fields[1].into(),
@@ -187,6 +253,7 @@ pub fn read(socket: &str, mut asked: Running) -> Server {
                     window_id: fields[3].into(),
                     pane_id: fields[4].into(),
                     activity,
+                    focused: fields[6].split(',').any(|flag| flag == "focused"),
                 });
             }
         }

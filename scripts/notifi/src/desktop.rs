@@ -62,7 +62,7 @@ pub fn focus(pane: &Pane, hypr: &Hyprland, server: &mut Server) -> Running {
     // tmux and Hyprland are told one after the other, and work at once.
     let elsewhere = |client: &&Client| client.session_id != pane.session_id;
     let switched = best.map(|attached| attached.client).filter(elsewhere);
-    tmux::show(&mut server.asked, pane, switched);
+    tmux::show(&mut server.asked, pane, switched, true);
     match best {
         None => open_terminal(hypr, pane),
         // With several windows in one process, assume the client is in the

@@ -23,7 +23,7 @@ const eventOf = (messages: unknown[]): string => {
 export default function (pi: ExtensionAPI) {
 	let enabled = true;
 
-	/** Returns notifi's outcome: `sent`, `visible`, `blocked` or `failed: <why>`. */
+	/** Returns notifi's outcome: `sent`, `visible`, `kept`, `blocked` or `failed: <why>`. */
 	const show = async (ctx: ExtensionContext, event: string, force = false): Promise<string> => {
 		const outcome = await notifi("show", "--app", "pi", "--event", event, "-v", ...(force ? ["--force"] : []));
 		if (outcome.startsWith("failed")) ctx.ui.notify(`notifi ${outcome}`, "warning");

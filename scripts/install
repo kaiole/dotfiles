@@ -73,19 +73,20 @@ links=(
   'darwin aerospace                         .config/aerospace'
 )
 
-# notifi, wall_select and waybar_media are Rust binaries for Hyprland, built
-# in place below.
+# Rust binaries, built in place below: notifi wherever there is tmux,
+# wall_select and waybar_media for Hyprland.
 crates=()
-if [[ $os == linux ]]; then
-  if (( $+commands[cargo] )); then
-    crates=(notifi wall_select waybar_media)
-    for crate in $crates; do
-      links+=("linux scripts/$crate/target/release/$crate .local/bin/$crate")
-    done
-  else
-    print -u2 -- "install: cargo not found, skipping notifi, wall_select and waybar_media"
-  fi
+case $os in
+  linux) crates=(notifi wall_select waybar_media) ;;
+  darwin) crates=(notifi) ;;
+esac
+if (( $#crates && ! $+commands[cargo] )); then
+  print -u2 -- "install: cargo not found, skipping ${(j:, :)crates}"
+  crates=()
 fi
+for crate in $crates; do
+  links+=("$os scripts/$crate/target/release/$crate .local/bin/$crate")
+done
 
 # install.skip (untracked) lists the links this machine keeps as its own
 # files, one per line, written as in the table or with a leading ~/.

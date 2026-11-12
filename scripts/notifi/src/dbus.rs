@@ -7,8 +7,11 @@
 
 use std::env;
 use std::io::{Read, Write};
+#[cfg(target_os = "linux")]
 use std::os::linux::net::SocketAddrExt;
-use std::os::unix::net::{SocketAddr, UnixStream};
+#[cfg(target_os = "linux")]
+use std::os::unix::net::SocketAddr;
+use std::os::unix::net::UnixStream;
 use std::time::Duration;
 
 const TIMEOUT: Duration = Duration::from_secs(3);
@@ -115,6 +118,17 @@ fn answered(fields: &[u8]) -> Option<u32> {
     None
 }
 
+/// A socket with a name and no file, which only Linux has.
+#[cfg(target_os = "linux")]
+fn abstract_socket(name: &str) -> std::io::Result<UnixStream> {
+    SocketAddr::from_abstract_name(name).and_then(|address| UnixStream::connect_addr(&address))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn abstract_socket(_name: &str) -> std::io::Result<UnixStream> {
+    Err(std::io::ErrorKind::Unsupported.into())
+}
+
 fn socket() -> Option<UnixStream> {
     let Ok(addresses) = env::var("DBUS_SESSION_BUS_ADDRESS") else {
         let runtime = env::var_os("XDG_RUNTIME_DIR")?;
@@ -128,8 +142,7 @@ fn socket() -> Option<UnixStream> {
             let stream = if let Some(path) = key.strip_prefix("path=") {
                 UnixStream::connect(path)
             } else if let Some(name) = key.strip_prefix("abstract=") {
-                SocketAddr::from_abstract_name(name)
-                    .and_then(|address| UnixStream::connect_addr(&address))
+                abstract_socket(name)
             } else {
                 continue;
             };

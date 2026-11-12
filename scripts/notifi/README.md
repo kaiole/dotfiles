@@ -1,9 +1,10 @@
 # notifi
 
 Desktop notifications for coding agents running in tmux, on Hyprland with
-dunst and Ghostty. An agent calls `notifi show` when it finishes or needs you,
-`notifi start` when it goes to work on your answer, and `notifi dismiss` when
-it exits. pi and Claude Code both use it.
+dunst and Ghostty, and the same agents listed in tmux itself, wherever tmux
+runs. An agent calls `notifi show` when it finishes or needs you, `notifi
+start` when it goes to work on your answer, and `notifi dismiss` when it
+exits. pi and Claude Code both use it.
 
 - **Super+N** closes the notification (`dunstctl close`) and leaves its agent
   **pending**: counted in waybar until you go to it.
@@ -23,6 +24,22 @@ there, so what you sent out stays in view as well as what waits for you. The
 binds are in `hypr/config/keybindings.lua`; Super+N and Super+Y work for any
 notification.
 
+In tmux, with or without that desktop (the binds are in `tmux/tmux.conf`):
+
+- **prefix a** opens the agents of this tmux server in a popup
+  (`notifi pick`): the pending ones, the seen ones and the ones at work,
+  each by its session and window. `j`/`k` or the arrows move, Enter goes
+  to the selected agent and a digit to that row, `x` forgets the selected
+  one and leaves the list open, `q` or Esc closes.
+- **prefix y** goes to the next waiting agent of this tmux server
+  (`notifi next --tmux`), in Super+Y's order.
+- **The status line** counts the three, as waybar does, on a server that
+  has no Hyprland in its environment.
+
+Without a desktop to notify, which is a tmux server started over SSH and any
+macOS, there is no notification: an agent that stops is pending until you go
+to it, unless you were looking at it.
+
 ## Commands
 
 ```sh
@@ -32,7 +49,8 @@ notifi dismiss [--app NAME | --focused]
 notifi pending [--waybar]
 notifi seen [--waybar]
 notifi running [--waybar]
-notifi next
+notifi next [--tmux]
+notifi pick
 notifi go
 notifi status
 ```
@@ -44,13 +62,13 @@ returns at once. It prints nothing unless `-v`, which prints the outcome:
 | --- | --- |
 | `sent` | The notification is up |
 | `visible` | No notification: the agent's tmux window is on screen, so it is seen at once |
-| `blocked` | Skipped: this tmux server may not notify the desktop |
+| `kept` | No notification: this tmux server has no desktop to notify, so the agent is on record for tmux to show |
+| `blocked` | Skipped: outside tmux, with no desktop to notify |
 | `failed: <why>` | `notify-send` failed; also on stderr, exit status 1 |
 
 `start` says that this pane's agent is at work: it ends what the agent was
 waiting with, as `dismiss` does, and records it as running until its next
-`show` or `dismiss`. Where `show` would be `blocked`, and outside tmux, it
-records nothing. `--hook` is for Claude Code, whose hook input it reads from
+`show` or `dismiss`. Outside tmux it records nothing. `--hook` is for Claude Code, whose hook input it reads from
 standard input: a prompt (`UserPromptSubmit`) starts the agent, and any
 other hook only an agent that stopped and went on, so one that is running
 already, or that you forgot, is left as it is.
@@ -79,6 +97,14 @@ notification on screen it runs the action of the top one, as
 `<title><TAB><how long>` (`<1m`, `12m`, `1h05m`), longest first.
 `pending`, `seen`, `running`, `next`, `go` and `dismiss --focused` run from
 anywhere, not only from a pane.
+
+`next --tmux` and `pick` are for a tmux key bind, whose `$TMUX` names the
+server and the session of the client the key was pressed in. They take only
+that server's agents, and tmux alone shows what they go to: the pane is
+selected and that client switched to its session, with no Hyprland asked.
+`next --tmux` prints nothing; with no agent waiting it says so in the
+client's status line. It also takes an agent whose notification is still
+up, which it closes. `pick` needs a terminal, which the popup gives it.
 
 Exit status is 0 or 1, never 2, which Claude Code reads from a hook as "block
 this".
@@ -120,7 +146,9 @@ The title is `<session>:<window index>`. The table is `EVENTS` in
   any other, until its next prompt or stop.
 - **Interrupted.** Claude Code tells nobody when you interrupt it, so the
   transcript of each running one is read whenever the records are, which
-  waybar does every 30 s. If the last turn in it since the agent started is
+  waybar does every 30 s. Without waybar that is the next `pick` or `next`,
+  and the list, while open, every second: until then tmux's status line
+  still counts the agent as running. If the last turn in it since the agent started is
   your interrupt, the agent becomes `aborted` and seen, with no
   notification: you were there. pi says so itself.
 - **A pane that died** without a `dismiss` (the agent was killed outright) is
@@ -149,6 +177,18 @@ The title is `<session>:<window index>`. The table is `EVENTS` in
   ```sh
   tmux set-option -s @notifi-desktop on    # or off, or auto (default)
   ```
+- **Without a desktop** (such a server, `off`, or a build that is not for
+  Linux) an agent in tmux is recorded as everywhere else, with no
+  notification: `show` leaves it pending, or seen if it stopped in view or
+  with an event that expires (`aborted`). In view is what tmux knows of it:
+  an attached client whose terminal has focus is showing the pane's window.
+  That holds for every event, `error` too, since there is no notification
+  to show in spite of it; `--force` skips the check. tmux learns of focus
+  from the terminal (`focus-events on`, and a terminal that reports it):
+  one that doesn't counts as focused for as long as it is attached.
+- **In tmux's own view** an agent belongs to the server it runs in. The
+  list, `next --tmux` and the status line show that server's agents only,
+  where the desktop commands take every server's.
 
 ## How it works
 
@@ -166,6 +206,17 @@ if the pane is on screen by then or the event expires. A `show` skipped
 because the pane is on screen writes the record itself, with `seen` and no
 `toast`. `start` writes one with the time, the pane and, in place of the
 event, `running`: the transcript a hook named and how long that file was.
+Without a desktop `show` writes the record with no `toast`, and `seen` if
+the pane was in view, and leaves no waiter.
+
+Each time a record is written, its pane is told what it says in the pane
+option `@notifi`, `running`, `pending` or `seen`, and the option is unset
+when the agent is forgotten. That is all the status line reads: `tmux.conf`
+counts the panes with each value in a format, so nothing is run for it and
+tmux draws the line again as soon as an option changes. The records stay
+the truth, and the option follows them: one already on record when this
+was built gets it at its next change, and removing the records by hand
+leaves the options behind (`tmux set-option -pu -t <pane> @notifi`).
 
 `dismiss` reads the record from any later process and removes it, stops that
 `notify-send` and asks the daemon to close the id. Ids restart when dunst
@@ -179,21 +230,24 @@ since it started, and rewrite the record as `aborted` and seen if that ends
 with an interrupt. Nothing runs in between: there is no daemon, and the
 records are the only state. `dismiss --focused` finds the tmux client in
 the focused Hyprland window the way "on screen" does, when the key is
-pressed. Whenever the counts may have changed, notifi sends waybar
-`SIGRTMIN+8`, and `custom/running`, `custom/pending` and `custom/seen` in
+pressed. `pick` reads the records of its server the same way, again every
+second while it is open, and holds no lock in between. It draws with bold,
+dim and reverse only, so it has no color to theme. Whenever the counts
+may have changed, notifi sends waybar `SIGRTMIN+8`, and `custom/running`, `custom/pending` and `custom/seen` in
 `waybar/config.jsonc` run `notifi running --waybar`, `notifi pending
 --waybar` and `notifi seen --waybar` again; `waybar/style.css` makes the
 class `none` of each faint.
 
-notifi is one static binary, a Rust crate:
+notifi is one binary, a Rust crate, static on Linux:
 
 | File | What is in it |
 | --- | --- |
 | `src/main.rs` | The commands and their options |
 | `src/show.rs` | `show`, and the waiter it leaves behind; `start` |
 | `src/agents.rs` | The events; the agents from the records, and whether a running one was interrupted; `next`, `go`, `dismiss` |
+| `src/pick.rs` | `pick`: the list, its keys and the terminal it draws on |
 | `src/desktop.rs` | Which Hyprland window a tmux client is in; "on screen"; Focus |
-| `src/state.rs` | The records, their lock, the signal to waybar |
+| `src/state.rs` | The records, their lock, the pane option, the signal to waybar |
 | `src/tmux.rs`, `src/hyprland.rs`, `src/dbus.rs` | Talking to tmux, Hyprland and dunst |
 | `src/run.rs` | Child processes, and what `/proc` says of a process |
 
@@ -221,8 +275,8 @@ started:
 | `notifi start --hook` after a tool (running already, or no record) | 0.5 ms |
 | `notifi start --hook` for a prompt | 4.3 ms |
 
-A prompt's `start` asks tmux twice whether the server may notify, as `show`
-does; no key waits for it, nor does Claude, whose hooks are `async`. The
+A prompt's `start` waits for the tmux that tells the pane its agent runs;
+no key waits for it, nor does Claude, whose hooks are `async`. The
 Python script this replaced took 40 ms for the first row. Of the 3.5 ms,
 0.9 is the shell that Hyprland starts every `exec` bind through (`/bin/sh`,
 bash here), 0.35 is notifi starting, which is what `/usr/bin/true` takes,
@@ -256,6 +310,41 @@ What keeps it there, and what to keep to when changing it:
 - **Calls to the bus never start a daemon** (the no-auto-start flag): with
   no dunst running nothing is on screen, and a key must not wait for one to
   start.
+
+Telling each pane its agent's state (`@notifi`) left the keys as they were
+and cost the hooks one tmux command. Against the binary from before it,
+medians of 40, old and new by turns:
+
+| What | Before | After |
+| --- | --- | --- |
+| Super+Y's bind until Hyprland is told the window | 3.2 ms | 3.2 ms |
+| `notifi next` until Hyprland is told the window | 2.2 ms | 2.2 ms |
+| `notifi dismiss --focused` | 2.3 ms | 2.4 ms |
+| `notifi start --hook` for a prompt, on the live server | 5.2 ms | 5.2 ms |
+| `notifi show`, notification sent, on the live server | 6.5 ms | 7.3 ms |
+| `notifi dismiss`, on the live server | 3.0 ms | 5.2 ms |
+
+The first three were timed in the tests' harness, which answers for
+Hyprland; the last three against the tmux server in use, a busier one, with
+the records elsewhere and a stub for `notify-send`. `show` tells the pane
+through the tmux it had asked about the pane, which stayed for that; a tmux
+of its own took `show` 3 ms more in the harness instead of 0.4. `start` and
+`dismiss` had asked tmux nothing that could stay, so they start one and wait
+for it, so that a later word for the pane can't overtake it. `dismiss` is
+the one hook Claude waits for, once, as it exits. `dismiss --focused`
+doesn't wait for its own.
+
+The tmux binds, in the harness, on a server with two agents waiting:
+
+| What | Takes |
+| --- | --- |
+| `notifi next --tmux` until it has exited | 2.9 ms |
+| The same with nothing waiting | 2.5 ms |
+| `notifi pick` until the list is drawn | 2.0 ms |
+
+`run-shell` starts `next --tmux` through the server's `default-shell`, 1 ms
+for zsh here; the popup's command is given to tmux in words, which it
+starts without one.
 
 Reading `source-file -` from standard input is not in tmux's manual, though
 `load-buffer -` is, which reads the same way. The tests go through it, so
@@ -309,12 +398,23 @@ Killing an agent's tmux pane, session or server still runs its last dismiss
 
 ## Requirements
 
-Linux only. To build, cargo (Rust 1.98 here) and glibc's static library,
-which Arch's `glibc` has; `scripts/install` builds it and links
-`target/release/notifi`. To run, `notify-send` (libnotify), `tmux` (3.8
-here), `ghostty`, Hyprland, and a notification daemon that supports actions.
-`go` asks dunst what is on screen (the interface `dunstctl` uses); with
-another daemon it is `next`. The counts are shown by waybar.
+To build, cargo (Rust 1.98 here); `scripts/install` builds it and links
+`target/release/notifi`, on Linux and macOS. On Linux it also takes glibc's
+static library, which Arch's `glibc` has.
+
+For the desktop, Linux only: `notify-send` (libnotify), `tmux` (3.8 here),
+`ghostty`, Hyprland, and a notification daemon that supports actions. `go`
+asks dunst what is on screen (the interface `dunstctl` uses); with another
+daemon it is `next`. The counts are shown by waybar.
+
+For tmux alone, a `tmux` with popups and pane options: 3.8 here, and no
+older one was tried. The macOS
+build is the tmux part only: `show` answers `kept` or `visible` and never
+notifies, and `go`, `next` without `--tmux` and `dismiss --focused` have no
+Hyprland to work with. It compiles for `aarch64-apple-darwin`
+(`cargo check --target aarch64-apple-darwin`); it has not been run on a Mac
+yet. Without `$XDG_RUNTIME_DIR`, as there, the records are in
+`/tmp/notifi-<uid>/notifi/`.
 
 ## Tests
 
@@ -326,5 +426,7 @@ They build the crate, then run the command against disposable tmux servers
 with attached clients (needs `script`), with stubs on `PATH` for
 `notify-send` and `ghostty`, and Hyprland and the session bus as sockets
 answered from the test. The test process stands in for waybar: `NOTIFI_BAR`
-names the process that notifi signals. Nothing reaches the desktop. The pi
+names the process that notifi signals. Nothing reaches the desktop. The
+server started over SSH is the one without a desktop: the list runs in a
+window of it, where the popup would be, and is driven with `send-keys`. The pi
 adapter has its own: `npm test` in `pi/picosystem/notifi/`.

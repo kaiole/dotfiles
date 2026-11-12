@@ -14,6 +14,9 @@ use crate::state::{self, Lock, State};
 use crate::tmux::{self, Pane, Server};
 use crate::{desktop, die, hyprland};
 
+/// What `next --tmux` says in tmux's status line when there is none.
+const NONE_WAITING: &str = "No agent waiting";
+
 pub struct Event {
     pub name: &'static str,
     pub body: &'static str,
@@ -83,19 +86,24 @@ fn toast_up(state: &State, daemon: &mut Daemon) -> bool {
 }
 
 /// Forgets the record at `path`, closing its notification if that is up.
-/// Returns whether there was one: the bar is then to be told, which is
-/// left to the caller, who may be about to write another.
+/// Returns the record if there was one: the bar and the record's pane
+/// (`state::publish`) are then to be told, which is left to the caller, who
+/// may be about to write another.
 ///
 /// Call it locked.
 #[must_use]
-pub fn close(path: &Path, daemon: &mut Daemon) -> bool {
-    let state = state::read(path).unwrap_or_default();
+pub fn close(path: &Path, daemon: &mut Daemon) -> Option<State> {
+    let state = state::read(path);
     let _ = fs::remove_file(path);
-    if state.is_empty() {
-        return false;
-    }
-    let (Some(pid), Some(toast)) = (state::sender(&state), state::toast(&state)) else {
-        return true;
+    let state = state.filter(|state| !state.is_empty())?;
+    end_toast(&state, daemon);
+    Some(state)
+}
+
+/// Closes the record's notification, if that is up.
+fn end_toast(state: &State, daemon: &mut Daemon) {
+    let (Some(pid), Some(toast)) = (state::sender(state), state::toast(state)) else {
+        return;
     };
     // Stop a lingering notify-send too.
     unsafe { libc::kill(pid, libc::SIGTERM) };
@@ -109,7 +117,6 @@ pub fn close(path: &Path, daemon: &mut Daemon) -> bool {
     {
         daemon.close(id);
     }
-    true
 }
 
 /// Forgets the agent running this command.
@@ -117,7 +124,8 @@ pub fn dismiss(app: &str) {
     let path = state::path(app);
     if path.exists() {
         let _lock = state::lock();
-        if close(&path, &mut Daemon::default()) {
+        if let Some(state) = close(&path, &mut Daemon::default()) {
+            state::publish(&state, true).finish();
             state::refresh_bar();
         }
     }
@@ -189,22 +197,39 @@ pub fn ask(stay: bool) -> Option<Asked> {
     if state::paths().is_empty() {
         return None;
     }
+    Some(gather(None, stay))
+}
+
+/// The agents of the tmux server at `socket` alone, which is asked even
+/// with none on record: what a key bind in tmux lists and goes to, on the
+/// server that it was pressed in.
+pub fn ask_on(socket: &str, stay: bool) -> Asked {
+    gather(Some(socket), stay)
+}
+
+fn gather(only: Option<&str>, stay: bool) -> Asked {
     let lock = state::lock();
     let mut records = Vec::new();
     let mut servers: Vec<(String, Running)> = Vec::new();
+    if let Some(socket) = only {
+        servers.push((socket.into(), tmux::survey(socket, stay)));
+    }
     for path in state::paths() {
         let state = state::read(&path).unwrap_or_default();
         let socket = text(&state, "socket");
+        if only.is_some_and(|only| only != socket) {
+            continue;
+        }
         if !socket.is_empty() && servers.iter().all(|(asked, _)| asked != socket) {
             servers.push((socket.into(), tmux::survey(socket, stay)));
         }
         records.push((path, state));
     }
-    Some(Asked {
+    Asked {
         lock,
         records,
         servers,
-    })
+    }
 }
 
 fn text<'a>(state: &'a State, key: &str) -> &'a str {
@@ -244,6 +269,7 @@ impl Asked {
                 state.insert("since".into(), state::now().into());
                 state.insert("seen".into(), state::now().into());
                 state::write(&path, &state);
+                state::publish(&state, false).finish();
                 changed = true;
             }
             let running = state.contains_key("running");
@@ -268,6 +294,11 @@ impl Asked {
             } else if !notified {
                 changed = true;
                 let _ = fs::remove_file(path);
+                // A dead pane says nothing any more; a live one, of a
+                // record that makes no sense, is not to say it for good.
+                if pane.is_some() {
+                    drop(state::publish(&state, true));
+                }
             }
         }
         if changed {
@@ -282,15 +313,23 @@ impl Asked {
 }
 
 impl Found {
-    /// The agents that stopped and are left without a notification, in
-    /// the order `next` goes: the pending ones first, by how long they have
-    /// waited, then the seen ones, starting with the one visited longest
-    /// ago.
-    pub fn waiting(&self) -> Vec<&Agent> {
+    /// The agents that stopped, in the order `next` goes: the pending ones
+    /// first, by how long they have waited, then the seen ones, starting
+    /// with the one visited longest ago. One whose notification is still up
+    /// is pending too.
+    pub fn stopped(&self) -> Vec<&Agent> {
         let turn = |agent: &Agent| (agent.seen.is_some(), agent.seen.unwrap_or(agent.since));
-        let stopped = |agent: &&Agent| !agent.notified && !agent.running;
+        let stopped = |agent: &&Agent| !agent.running;
         let mut waiting: Vec<&Agent> = self.agents.iter().filter(stopped).collect();
         waiting.sort_by(|a, b| turn(a).partial_cmp(&turn(b)).unwrap_or(Ordering::Equal));
+        waiting
+    }
+
+    /// Those of them that are left without a notification, which is what
+    /// goes to the others on a desktop.
+    pub fn waiting(&self) -> Vec<&Agent> {
+        let mut waiting = self.stopped();
+        waiting.retain(|agent| !agent.notified);
         waiting
     }
 
@@ -299,6 +338,39 @@ impl Found {
         let mut running: Vec<&Agent> = self.agents.iter().filter(|agent| agent.running).collect();
         running.sort_by(|a, b| a.since.partial_cmp(&b.since).unwrap_or(Ordering::Equal));
         running
+    }
+
+    /// Has tmux show the agent in `pane`, and nothing else: to the client
+    /// that a key was pressed in, the one on `session` used last. An agent
+    /// that stopped is seen from then on and loses its notification; one at
+    /// work stays as it is. Returns its title, or None if it has gone.
+    ///
+    /// For the agents of one server (`ask_on`), asked to stay.
+    pub fn visit(&mut self, pane: &str, session: &str, daemon: &mut Daemon) -> Option<String> {
+        let agent = self.agents.iter().find(|agent| agent.pane.id == pane)?;
+        let (path, pane, stopped) = (agent.path.clone(), agent.pane.clone(), !agent.running);
+        let server = self.servers.get_mut(&pane.socket)?;
+        let client = tmux::latest(&server.clients, session);
+        tmux::show(&mut server.asked, &pane, client, stopped);
+        if stopped {
+            let mut state = state::read(&path).unwrap_or_default();
+            end_toast(&state, daemon);
+            state.remove("toast");
+            state.insert("seen".into(), state::now().into());
+            state::write(&path, &state);
+            state::refresh_bar();
+        }
+        std::mem::take(&mut server.asked).finish();
+        Some(pane.title)
+    }
+
+    /// Forgets the agent in `pane`, at work or not.
+    pub fn forget(&self, pane: &str, daemon: &mut Daemon) {
+        let agent = self.agents.iter().find(|agent| agent.pane.id == pane);
+        if let Some(state) = agent.and_then(|agent| close(&agent.path, daemon)) {
+            state::publish(&state, true).finish();
+            state::refresh_bar();
+        }
     }
 }
 
@@ -327,6 +399,28 @@ pub fn next(asked: Option<Asked>, daemon: &mut Daemon) -> Option<String> {
     state::refresh_bar();
     shown.finish();
     Some(pane.title)
+}
+
+/// `next` for a key bind in tmux, with no desktop asked: the first agent
+/// that stopped on the server the key was pressed in is shown to the client
+/// it was pressed in. With none, that client is told so.
+///
+/// Prints nothing: tmux would show it over the pane.
+pub fn next_here() {
+    let Some((socket, session)) = tmux::here() else {
+        die("notifi: next --tmux is for a tmux key bind");
+    };
+    let mut daemon = Daemon::default();
+    let mut found = ask_on(&socket, true).finish(&mut daemon);
+    let first = found.stopped().first().map(|agent| agent.pane.id.clone());
+    if let Some(pane) = first {
+        found.visit(&pane, &session, &mut daemon);
+    } else if let Some(server) = found.servers.get_mut(&socket) {
+        if let Some(client) = tmux::latest(&server.clients, &session) {
+            tmux::say(&mut server.asked, client, NONE_WAITING);
+        }
+        std::mem::take(&mut server.asked).finish();
+    }
 }
 
 /// What Super+Y does: the action of the notification on screen or, with
@@ -394,7 +488,11 @@ pub fn dismiss_focused() -> Vec<String> {
     }
     let mut closed = false;
     for agent in &here {
-        closed |= close(&agent.path, &mut daemon);
+        if let Some(state) = close(&agent.path, &mut daemon) {
+            // Not waited for: this is a key, and nothing follows it.
+            drop(state::publish(&state, true));
+            closed = true;
+        }
     }
     if closed {
         state::refresh_bar();

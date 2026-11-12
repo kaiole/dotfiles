@@ -8,7 +8,11 @@
 //! then goes round the seen ones. Only a dismiss forgets an agent that
 //! stopped. `go` is `next` unless a notification is on screen, whose action
 //! it runs. `dismiss` forgets the agent from any later process. `start`
-//! says that the agent is at work again, and `running` lists those. See
+//! says that the agent is at work again, and `running` lists those.
+//!
+//! Where there is no desktop to notify, an agent in tmux is recorded the
+//! same and tmux shows it: `pick` lists the agents in a popup, `next --tmux`
+//! goes to them, and each pane says its agent's state in an option. See
 //! README.md.
 //!
 //! Key binds run this, so what it starts and what it waits for is kept
@@ -18,6 +22,7 @@ mod agents;
 mod dbus;
 mod desktop;
 mod hyprland;
+mod pick;
 mod run;
 mod show;
 mod state;
@@ -38,12 +43,13 @@ const USAGE: &str = "    notifi show [--event EVENT] [--app NAME] [--force] [-v]
     notifi pending [--waybar]
     notifi seen [--waybar]
     notifi running [--waybar]
-    notifi next
+    notifi next [--tmux]
     notifi go
+    notifi pick
     notifi status";
 
 /// Each command's options; those that take an argument end in "=".
-const OPTIONS: [(&str, &[&str]); 9] = [
+const OPTIONS: [(&str, &[&str]); 10] = [
     (
         "show",
         &["-v", "--verbose", "--force", "--event=", "--app="],
@@ -53,8 +59,9 @@ const OPTIONS: [(&str, &[&str]); 9] = [
     ("pending", &["--waybar"]),
     ("seen", &["--waybar"]),
     ("running", &["--waybar"]),
-    ("next", &[]),
+    ("next", &["--tmux"]),
     ("go", &[]),
+    ("pick", &[]),
     ("status", &[]),
 ];
 
@@ -148,6 +155,8 @@ fn main() {
         "pending" => pending(options.has("--waybar")),
         "seen" => seen(options.has("--waybar")),
         "running" => running(options.has("--waybar")),
+        "next" if options.has("--tmux") => agents::next_here(),
+        "pick" => pick::pick(),
         "next" => {
             agents::next(agents::ask(true), &mut Daemon::default())
                 .iter()
@@ -192,6 +201,16 @@ fn found() -> Option<agents::Found> {
     Some(agents::ask(false)?.finish(&mut Daemon::default()))
 }
 
+/// How long it has been since then, as it is listed: "<1m", "12m", "1h05m".
+pub fn long(since: f64, now: f64) -> String {
+    let minutes = ((now - since) / 60.0) as u64;
+    match minutes {
+        0 => "<1m".into(),
+        1..60 => format!("{minutes}m"),
+        _ => format!("{}h{:02}m", minutes / 60, minutes % 60),
+    }
+}
+
 /// Lists the agents at work with how long each has been or, for waybar,
 /// counts them, with that list as the tooltip.
 fn running(waybar: bool) {
@@ -200,15 +219,7 @@ fn running(waybar: bool) {
     let lines: Vec<String> = found
         .iter()
         .flat_map(|found| found.running())
-        .map(|agent| {
-            let minutes = ((now - agent.since) / 60.0) as u64;
-            let long = match minutes {
-                0 => "<1m".into(),
-                1..60 => format!("{minutes}m"),
-                _ => format!("{}h{:02}m", minutes / 60, minutes % 60),
-            };
-            format!("{}\t{long}", agent.pane.title)
-        })
+        .map(|agent| format!("{}\t{}", agent.pane.title, long(agent.since, now)))
         .collect();
     if waybar {
         print(module("running", &lines));

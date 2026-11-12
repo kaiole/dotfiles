@@ -1,5 +1,6 @@
 //! What an agent says of itself. `show`: it stopped, with the notification
-//! and the waiter that stays behind with it. `start`: it is at work.
+//! and the waiter that stays behind with it, or without one where there is
+//! no desktop to notify. `start`: it is at work.
 
 use std::env;
 use std::fs;
@@ -18,12 +19,14 @@ use crate::{desktop, hyprland};
 
 const SSH_VARIABLES: [&str; 3] = ["SSH_CONNECTION", "SSH_TTY", "SSH_CLIENT"];
 
-/// Whether this agent may notify the local desktop.
+/// Whether this agent may notify the local desktop. Where it may not, an
+/// agent in tmux is kept on record all the same, and tmux is what shows it.
 ///
 /// A tmux server can be told with `set-option -s @notifi-desktop on|off`;
 /// by default (`auto`) it may unless it was started over SSH. The server's
 /// global environment is checked rather than the agent's, which can keep
-/// stale SSH variables after a reattach.
+/// stale SSH variables after a reattach. Only Linux has the desktop that
+/// this notifies: elsewhere none may.
 pub enum Desktop {
     Known(bool),
     /// tmux was asked for the option and for its environment.
@@ -32,6 +35,9 @@ pub enum Desktop {
 
 impl Desktop {
     pub fn ask() -> Desktop {
+        if !cfg!(target_os = "linux") {
+            return Desktop::Known(false);
+        }
         let set = |name: &&str| env::var_os(name).is_some_and(|value| !value.is_empty());
         if !set(&"TMUX") {
             return Desktop::Known(!SSH_VARIABLES.iter().any(set));
@@ -77,8 +83,8 @@ impl Desktop {
 /// the agent anew. The other hooks only say that it is still going, and
 /// they come after every tool, so they count for an agent that stopped and
 /// went on, as after a question, and cost the others no more than reading
-/// the record: one at work already, and one with none, which was forgotten
-/// or may not notify. The transcript is kept for `agents::interrupted`.
+/// the record: one at work already, and one with none, which was
+/// forgotten. The transcript is kept for `agents::interrupted`.
 pub fn start(app: &str, hook: bool) {
     let mut input = String::new();
     if hook {
@@ -92,13 +98,10 @@ pub fn start(app: &str, hook: bool) {
             return;
         }
     }
-    // Outside tmux there is no pane to tell that it still runs in.
-    let desktop = tmux::own().map(|own| (own, Desktop::ask()));
-    let own = desktop.and_then(|(own, desktop)| desktop.allowed().then_some(own));
-
     let _lock = state::lock();
-    let closed = agents::close(&path, &mut Daemon::default());
-    if let Some(((socket, pane), server)) = own.zip(tmux::server()) {
+    let closed = agents::close(&path, &mut Daemon::default()).is_some();
+    // Outside tmux there is no pane to tell that it still runs in.
+    if let Some(((socket, pane), server)) = tmux::own().zip(tmux::server()) {
         let mut state = State::new();
         state.insert("since".into(), state::now().into());
         state.insert("socket".into(), socket.into());
@@ -115,20 +118,30 @@ pub fn start(app: &str, hook: bool) {
             }),
         );
         state::write(&path, &state);
+        state::publish(&state, false).finish();
     } else if !closed {
         return;
     }
     state::refresh_bar();
 }
 
-/// Shows a notification; returns `sent` or why it was not sent.
+/// Records that the agent in this pane stopped, and shows a notification;
+/// returns `sent` or why it was not sent.
 pub fn show(app: &str, event: &'static Event, force: bool) -> String {
-    let (desktop, look) = (Desktop::ask(), tmux::look(false));
-    if !desktop.allowed() {
+    let (desktop, look) = (Desktop::ask(), tmux::look(true));
+    let desktop = desktop.allowed();
+    let mut own = look.and_then(Look::finish);
+    // The tmux that answered stays, to have the pane say what is recorded
+    // of it: once, on each way out of here.
+    let asked = own
+        .as_mut()
+        .map(|(_, server)| std::mem::take(&mut server.asked));
+    let asked = asked.unwrap_or_default();
+    let pane = own.as_ref().map(|(pane, _)| pane);
+    // Outside tmux the desktop is all there is to tell.
+    if !desktop && pane.is_none() {
         return "blocked".into();
     }
-    let own = look.and_then(Look::finish);
-    let pane = own.as_ref().map(|(pane, _)| pane);
     let path = state::path(app);
     let mut command = Command::new("notify-send");
     command
@@ -147,7 +160,7 @@ pub fn show(app: &str, event: &'static Event, force: bool) -> String {
     let mut daemon = Daemon::default();
     // Whatever the agent was waiting with is stale: it has moved on, or the
     // user is looking at it. Nor is it at work any more.
-    if agents::close(&path, &mut daemon) {
+    if agents::close(&path, &mut daemon).is_some() {
         state::refresh_bar();
     }
     let now = state::now();
@@ -160,6 +173,23 @@ pub fn show(app: &str, event: &'static Event, force: bool) -> String {
         state.insert("server".into(), pane.server.as_str().into());
     }
     if let Some((pane, server)) = &own
+        && !desktop
+    {
+        // No desktop to notify, so the record is all: tmux shows it, by
+        // the pane's option. In view is what tmux knows of that, a client
+        // with focus on the pane's window, and whatever the event, since
+        // there is no notification to show in spite of it. One that would
+        // expire is seen as it is there.
+        let visible = !force && tmux::visible(pane, &server.clients);
+        if visible || event.expire_ms != 0 {
+            state.insert("seen".into(), now.into());
+        }
+        state::write(&path, &state);
+        state::publish_by(asked, &state, false);
+        state::refresh_bar();
+        return if visible { "visible" } else { "kept" }.into();
+    }
+    if let Some((pane, server)) = &own
         && event.focus_aware
         && !force
         && hyprland::snapshot().is_some_and(|hypr| desktop::visible(pane, &hypr, &server.clients))
@@ -167,18 +197,24 @@ pub fn show(app: &str, event: &'static Event, force: bool) -> String {
         // In view, so there is nothing to go to, but it waits all the same.
         state.insert("seen".into(), now.into());
         state::write(&path, &state);
+        state::publish_by(asked, &state, false);
         state::refresh_bar();
         return "visible".into();
     }
 
+    // Without its notification nothing is on record, nor then on the pane.
+    let failed = |asked: Running, why: &str| {
+        state::publish_by(asked, &state, true);
+        format!("failed: {why}")
+    };
     // notify-send --wait lives exactly as long as the notification. It
     // prints the id at once and the chosen action, if any, at the end.
     let mut sender = match command.spawn() {
         Ok(sender) => sender,
-        Err(error) => return format!("failed: {error}"),
+        Err(error) => return failed(asked, &error.to_string()),
     };
     let (Some(mut stdout), Some(mut stderr)) = (sender.stdout.take(), sender.stderr.take()) else {
-        return "failed: notify-send has no output".into();
+        return failed(asked, "notify-send has no output");
     };
     let deadline = Instant::now() + Duration::from_secs(5);
     let (mut printed, mut chunk) = (Vec::new(), [0; 256]);
@@ -196,7 +232,7 @@ pub fn show(app: &str, event: &'static Event, force: bool) -> String {
         let mut reason = String::new();
         let _ = stderr.read_to_string(&mut reason);
         let reason = Some(reason.trim()).filter(|reason| !reason.is_empty());
-        return format!("failed: {}", reason.unwrap_or("notify-send printed no id"));
+        return failed(asked, reason.unwrap_or("notify-send printed no id"));
     }
     let pid = sender.id() as i32;
     let toast = json!({
@@ -207,6 +243,9 @@ pub fn show(app: &str, event: &'static Event, force: bool) -> String {
     });
     state.insert("toast".into(), toast);
     state::write(&path, &state);
+    // Under the lock, so that the waiter's word for the pane comes after;
+    // and that tmux is gone before the waiter could keep it.
+    state::publish_by(asked, &state, false);
     // Not for the waiter to keep.
     drop((lock, daemon));
 
@@ -252,6 +291,7 @@ pub fn show(app: &str, event: &'static Event, force: bool) -> String {
                 state.insert("seen".into(), state::now().into());
             }
             state::write(&path, &state);
+            state::publish(&state, false).finish();
         } else {
             let _ = fs::remove_file(&path);
         }

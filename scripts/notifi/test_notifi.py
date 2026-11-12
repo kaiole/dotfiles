@@ -96,7 +96,12 @@ def tmux(server: Server, *args: str) -> str:
 
 def start_server(name: str, ssh_started: bool = False) -> Server:
     socket = str(ROOT / name)
-    env = base_env()
+    # tmux asks systemd, on the session bus, for a scope to start each
+    # pane's command in, and waits for it: the bus here would never finish
+    # that, so the servers get none and start their commands as they are.
+    env = base_env() | {
+        "DBUS_SESSION_BUS_ADDRESS": f"unix:path={ROOT / 'none'}"
+    }
     if ssh_started:
         env["SSH_CONNECTION"] = "10.0.0.2 1 10.0.0.1 22"
     subprocess.run(
@@ -148,10 +153,14 @@ def until(condition, timeout: float = 3) -> None:
         time.sleep(0.02)
 
 
-def attach(session: str) -> int:
-    """Attaches a real tmux client, standing in for a Ghostty window."""
-    local = servers["local"]
-    command = f"exec tmux -S '{local.socket}' attach-session -t {session}"
+def attach(session: str, server: Server | None = None) -> int:
+    """Attaches a real tmux client, standing in for a Ghostty window.
+
+    To the local server, unless another is given. Its terminal has focus,
+    as far as tmux knows, until `blur` says otherwise.
+    """
+    server = server or servers["local"]
+    command = f"exec tmux -S '{server.socket}' attach-session -t {session}"
     client = subprocess.Popen(
         ["script", "-qfc", command, "/dev/null"],
         env=base_env(),
@@ -160,12 +169,28 @@ def attach(session: str) -> int:
         stderr=subprocess.DEVNULL,
     )
     clients.append(client)
-    until(lambda: session in client_sessions().split("\n"))
+    until(lambda: session in client_sessions(server).split("\n"))
     return client.pid
 
 
-def client_sessions() -> str:
-    return tmux(servers["local"], "list-clients", "-F", "#{session_name}")
+def client_sessions(server: Server | None = None) -> str:
+    server = server or servers["local"]
+    return tmux(server, "list-clients", "-F", "#{session_name}")
+
+
+def blur(server: Server) -> None:
+    """The terminal of the client attached last loses focus, and says so."""
+    clients[-1].stdin.write(b"\x1b[O")
+    clients[-1].stdin.flush()
+    flags = lambda: tmux(server, "list-clients", "-F", "#{client_flags}")
+    until(lambda: "focused" not in flags())
+
+
+def marks(server: Server) -> dict[str, str]:
+    """What each pane of a server says its agent is, for tmux's status line."""
+    panes = tmux(server, "list-panes", "-a", "-F", "#{pane_id}=#{@notifi}")
+    said = (pane.partition("=") for pane in panes.split("\n"))
+    return {pane: mark for pane, _, mark in said if mark}
 
 
 # What the fake Hyprland answers each request with.
@@ -493,9 +518,11 @@ class NotifiTest(unittest.TestCase):
             client.kill()
             client.communicate()
         clients.clear()
-        until(lambda: client_sessions() == "")
         for server in servers.values():
+            until(lambda server=server: client_sessions(server) == "")
             tmux(server, "set-option", "-su", "@notifi-desktop")
+            for pane in marks(server):
+                tmux(server, "set-option", "-pu", "-t", pane, "@notifi")
         tmux(self.local, "select-window", "-t", self.local.window_id)
         (HYPR / "live" / "hyprland.lock").unlink(missing_ok=True)
         shutil.rmtree(LOGS)
@@ -521,20 +548,50 @@ class NotifiTest(unittest.TestCase):
             ],
         )
 
-    def test_ssh_started_server_blocks_every_event_and_force(self):
-        for event in ("finished", "attention", "error", "aborted"):
-            outcome = notifi(
-                self.remote, "show", "--event", event, "--force", "-v"
+    def test_ssh_started_server_keeps_the_agent_without_a_notification(self):
+        pane = self.remote.pane_id
+        for event, body in (
+            ("finished", "Task Finished"),
+            ("attention", "Needs Input"),
+            ("error", "Task Failed"),
+        ):
+            outcome = notifi(self.remote, "show", "--event", event, "-v")
+            self.assertEqual(outcome, "kept")
+            self.assertEqual(
+                notifi(None, "pending"), f"test:0\t{body}\tpending"
             )
-            self.assertEqual(outcome, "blocked")
+            self.assertEqual(marks(self.remote), {pane: "pending"})
+        # One whose notification would expire is seen as it is.
+        outcome = notifi(self.remote, "show", "--event", "aborted", "-v")
+        self.assertEqual(outcome, "kept")
+        self.assertEqual(notifi(None, "pending"), "test:0\tTask Aborted\tseen")
+        self.assertEqual(marks(self.remote), {pane: "seen"})
+
+        # In view is what tmux knows of it: a client with focus on its
+        # window, whatever the event.
+        attach("test", self.remote)
+        outcome = notifi(self.remote, "show", "--event", "error", "-v")
+        self.assertEqual(outcome, "visible")
+        self.assertEqual(marks(self.remote), {pane: "seen"})
+        outcome = notifi(self.remote, "show", "--force", "-v")
+        self.assertEqual(outcome, "kept")
+        self.assertEqual(marks(self.remote), {pane: "pending"})
+        blur(self.remote)
+        self.assertEqual(notifi(self.remote, "show", "-v"), "kept")
+        self.assertEqual(bar(), (1, 0))
+
         self.assertEqual(deliveries(), [])
         self.assertEqual(notifi(self.remote, "status"), "blocked")
         self.assertEqual(notifi(self.local, "status"), "allowed")
+        notifi(self.remote, "dismiss")
+        self.assertEqual(records(), [])
+        self.assertEqual(marks(self.remote), {})
 
     def test_notifi_desktop_option_is_read_per_notification(self):
         for mode in ("off", "invalid"):
             tmux(self.local, "set-option", "-s", "@notifi-desktop", mode)
-            notifi(self.local, "show", "--event", "error")
+            outcome = notifi(self.local, "show", "--event", "error", "-v")
+            self.assertEqual(outcome, "kept")
         self.assertEqual(deliveries(), [])
         tmux(self.remote, "set-option", "-s", "@notifi-desktop", "on")
         notifi(self.remote, "show", "--event", "error")
@@ -864,13 +921,20 @@ class NotifiTest(unittest.TestCase):
         self.assertEqual(records(), [])
         self.assertIsNone(working())
 
-    def test_start_records_nothing_where_show_would_not_notify(self):
-        notifi(self.remote, "start")
+    def test_start_records_wherever_there_is_a_pane(self):
         notifi(None, "start", "--app", "claude")
-        tmux(self.local, "set-option", "-s", "@notifi-desktop", "off")
-        notifi(self.local, "start")
         self.assertEqual(records(), [])
         self.assertEqual(bar_refreshes(), 0)
+        # With no desktop to notify, too.
+        notifi(self.remote, "start")
+        tmux(self.local, "set-option", "-s", "@notifi-desktop", "off")
+        notifi(self.local, "start")
+        self.assertEqual(working()[0], "2")
+        self.assertEqual(marks(self.remote), {self.remote.pane_id: "running"})
+        self.assertEqual(marks(self.local), {self.local.pane_id: "running"})
+        notifi(self.remote, "dismiss")
+        notifi(self.local, "dismiss")
+        self.assertEqual(records(), [])
 
         # Outside tmux it still ends the notification.
         notifi(None, "show", "--app", "claude", "--event", "error")
@@ -975,6 +1039,216 @@ class NotifiTest(unittest.TestCase):
         self.assertEqual(bus_calls("CloseNotification"), [])
         self.assertEqual(bar(), (0, 1))
 
+    def test_each_pane_says_what_its_agent_is(self):
+        pane = self.local.pane_id
+        notifi(self.local, "start")
+        self.assertEqual(marks(self.local), {pane: "running"})
+        notifi(self.local, "show")
+        self.assertEqual(marks(self.local), {pane: "pending"})  # notified
+        close_notifications()
+        self.assertEqual(marks(self.local), {pane: "pending"})
+        hyprland(attach("other"))
+        notifi(None, "next")
+        self.assertEqual(marks(self.local), {pane: "seen"})
+        notifi(self.local, "show", "--event", "aborted")
+        self.assertEqual(marks(self.local), {pane: "pending"})
+        close_notifications()  # or it expired
+        self.assertEqual(marks(self.local), {pane: "seen"})
+        notifi(self.local, "dismiss")
+        self.assertEqual(marks(self.local), {})
+
+        # Interrupted at work, it is seen once something reads the records.
+        notifi(self.local, "start", "--hook", stdin=hook("UserPromptSubmit"))
+        transcribe(said("user", INTERRUPTED))
+        self.assertEqual(marks(self.local), {pane: "running"})
+        self.assertEqual(bar(), (0, 1))
+        self.assertEqual(marks(self.local), {pane: "seen"})
+        # Super+X does not wait for tmux to be told.
+        self.assertEqual(notifi(None, "dismiss", "--focused"), "test:0")
+        until(lambda: marks(self.local) == {})
+
+        # A notification that failed leaves nothing, on the pane either.
+        failing = ROOT / "failing"
+        failing.mkdir(exist_ok=True)
+        (failing / "notify-send").write_text("#!/bin/sh\nexit 1\n")
+        (failing / "notify-send").chmod(0o755)
+        env = base_env()
+        env |= {"TMUX": f"{self.local.socket},{self.local.pid},0"}
+        env |= {"TMUX_PANE": pane, "PATH": f"{failing}:{env['PATH']}"}
+        done = subprocess.run(
+            [str(NOTIFI), "show", "--force"],
+            env=env,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(done.returncode, 1)
+        self.assertIn(b"failed", done.stderr)
+        self.assertEqual(marks(self.local), {})
+
+    def test_next_in_tmux_goes_round_its_server_with_no_desktop(self):
+        tmux(self.remote, "new-session", "-d", "-s", "other", "/bin/sh")
+        self.addCleanup(tmux, self.remote, "kill-session", "-t", "other")
+        pane, other = self.remote.pane_id, pane_of(self.remote, "other:")
+        notifi(self.remote, "show", "--event", "error", TMUX_PANE=other)
+        notifi(self.remote, "show")
+        tmux(self.remote, "split-window", "-d", "-t", "other:0", "/bin/sh")
+        notifi(
+            self.remote, "start", TMUX_PANE=pane_of(self.remote, "other:0.1")
+        )
+        # Another server's agent is not for this one's key.
+        notifi(self.local, "show", "--event", "error")
+        close_notifications()
+        bar_refreshes()
+
+        attach("test", self.remote)
+        # As a key bind runs it: with the session of the client, and
+        # nothing printed, which tmux would show over the pane.
+        self.assertEqual(notifi(self.remote, "next", "--tmux"), "")
+        self.assertEqual(client_sessions(self.remote), "other")
+        active = "#{pane_id}"
+        self.assertEqual(
+            tmux(self.remote, "display-message", "-p", "-t", "other:", active),
+            other,
+        )
+        self.assertEqual(marks(self.remote)[other], "seen")
+        self.assertEqual(marks(self.remote)[pane], "pending")
+        self.assertEqual(bar_refreshes(), 1)
+        notifi(self.remote, "next", "--tmux")
+        self.assertEqual(client_sessions(self.remote), "test")
+        # Round the seen ones, and never to the one at work.
+        for session in ("other", "test", "other"):
+            notifi(self.remote, "next", "--tmux")
+            self.assertEqual(client_sessions(self.remote), session)
+        self.assertEqual(bar(), (1, 2))
+        self.assertEqual(notifi(None, "running"), "other:0\t<1m")
+        self.assertEqual(read("dispatch.log"), "")
+        self.assertEqual(read("ghostty.log"), "")
+
+        # With none it says so, in tmux.
+        notifi(self.remote, "dismiss")
+        notifi(self.remote, "dismiss", TMUX_PANE=other)
+        self.assertEqual(notifi(self.remote, "next", "--tmux"), "")
+        self.assertEqual(client_sessions(self.remote), "other")
+        self.assertIn("No agent waiting", tmux(self.remote, "show-messages"))
+        self.assertEqual(bar(), (1, 0))
+
+    def test_next_in_tmux_takes_an_agent_from_its_notification(self):
+        notifi(self.local, "show")
+        (sender,) = showing()
+        attach("other")
+        notifi(self.local, "next", "--tmux", TMUX=self.key("other"))
+        self.assertEqual(client_sessions(), "test")
+        until(lambda: not alive(sender))
+        self.assertEqual(showing(), [])
+        self.assertEqual(bar(), (0, 1))
+        self.assertEqual(read("dispatch.log"), "")
+
+    def key(self, session: str) -> str:
+        """$TMUX as a key bind of the local server has it, on a session."""
+        number = tmux(
+            self.local,
+            "display-message",
+            "-p",
+            "-t",
+            f"{session}:",
+            "#{session_id}",
+        )
+        return f"{self.local.socket},{self.local.pid},{number.lstrip('$')}"
+
+    def pick(self, session: str = "test") -> tuple[str, callable]:
+        """Opens the list in a window of the remote server, as its popup
+        would; returns its pane and what reads its screen."""
+        fields = ["-P", "-F", "#{pane_id}"]
+        command = f"exec '{NOTIFI}' pick"
+        pane = tmux(
+            self.remote,
+            "new-window",
+            "-d",
+            *fields,
+            "-t",
+            f"{session}:",
+            command,
+        )
+        return pane, lambda: tmux(self.remote, "capture-pane", "-p", "-t", pane)
+
+    def closed(self, pane: str) -> bool:
+        panes = tmux(self.remote, "list-panes", "-a", "-F", "#{pane_id}")
+        return pane not in panes.split("\n")
+
+    def test_pick_lists_the_agents_of_its_server_to_go_to_or_forget(self):
+        tmux(self.remote, "new-session", "-d", "-s", "other", "/bin/sh")
+        self.addCleanup(tmux, self.remote, "kill-session", "-t", "other")
+        other = pane_of(self.remote, "other:")
+        tmux(self.remote, "new-window", "-d", "-t", "other:", "/bin/sh")
+        third = pane_of(self.remote, "other:1")
+
+        # With none there is nothing to go to.
+        picker, screen = self.pick()
+        until(lambda: "running" in screen())
+        self.assertEqual(screen().split(), ["pending", "seen", "running"])
+        tmux(self.remote, "send-keys", "-t", picker, "Enter", "1", "x")
+        time.sleep(2.2)  # read again twice, with nothing pressed
+        self.assertFalse(self.closed(picker))
+        # It holds no lock, and reads the records again.
+        notifi(self.remote, "show", "--event", "error", TMUX_PANE=other)
+        until(lambda: "other:0" in screen())
+        tmux(self.remote, "send-keys", "-t", picker, "Escape")
+        until(lambda: self.closed(picker))
+
+        notifi(self.remote, "show", "--event", "aborted")
+        notifi(self.remote, "start", TMUX_PANE=third)
+        notifi(self.local, "show", "--event", "attention")  # not this server's
+        attach("test", self.remote)
+        picker, screen = self.pick()
+        # The pending one first, then the seen ones, then those at work.
+        until(lambda: "other:1" in screen())
+        listed = [" ".join(line.split()) for line in screen().split("\n")]
+        self.assertEqual(
+            [line for line in listed if line],
+            ["pending", "1 other:0 Task Failed <1m"]
+            + ["seen", "2 test:0 Task Aborted <1m"]
+            + ["running", "3 other:1 <1m"],
+        )
+
+        # x forgets the selected one, the second here, and stays.
+        tmux(self.remote, "send-keys", "-t", picker, "k", "j", "j", "Up", "x")
+        until(lambda: "test:0" not in screen())
+        self.assertEqual(
+            marks(self.remote), {other: "pending", third: "running"}
+        )
+        self.assertEqual(len(records()), 3)
+        # A number goes to that one; one at work stays at work.
+        tmux(self.remote, "send-keys", "-t", picker, "2")
+        until(lambda: self.closed(picker))
+        self.assertEqual(client_sessions(self.remote), "other")
+        window = tmux(
+            self.remote, "display-message", "-p", "-t", "other:", "#I"
+        )
+        self.assertEqual(window, "1")
+        self.assertEqual(
+            marks(self.remote), {other: "pending", third: "running"}
+        )
+
+        # Enter goes to the selected one, which is seen from then on.
+        picker, screen = self.pick("other")
+        until(lambda: "other:0" in screen())
+        tmux(self.remote, "send-keys", "-t", picker, "Enter")
+        until(lambda: self.closed(picker))
+        window = tmux(
+            self.remote, "display-message", "-p", "-t", "other:", "#I"
+        )
+        self.assertEqual(window, "0")
+        self.assertEqual(marks(self.remote), {other: "seen", third: "running"})
+        self.assertEqual(notifi(None, "seen"), "other:0\tTask Failed")
+
+        # q closes it and changes nothing.
+        picker, screen = self.pick()
+        until(lambda: "other:0" in screen())
+        tmux(self.remote, "send-keys", "-t", picker, "q")
+        until(lambda: self.closed(picker))
+        self.assertEqual(marks(self.remote), {other: "seen", third: "running"})
+        self.assertEqual(read("dispatch.log"), "")
+
     def test_usage_errors_never_exit_with_status_2(self):
         # Claude Code treats exit status 2 from a hook as "block".
         for args in (
@@ -985,6 +1259,7 @@ class NotifiTest(unittest.TestCase):
             ["show", "--bogus"],
             ["show", "extra"],
             ["next", "--waybar"],
+            ["pick", "--tmux"],
             ["start", "--event", "error"],
             ["running", "--hook"],
             ["seen", "--app", "pi"],

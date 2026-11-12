@@ -1,4 +1,5 @@
 # Linked statically: with no dynamic loader to run, notifi starts in 0.35 ms
-# instead of 0.57. cargo reads this only when run from this directory.
-[build]
+# instead of 0.57. cargo reads this only when run from this directory. Linux
+# only: macOS has no static libc to link.
+[target.'cfg(target_os = "linux")']
 rustflags = ["-C", "target-feature=+crt-static"]
