@@ -95,6 +95,13 @@ tooltip {
     padding: 5px 5px;
 }
 
+/* The agent modules sit close together. */
+#custom-running,
+#custom-pending,
+#custom-seen {
+    padding: 5px 2px;
+}
+
 /* An agent module with none: the icon alone, faint. */
 #custom-running.none,
 #custom-pending.none,
