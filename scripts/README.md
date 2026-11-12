@@ -5,7 +5,7 @@ Standalone commands, one directory per tool.
 | Directory | Commands |
 | --- | --- |
 | `clang/` | `cfmt`, `tidy` |
-| `notifi/` | `notifi`: desktop notifications for coding agents (pi, Claude Code) with a Focus action back to their tmux pane, and a waybar count of the agents whose notification was closed unanswered; see [`notifi/README.md`](notifi/README.md) (Rust; Linux/Hyprland only) |
+| `notifi/` | `notifi`: desktop notifications for coding agents (pi, Claude Code) with a Focus action back to their tmux pane, and waybar counts of the agents running, pending (notification closed unanswered) and seen; see [`notifi/README.md`](notifi/README.md) (Rust; Linux/Hyprland only) |
 | `scratch/` | `scratch` (completion: `zsh/completions/_scratch`) |
 | `theme/` | `theme` (see `../theme/AGENTS.md`) |
 | `tmux-orphans/` | `tmux-orphans`: lists processes that outlived their tmux pane (each pane is a systemd scope); `-k` stops them; skips `wl-copy`, which must outlive the copy (Linux/systemd only) |

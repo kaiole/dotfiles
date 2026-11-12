@@ -234,7 +234,9 @@ def bus_message(kind: int, fields: dict, signature="", body=b"") -> bytes:
         else:
             kind_of = "o" if code == 1 else "s"
             array += bytes([code, 1, ord(kind_of), 0]) + bus_text(value)
-    message = struct.pack("<cBBBIII", b"l", kind, 0, 1, len(body), 1, len(array))
+    message = struct.pack(
+        "<cBBBIII", b"l", kind, 0, 1, len(body), 1, len(array)
+    )
     message += array
     return message + b"\0" * (-len(message) % 8) + body
 
@@ -364,23 +366,26 @@ def close_notifications() -> None:
     until(lambda: not showing())
 
 
-def bar() -> tuple[str, str] | None:
-    """What waybar shows: the count and its class, or None while hidden."""
-    out = notifi(None, "pending", "--waybar")
-    if not out:
-        return None
-    module = json.loads(out)
-    return module["text"], module["class"]
+def module(state: str) -> tuple[int, str]:
+    """One of waybar's agent modules: its count and its tooltip."""
+    shown = json.loads(notifi(None, state, "--waybar"))
+    if shown["text"] == "":
+        none = {"text": "", "alt": "none", "class": "none"}
+        assert shown == none | {"tooltip": f"No agent {state}"}, shown
+        return 0, ""
+    assert shown["alt"] == "some" and shown["class"] == state, shown
+    return int(shown["text"]), shown["tooltip"]
+
+
+def bar() -> tuple[int, int]:
+    """How many agents waybar shows as pending and as seen."""
+    return module("pending")[0], module("seen")[0]
 
 
 def working() -> tuple[str, str] | None:
     """What waybar shows of the agents at work: the count and the tooltip."""
-    out = notifi(None, "running", "--waybar")
-    if not out:
-        return None
-    module = json.loads(out)
-    assert module["class"] == "running"
-    return module["text"], module["tooltip"]
+    count, tooltip = module("running")
+    return (str(count), tooltip) if count else None
 
 
 TRANSCRIPT = ROOT / "transcript.jsonl"
@@ -568,7 +573,7 @@ class NotifiTest(unittest.TestCase):
             outcome = notifi(self.local, "show", "--event", event, "-v")
             self.assertEqual(outcome, "visible")
             # It stopped in view: nothing to go to, but it still waits.
-            self.assertEqual(bar(), ("1", "seen"))
+            self.assertEqual(bar(), (0, 1))
             self.assertGreaterEqual(bar_refreshes(), 1)
         self.assertEqual(deliveries(), [])
         self.assertEqual(notifi(None, "pending"), "test:0\tNeeds Input\tseen")
@@ -666,12 +671,12 @@ class NotifiTest(unittest.TestCase):
         self.assertEqual(
             notifi(None, "pending"), "test:0\tNeeds Input\tpending"
         )
-        self.assertEqual(bar(), ("1", "pending"))
+        self.assertEqual(bar(), (1, 0))
         self.assertEqual(bar_refreshes(), 1)
 
         notifi(self.local, "dismiss")
         self.assertEqual(records(), [])
-        self.assertIsNone(bar())
+        self.assertEqual(bar(), (0, 0))
         self.assertEqual(bus_calls("CloseNotification"), [])
         self.assertEqual(bar_refreshes(), 1)
 
@@ -728,7 +733,7 @@ class NotifiTest(unittest.TestCase):
         )
         self.assertEqual(done.returncode, 1)
         self.assertIn("Hyprland", done.stderr)
-        self.assertEqual(bar(), ("2", "pending"))
+        self.assertEqual(bar(), (2, 0))
 
         hyprland(attach("test"))
         self.assertEqual(notifi(None, "next"), "other:0")
@@ -740,10 +745,13 @@ class NotifiTest(unittest.TestCase):
             notifi(None, "pending"),
             "test:0\tTask Finished\tpending\nother:0\tTask Failed\tseen",
         )
-        self.assertEqual(bar(), ("1", "pending"))
+        self.assertEqual(bar(), (1, 1))
+        self.assertEqual(module("pending"), (1, "test:0\tTask Finished"))
+        self.assertEqual(module("seen"), (1, "other:0\tTask Failed"))
+        self.assertEqual(notifi(None, "seen"), "other:0\tTask Failed")
         self.assertEqual(notifi(None, "next"), "test:0")
         self.assertEqual(client_sessions(), "test")
-        self.assertEqual(bar(), ("2", "seen"))
+        self.assertEqual(bar(), (0, 2))
 
         # Both were gone to: it keeps going round them.
         for title in ("other:0", "test:0", "other:0"):
@@ -758,9 +766,11 @@ class NotifiTest(unittest.TestCase):
         hyprland(attach("other"))
         daemon["displayed"] = 1  # someone's notification, maybe not ours
         self.assertEqual(notifi(None, "go"), "")
-        self.assertEqual(bus_calls("NotificationAction"), ["NotificationAction 0"])
+        self.assertEqual(
+            bus_calls("NotificationAction"), ["NotificationAction 0"]
+        )
         self.assertEqual(read("dispatch.log"), "")
-        self.assertEqual(bar(), ("1", "pending"))
+        self.assertEqual(bar(), (1, 0))
 
         daemon["displayed"] = 0
         self.assertEqual(notifi(None, "go"), "test:0")
@@ -770,12 +780,12 @@ class NotifiTest(unittest.TestCase):
         nowhere = f"unix:path={ROOT / 'none'}"
         out = notifi(None, "go", DBUS_SESSION_BUS_ADDRESS=nowhere)
         self.assertEqual(out, "test:0")
-        self.assertEqual(bar(), ("1", "seen"))
+        self.assertEqual(bar(), (0, 1))
 
     def test_the_focus_action_leaves_the_agent_seen(self):
         hyprland(attach("other"))
         notifi(self.local, "show", NOTIFI_TEST_ACTION="focus")
-        until(lambda: bar() == ("1", "seen"))
+        until(lambda: bar() == (0, 1))
         self.assertEqual(client_sessions(), "test")
 
         # So does one whose notification expires.
@@ -793,7 +803,7 @@ class NotifiTest(unittest.TestCase):
         for pane in (self.local.pane_id, beside, other):
             notifi(self.local, "show", "--event", "error", TMUX_PANE=pane)
         close_notifications()
-        self.assertEqual(bar(), ("3", "pending"))
+        self.assertEqual(bar(), (3, 0))
         hyprland(None)  # no window at all
         self.assertEqual(notifi(None, "dismiss", "--focused"), "")
 
@@ -826,7 +836,7 @@ class NotifiTest(unittest.TestCase):
         self.assertEqual(bar_refreshes(), 1)
         # Nothing to go to, and it is not waiting.
         self.assertEqual(notifi(None, "pending"), "")
-        self.assertIsNone(bar())
+        self.assertEqual(bar(), (0, 0))
         hyprland(attach("other"))
         self.assertEqual(notifi(None, "next"), "")
         self.assertEqual(client_sessions(), "other")
@@ -843,9 +853,9 @@ class NotifiTest(unittest.TestCase):
         notifi(self.local, "show")
         self.assertEqual(notifi(None, "running"), "other:0\t<1m")
         close_notifications()
-        self.assertEqual(bar(), ("1", "pending"))
+        self.assertEqual(bar(), (1, 0))
         notifi(self.local, "start")
-        self.assertIsNone(bar())
+        self.assertEqual(bar(), (0, 0))
         notifi(self.local, "dismiss")  # it exited
         self.assertEqual(notifi(None, "running"), "other:0\t<1m")
 
@@ -923,7 +933,7 @@ class NotifiTest(unittest.TestCase):
         notifi(self.local, "start", "--hook", stdin=hook("UserPromptSubmit"))
         transcribe(said("user", "x" * 100_000), *TOOL_INTERRUPTED)
         self.assertEqual(notifi(None, "running"), "")
-        self.assertEqual(bar(), ("1", "seen"))
+        self.assertEqual(bar(), (0, 1))
 
         # Without a transcript it runs until it says otherwise.
         notifi(self.local, "start")
@@ -936,7 +946,7 @@ class NotifiTest(unittest.TestCase):
         notifi(self.local, "show", TMUX_PANE=doomed)
         notifi(self.local, "show", "--event", "attention")
         close_notifications()
-        self.assertEqual(bar(), ("2", "pending"))
+        self.assertEqual(bar(), (2, 0))
         tmux(self.local, "kill-window", "-t", "test:1")  # no dismiss
         self.assertEqual(
             notifi(None, "pending"), "test:0\tNeeds Input\tpending"
@@ -955,15 +965,15 @@ class NotifiTest(unittest.TestCase):
         daemon["owner"] = ":1.5"
         notifi(self.local, "show")
         (pid,) = showing()
-        self.assertIsNone(bar())
+        self.assertEqual(bar(), (0, 0))
         daemon["owner"] = ":1.6"  # dunst restarted
-        self.assertEqual(bar(), ("1", "pending"))
+        self.assertEqual(bar(), (1, 0))
 
         hyprland(attach("other"))
         self.assertEqual(notifi(None, "next"), "test:0")
         until(lambda: not alive(pid))  # the notify-send left behind
         self.assertEqual(bus_calls("CloseNotification"), [])
-        self.assertEqual(bar(), ("1", "seen"))
+        self.assertEqual(bar(), (0, 1))
 
     def test_usage_errors_never_exit_with_status_2(self):
         # Claude Code treats exit status 2 from a hook as "block".
@@ -977,6 +987,7 @@ class NotifiTest(unittest.TestCase):
             ["next", "--waybar"],
             ["start", "--event", "error"],
             ["running", "--hook"],
+            ["seen", "--app", "pi"],
         ):
             done = subprocess.run(
                 [str(NOTIFI), *args], env=base_env(), capture_output=True

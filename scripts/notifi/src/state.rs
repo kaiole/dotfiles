@@ -15,8 +15,8 @@ use crate::{die, run, tmux};
 
 pub type State = Map<String, Value>;
 
-/// custom/agents and custom/running in waybar/config.jsonc count the
-/// agents again on SIGRTMIN+8.
+/// custom/running, custom/pending and custom/seen in waybar/config.jsonc
+/// count the agents again on SIGRTMIN+8.
 const WAYBAR_SIGNAL: i32 = 8;
 
 pub fn directory() -> PathBuf {

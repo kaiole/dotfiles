@@ -15,8 +15,9 @@
         "hyprland/submap#right"
     ],
     "modules-right": [
-        "custom/agents",
         "custom/running",
+        "custom/pending",
+        "custom/seen",
         "tray",
         "battery",
         "pulseaudio",
@@ -66,32 +67,42 @@
       "interval": 1,
       "on-click": "$HOME/.cargo/bin/tb pause || $HOME/.cargo/bin/tb resume"
     },
-    // Agents that stopped and wait for an answer: how many are pending
-    // (notification closed with Super+N) or, when none is, how many are
-    // seen (gone to with Super+Y, or stopped on screen; class "seen",
-    // dimmed). Super+X forgets the focused one. Hidden at zero. notifi
-    // sends signal 8 when the count changes (WAYBAR_SIGNAL in
-    // scripts/notifi/src/state.rs); the interval only catches panes that
-    // died without telling it.
-    "custom/agents": {
-      "tooltip": false,
-      "exec": "$HOME/.local/bin/notifi pending --waybar",
-      "return-type": "json",
-      "format": "󰂚 {}",
-      "signal": 8,
-      "interval": 30,
-      "on-click": "$HOME/.local/bin/notifi next"
-    },
-    // Agents at work on what you sent them: how many, with each one and how
-    // long it has been in the tooltip. Hidden at zero. Signal 8 as above;
-    // here the interval is also what finds a Claude Code that was
+    // The agents, in the order they go through: at work on what you sent
+    // them (running), stopped with their notification closed by Super+N
+    // (pending), and stopped and gone to with Super+Y, or stopped on screen
+    // (seen). Each module lists its agents in the tooltip; click goes to the
+    // next waiting one, pending first. Super+X forgets the focused one.
+    // Always shown: at zero, the icon alone (alt "none"; "some" adds the
+    // space before the count), dimmed further. Only a pending count is not
+    // dimmed. notifi sends signal 8 when a count changes (WAYBAR_SIGNAL in
+    // scripts/notifi/src/state.rs); the interval catches panes that died
+    // without telling it, and is what finds a Claude Code that was
     // interrupted, which tells nobody.
     "custom/running": {
       "exec": "$HOME/.local/bin/notifi running --waybar",
       "return-type": "json",
-      "format": "󰒊 {}",
+      "format": "{icon}{text}",
+      "format-icons": { "none": "󰋻", "some": "󰋻 " },
       "signal": 8,
       "interval": 30
+    },
+    "custom/pending": {
+      "exec": "$HOME/.local/bin/notifi pending --waybar",
+      "return-type": "json",
+      "format": "{icon}{text}",
+      "format-icons": { "none": "󰏑", "some": "󰏑 " },
+      "signal": 8,
+      "interval": 30,
+      "on-click": "$HOME/.local/bin/notifi next"
+    },
+    "custom/seen": {
+      "exec": "$HOME/.local/bin/notifi seen --waybar",
+      "return-type": "json",
+      "format": "{icon}{text}",
+      "format-icons": { "none": "󱉲", "some": "󱉲 " },
+      "signal": 8,
+      "interval": 30,
+      "on-click": "$HOME/.local/bin/notifi next"
     },
     "hyprland/submap#left": {
         "format": "⸸",

@@ -4,11 +4,12 @@
 //! detached waiter stays until the notification closes and runs its Focus
 //! action. An agent whose notification is closed without that stays pending,
 //! and one that was gone to, or that stopped in view, stays seen: `pending`
-//! lists both and `next` focuses the pending ones, then goes round the seen
-//! ones. Only a dismiss forgets an agent that stopped. `go` is `next`
-//! unless a notification is on screen, whose action it runs. `dismiss`
-//! forgets the agent from any later process. `start` says that the agent
-//! is at work again, and `running` lists those. See README.md.
+//! lists both, `seen` the seen ones, and `next` focuses the pending ones,
+//! then goes round the seen ones. Only a dismiss forgets an agent that
+//! stopped. `go` is `next` unless a notification is on screen, whose action
+//! it runs. `dismiss` forgets the agent from any later process. `start`
+//! says that the agent is at work again, and `running` lists those. See
+//! README.md.
 //!
 //! Key binds run this, so what it starts and what it waits for is kept
 //! short: read "Speed" in README.md before adding to either.
@@ -35,13 +36,14 @@ const USAGE: &str = "    notifi show [--event EVENT] [--app NAME] [--force] [-v]
     notifi start [--app NAME] [--hook]
     notifi dismiss [--app NAME | --focused]
     notifi pending [--waybar]
+    notifi seen [--waybar]
     notifi running [--waybar]
     notifi next
     notifi go
     notifi status";
 
 /// Each command's options; those that take an argument end in "=".
-const OPTIONS: [(&str, &[&str]); 8] = [
+const OPTIONS: [(&str, &[&str]); 9] = [
     (
         "show",
         &["-v", "--verbose", "--force", "--event=", "--app="],
@@ -49,6 +51,7 @@ const OPTIONS: [(&str, &[&str]); 8] = [
     ("start", &["--app=", "--hook"]),
     ("dismiss", &["--app=", "--focused"]),
     ("pending", &["--waybar"]),
+    ("seen", &["--waybar"]),
     ("running", &["--waybar"]),
     ("next", &[]),
     ("go", &[]),
@@ -143,6 +146,7 @@ fn main() {
         "dismiss" => agents::dismiss(&options.app),
         "start" => show::start(&options.app, options.has("--hook")),
         "pending" => pending(options.has("--waybar")),
+        "seen" => seen(options.has("--waybar")),
         "running" => running(options.has("--waybar")),
         "next" => {
             agents::next(agents::ask(true), &mut Daemon::default())
@@ -162,17 +166,43 @@ fn main() {
     }
 }
 
+/// What waybar shows of the agents in one state: their count, and these
+/// lines, one per agent, as its tooltip. With none it still shows the
+/// module, with no count and class "none"; `alt` tells waybar which icon,
+/// with or without the space before a count, to use.
+fn module(state: &str, lines: &[String]) -> serde_json::Value {
+    if lines.is_empty() {
+        return json!({
+            "text": "",
+            "alt": "none",
+            "tooltip": format!("No agent {state}"),
+            "class": "none",
+        });
+    }
+    // waybar reads a tooltip as Pango markup.
+    let tooltip = lines.join("\n").replace('&', "&amp;");
+    json!({
+        "text": lines.len().to_string(),
+        "alt": "some",
+        "tooltip": tooltip.replace('<', "&lt;").replace('>', "&gt;"),
+        "class": state,
+    })
+}
+
+/// The agents as they are now; None without a record, which `ask` tells
+/// without asking tmux (0.35 ms).
+fn found() -> Option<agents::Found> {
+    Some(agents::ask(false)?.finish(&mut Daemon::default()))
+}
+
 /// Lists the agents at work with how long each has been or, for waybar,
 /// counts them, with that list as the tooltip.
 fn running(waybar: bool) {
-    let Some(asked) = agents::ask(false) else {
-        return;
-    };
-    let found = asked.finish(&mut Daemon::default());
+    let found = found();
     let now = state::now();
     let lines: Vec<String> = found
-        .running()
         .iter()
+        .flat_map(|found| found.running())
         .map(|agent| {
             let minutes = ((now - agent.since) / 60.0) as u64;
             let long = match minutes {
@@ -183,48 +213,59 @@ fn running(waybar: bool) {
             format!("{}\t{long}", agent.pane.title)
         })
         .collect();
-    if !waybar {
+    if waybar {
+        print(module("running", &lines));
+    } else {
         lines.iter().for_each(print);
-    } else if !lines.is_empty() {
-        // waybar reads a tooltip as Pango markup.
-        let tooltip = lines.join("\n").replace('&', "&amp;");
-        let module = json!({
-            "text": lines.len().to_string(),
-            "tooltip": tooltip.replace('<', "&lt;").replace('>', "&gt;"),
-            "class": "running",
-        });
-        print(module);
     }
 }
 
-/// Lists the agents left without a notification or, for waybar, counts
-/// them.
+/// Lists the waiting agents, pending and seen, in the order `next` takes
+/// them or, for waybar, counts the pending ones.
 fn pending(waybar: bool) {
-    let Some(asked) = agents::ask(false) else {
-        return;
-    };
-    let found = asked.finish(&mut Daemon::default());
-    let waiting = found.waiting();
-    let unseen = waiting.iter().filter(|agent| agent.seen.is_none()).count();
-    if !waybar {
-        for agent in waiting {
-            let state = if agent.seen.is_none() {
-                "pending"
-            } else {
-                "seen"
-            };
-            print(format!(
-                "{}\t{}\t{state}",
-                agent.pane.title, agent.event.body
-            ));
-        }
-    } else if unseen > 0 {
-        print(format!(r#"{{"text": "{unseen}", "class": "pending"}}"#));
-    } else if !waiting.is_empty() {
-        // Only once all were gone to, the seen ones.
-        print(format!(
-            r#"{{"text": "{}", "class": "seen"}}"#,
-            waiting.len()
+    let found = found();
+    let waiting = found
+        .as_ref()
+        .map(agents::Found::waiting)
+        .unwrap_or_default();
+    if waybar {
+        let lines = waiting.iter().filter(|agent| agent.seen.is_none());
+        print(module(
+            "pending",
+            &lines.map(|agent| line(agent)).collect::<Vec<_>>(),
         ));
+        return;
     }
+    for agent in waiting {
+        let state = if agent.seen.is_none() {
+            "pending"
+        } else {
+            "seen"
+        };
+        print(format!("{}\t{state}", line(agent)));
+    }
+}
+
+/// Lists the seen agents, the one seen longest ago first, or, for waybar,
+/// counts them.
+fn seen(waybar: bool) {
+    let found = found();
+    let waiting = found
+        .as_ref()
+        .map(agents::Found::waiting)
+        .unwrap_or_default();
+    let lines: Vec<String> = waiting
+        .iter()
+        .filter(|agent| agent.seen.is_some())
+        .map(|agent| line(agent))
+        .collect();
+    if waybar {
+        print(module("seen", &lines));
+    } else {
+        lines.iter().for_each(print);
+    }
+}
+
+fn line(agent: &agents::Agent) -> String {
+    format!("{}\t{}", agent.pane.title, agent.event.body)
 }

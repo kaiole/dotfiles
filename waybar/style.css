@@ -87,21 +87,25 @@ tooltip {
 #backlight,
 #custom-spotify,
 #custom-cava_mviz,
-#custom-agents,
 #custom-running,
+#custom-pending,
+#custom-seen,
 #custom-tibi
 {
     padding: 5px 5px;
 }
 
-/* No agent is pending; the count is of those already seen. */
-#custom-agents.seen {
+/* Only pending agents ask for you: the agents at work and those already
+   seen are dimmed, and a module with none, the icon alone, more so. */
+#custom-running,
+#custom-seen {
     color: @fg_dim;
 }
 
-/* Agents at work: nothing to do about them yet. */
-#custom-running {
-    color: @fg_dim;
+#custom-running.none,
+#custom-pending.none,
+#custom-seen.none {
+    color: @fg_faint;
 }
 
 /* tb session paused; the timer is frozen. */

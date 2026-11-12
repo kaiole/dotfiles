@@ -17,8 +17,9 @@ it exits. pi and Claude Code both use it.
 An agent you went to stays **seen** until you answer it, it exits, or you
 press Super+X, so looking at it doesn't lose it. So does one that stops while
 you can see it: nothing else decides that an agent is done with. An agent
-you answered is **running** until it stops again, and waybar counts those
-next to the waiting ones, so what you sent out stays in view as well. The
+you answered is **running** until it stops again. waybar counts each of the
+three, running, pending and seen, in a module of its own that is always
+there, so what you sent out stays in view as well as what waits for you. The
 binds are in `hypr/config/keybindings.lua`; Super+N and Super+Y work for any
 notification.
 
@@ -29,6 +30,7 @@ notifi show [--event EVENT] [--app NAME] [--force] [-v]
 notifi start [--app NAME] [--hook]
 notifi dismiss [--app NAME | --focused]
 notifi pending [--waybar]
+notifi seen [--waybar]
 notifi running [--waybar]
 notifi next
 notifi go
@@ -64,18 +66,21 @@ no Focus action.
 
 `pending` prints one line per waiting agent,
 `<title><TAB><event text><TAB>pending|seen`, in the order `next` takes them.
-`--waybar` prints the count as a waybar JSON module instead: the pending
-agents with class `pending` or, when none is pending, the seen ones with
-class `seen`; nothing for none, which hides the module. `next` brings the
+`seen` prints only the seen ones, without the last field. With `--waybar`,
+`pending`, `seen` and `running` each print a waybar JSON module instead: the
+count of the pending, the seen or the running agents as `text`, their lines
+as `tooltip`, the command's name as `class` and `alt` `some`. With none, the
+module is still printed, with empty `text`, `alt` and `class` `none`, and
+`No agent <name>` as `tooltip`; `alt` picks the icon, with or without the
+space before a count, from `format-icons`. `next` brings the
 first waiting agent to the front as Focus would, marks it seen and prints its
 title; with none waiting it prints nothing. `go` is what Super+Y runs: with a
 notification on screen it runs the action of the top one, as
 `dunstctl action` does, whether or not it is an agent's; with none it is
 `next`. `running` prints one line per agent at work,
-`<title><TAB><how long>` (`<1m`, `12m`, `1h05m`), longest first; `--waybar`
-prints their count as a waybar JSON module with class `running` and those
-lines as its tooltip, and nothing for none. `pending`, `running`, `next`,
-`go` and `dismiss --focused` run from anywhere, not only from a pane.
+`<title><TAB><how long>` (`<1m`, `12m`, `1h05m`), longest first.
+`pending`, `seen`, `running`, `next`, `go` and `dismiss --focused` run from
+anywhere, not only from a pane.
 
 Exit status is 0 or 1, never 2, which Claude Code reads from a hook as "block
 this".
@@ -169,18 +174,18 @@ event, `running`: the transcript a hook named and how long that file was.
 does, so it closes only an id the running daemon issued, and it checks the
 start time so a reused pid is never signalled.
 
-`pending`, `running`, `next`, `go` and `dismiss --focused` read every
-record, and ask tmux whether each pane is still there. They also read the
+`pending`, `seen`, `running`, `next`, `go` and `dismiss --focused` read
+every record, and ask tmux whether each pane is still there. They also read the
 end of each running agent's transcript, at most 64 KB of what was written
 since it started, and rewrite the record as `aborted` and seen if that ends
 with an interrupt. Nothing runs in between: there is no daemon, and the
 records are the only state. `dismiss --focused` finds the tmux client in
 the focused Hyprland window the way "on screen" does, when the key is
 pressed. Whenever the counts may have changed, notifi sends waybar
-`SIGRTMIN+8`, and `custom/agents` and `custom/running` in
-`waybar/config.jsonc` run `notifi pending --waybar` and
-`notifi running --waybar` again; `waybar/style.css` dims class `seen` and
-the running count.
+`SIGRTMIN+8`, and `custom/running`, `custom/pending` and `custom/seen` in
+`waybar/config.jsonc` run `notifi running --waybar`, `notifi pending
+--waybar` and `notifi seen --waybar` again; `waybar/style.css` dims the
+running and seen counts, and the class `none` of each further.
 
 notifi is one static binary, a Rust crate:
 
@@ -214,8 +219,7 @@ started:
 | Super+Y's bind with nothing waiting | 1.5 ms |
 | `notifi next` until Hyprland is told the window | 2.4 ms |
 | `notifi dismiss --focused` (Super+X) | 2.6 ms |
-| `notifi pending --waybar` | 2.3 ms; 0.4 ms with no records |
-| `notifi running --waybar` with one agent running | 2.3 ms |
+| `notifi pending --waybar`, or `seen` or `running`, with one agent running | 2.3 ms each (waybar runs all three on each signal, and no key waits for them); 0.35 ms with no records |
 | `notifi start --hook` after a tool (running already, or no record) | 0.5 ms |
 | `notifi start --hook` for a prompt | 4.3 ms |
 
