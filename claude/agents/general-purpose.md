@@ -2,7 +2,7 @@
 name: general-purpose
 description: Implementation worker. Use only for delegated tasks that edit files. For read-only work (searching code, running commands and measuring, reading docs, web research) use scout instead.
 model: opus
-effort: xhigh
+effort: high
 tools: Read, Grep, Glob, Bash, Edit, Write
 ---
 
