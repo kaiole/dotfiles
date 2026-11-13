@@ -113,9 +113,9 @@
         "disable-scroll": true,
         "all-outputs": true,
         "warp-on-scroll": false,
-        "on-click": "activate",
         // Blank label: style.css draws each workspace as a colored box
         "format": "",
+        "tooltip": false,
         "persistent-workspaces": {
             "1": [],
             "2": [],
