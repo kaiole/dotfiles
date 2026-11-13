@@ -391,14 +391,28 @@ impl Found {
     }
 }
 
-/// Focuses the first waiting agent, which is seen from then on.
+/// Which waiting agents `next` takes: all of them, pending first, or only
+/// the pending or only the seen ones, as their waybar modules do.
+#[derive(Clone, Copy, PartialEq)]
+pub enum Which {
+    Any,
+    Pending,
+    Seen,
+}
+
+/// Focuses the first waiting agent of `which`, which is seen from then on.
 ///
-/// Returns its title, or None if no agent is waiting.
-pub fn next(asked: Option<Asked>, daemon: &mut Daemon) -> Option<String> {
+/// Returns its title, or None if no such agent is waiting.
+pub fn next(asked: Option<Asked>, daemon: &mut Daemon, which: Which) -> Option<String> {
     let asked = asked?;
     let hypr = hyprland::snapshot(); // while tmux answers
     let mut found = asked.finish(daemon);
-    let agent = *found.waiting().first()?;
+    let taken = |agent: &&Agent| match which {
+        Which::Any => true,
+        Which::Pending => agent.seen.is_none(),
+        Which::Seen => agent.seen.is_some(),
+    };
+    let agent = found.waiting().into_iter().find(|agent| taken(&agent))?;
     let (path, pane) = (agent.path.clone(), agent.pane.clone());
     let Some(hypr) = hypr else {
         die("notifi: no Hyprland to focus a window in");
@@ -472,7 +486,7 @@ pub fn go() -> Option<String> {
     let asked = ask(true);
     let mut daemon = Daemon::default();
     if daemon.displayed() == 0 {
-        return next(asked, &mut daemon);
+        return next(asked, &mut daemon, Which::Any);
     }
     // The action may be an agent's Focus, which changes its record.
     drop(asked);

@@ -70,8 +70,9 @@
     // The agents, in the order they go through: at work on what you sent
     // them (running), stopped with their notification closed by Super+N
     // (pending), and stopped and gone to with Super+Y, or stopped on screen
-    // (seen). Each module lists its agents in the tooltip; click goes to the
-    // next waiting one, pending first. Super+X forgets the focused one.
+    // (seen). Each module lists its agents in the tooltip; a click goes to
+    // the next one it counts (notifi next --running|--pending|--seen).
+    // Super+X forgets the focused one.
     // Icons: cog (running), bell with a dot (pending), inbox (seen). Always
     // shown: at zero, faint (class "none"); with a count, the bar's text
     // color. notifi sends signal 8 when a count changes (WAYBAR_SIGNAL in
@@ -83,7 +84,8 @@
       "return-type": "json",
       "format": "󰒓 {}",
       "signal": 8,
-      "interval": 30
+      "interval": 30,
+      "on-click": "$HOME/.local/bin/notifi next --running"
     },
     "custom/pending": {
       "exec": "$HOME/.local/bin/notifi pending --waybar",
@@ -91,7 +93,7 @@
       "format": "󰂞 {}",
       "signal": 8,
       "interval": 30,
-      "on-click": "$HOME/.local/bin/notifi next"
+      "on-click": "$HOME/.local/bin/notifi next --pending"
     },
     "custom/seen": {
       "exec": "$HOME/.local/bin/notifi seen --waybar",
@@ -99,7 +101,7 @@
       "format": "󱉲 {}",
       "signal": 8,
       "interval": 30,
-      "on-click": "$HOME/.local/bin/notifi next"
+      "on-click": "$HOME/.local/bin/notifi next --seen"
     },
     "hyprland/submap#left": {
         "format": "⸸",

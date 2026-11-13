@@ -55,7 +55,7 @@ notifi dismiss [--app NAME | --focused]
 notifi pending [--waybar]
 notifi seen [--waybar]
 notifi running [--waybar]
-notifi next [--tmux | --running]
+notifi next [--tmux | --running | --pending | --seen]
 notifi pick
 notifi go
 notifi status
@@ -99,7 +99,10 @@ first waiting agent to the front as Focus would, marks it seen and prints its
 title; with none waiting it prints nothing. `next --running` does the
 same for the agents at work, in the order above, and leaves each running:
 its record keeps when it was gone to (`visited`), and nothing else
-changes. `go` is what Super+Y runs: with a
+changes. `next --pending` and `next --seen` take only the pending or
+only the seen agents, in `next`'s order, so a click on either waybar
+module goes to one it counts; a click on the running one is `next
+--running`. `go` is what Super+Y runs: with a
 notification on screen it runs the action of the top one, as
 `dunstctl action` does, whether or not it is an agent's; with none it is
 `next`. `running` prints one line per agent at work,
