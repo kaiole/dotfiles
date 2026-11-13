@@ -12,6 +12,9 @@ exits. pi and Claude Code both use it.
   window, tmux session, window and pane of that agent come to the front.
   With no notification up, Super+Y goes to the next waiting agent: the
   pending ones, longest wait first, then round the ones you have been to.
+- **Super+Shift+Y** (`notifi next --running`) goes round the agents at
+  work: the ones not gone to yet, longest at work first, then the one gone
+  to longest ago. Each stays running.
 - **Super+X** forgets the agent in the focused window
   (`notifi dismiss --focused`).
 
@@ -52,7 +55,7 @@ notifi dismiss [--app NAME | --focused]
 notifi pending [--waybar]
 notifi seen [--waybar]
 notifi running [--waybar]
-notifi next [--tmux]
+notifi next [--tmux | --running]
 notifi pick
 notifi go
 notifi status
@@ -93,7 +96,10 @@ count of the pending, the seen or the running agents as `text`, their lines
 as `tooltip` and the command's name as `class`; with none, `0`, `No agent
 <name>` and class `none`. `next` brings the
 first waiting agent to the front as Focus would, marks it seen and prints its
-title; with none waiting it prints nothing. `go` is what Super+Y runs: with a
+title; with none waiting it prints nothing. `next --running` does the
+same for the agents at work, in the order above, and leaves each running:
+its record keeps when it was gone to (`visited`), and nothing else
+changes. `go` is what Super+Y runs: with a
 notification on screen it runs the action of the top one, as
 `dunstctl action` does, whether or not it is an agent's; with none it is
 `next`. `running` prints one line per agent at work,

@@ -43,7 +43,7 @@ const USAGE: &str = "    notifi show [--event EVENT] [--app NAME] [--force] [-v]
     notifi pending [--waybar]
     notifi seen [--waybar]
     notifi running [--waybar]
-    notifi next [--tmux]
+    notifi next [--tmux | --running]
     notifi go
     notifi pick
     notifi status";
@@ -59,7 +59,7 @@ const OPTIONS: [(&str, &[&str]); 10] = [
     ("pending", &["--waybar"]),
     ("seen", &["--waybar"]),
     ("running", &["--waybar"]),
-    ("next", &["--tmux"]),
+    ("next", &["--tmux", "--running"]),
     ("go", &[]),
     ("pick", &[]),
     ("status", &[]),
@@ -156,6 +156,11 @@ fn main() {
         "seen" => seen(options.has("--waybar")),
         "running" => running(options.has("--waybar")),
         "next" if options.has("--tmux") => agents::next_here(),
+        "next" if options.has("--running") => {
+            agents::next_running(agents::ask(true), &mut Daemon::default())
+                .iter()
+                .for_each(print);
+        }
         "pick" => pick::pick(),
         "next" => {
             agents::next(agents::ask(true), &mut Daemon::default())

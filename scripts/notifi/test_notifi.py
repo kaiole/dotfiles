@@ -921,6 +921,35 @@ class NotifiTest(unittest.TestCase):
         self.assertEqual(records(), [])
         self.assertIsNone(working())
 
+    def test_next_running_goes_round_the_agents_at_work(self):
+        hyprland(attach("test"))
+        self.assertEqual(notifi(None, "next", "--running"), "")
+        other = pane_of(self.local, "other:")
+        notifi(self.local, "start")
+        (record,) = STATE.glob("*.json")
+        earlier = json.loads(record.read_text())
+        record.write_text(json.dumps(earlier | {"since": earlier["since"] - 60}))
+        notifi(self.local, "start", TMUX_PANE=other)
+        notifi(self.local, "show", "--event", "error", TMUX_PANE=other)
+        notifi(self.local, "start", TMUX_PANE=other)
+        bar_refreshes()  # counted from here
+
+        # The one at work longest first, then round them; they stay running.
+        for title, session in (
+            ("test:0", "test"),
+            ("other:0", "other"),
+            ("test:0", "test"),
+        ):
+            self.assertEqual(notifi(None, "next", "--running"), title)
+            self.assertEqual(client_sessions(), session)
+        self.assertEqual(notifi(None, "running"), "test:0\t1m\nother:0\t<1m")
+        self.assertEqual(set(marks(self.local).values()), {"running"})
+        self.assertEqual(bar_refreshes(), 0)
+        # Stopped, it is no longer among them.
+        notifi(self.local, "show", TMUX_PANE=other)
+        self.assertEqual(notifi(None, "next", "--running"), "test:0")
+        self.assertEqual(notifi(None, "next", "--running"), "test:0")
+
     def test_start_records_wherever_there_is_a_pane(self):
         notifi(None, "start", "--app", "claude")
         self.assertEqual(records(), [])

@@ -72,6 +72,8 @@ pub struct Agent {
     /// When the user last went to it, or it stopped in view; None while
     /// pending.
     pub seen: Option<f64>,
+    /// When `next --running` last went to it, while it is at work.
+    visited: Option<f64>,
     /// Its notification is still up.
     notified: bool,
 }
@@ -284,6 +286,7 @@ impl Asked {
             let since = state.get("since").and_then(Value::as_f64);
             if let (Some(pane), Some(event), Some(since)) = (pane, event, since) {
                 let seen = state.get("seen").and_then(Value::as_f64);
+                let visited = state.get("visited").and_then(Value::as_f64);
                 let pane = pane.clone();
                 agents.push(Agent {
                     app: text(&state, "app").into(),
@@ -293,6 +296,7 @@ impl Asked {
                     since,
                     running,
                     seen,
+                    visited,
                     notified,
                 });
             } else if !notified {
@@ -399,7 +403,7 @@ pub fn next(asked: Option<Asked>, daemon: &mut Daemon) -> Option<String> {
     let Some(hypr) = hypr else {
         die("notifi: no Hyprland to focus a window in");
     };
-    let shown = desktop::focus(&pane, &hypr, found.servers.get_mut(&pane.socket)?);
+    let shown = desktop::focus(&pane, &hypr, found.servers.get_mut(&pane.socket)?, true);
 
     let mut state = state::read(&path).unwrap_or_default();
     // A notify-send left behind by a daemon that died.
@@ -410,6 +414,32 @@ pub fn next(asked: Option<Asked>, daemon: &mut Daemon) -> Option<String> {
     state.insert("seen".into(), state::now().into());
     state::write(&path, &state);
     state::refresh_bar();
+    shown.finish();
+    Some(pane.title)
+}
+
+/// Focuses the agents at work in turn: the ones not gone to yet, the one
+/// at work longest first, then the one gone to longest ago. It stays
+/// running.
+///
+/// Returns its title, or None if no agent is at work.
+pub fn next_running(asked: Option<Asked>, daemon: &mut Daemon) -> Option<String> {
+    let asked = asked?;
+    let hypr = hyprland::snapshot(); // while tmux answers
+    let mut found = asked.finish(daemon);
+    let turn = |agent: &&Agent| (agent.visited.is_some(), agent.visited.unwrap_or(agent.since));
+    let mut running = found.running();
+    running.sort_by(|a, b| turn(a).partial_cmp(&turn(b)).unwrap_or(Ordering::Equal));
+    let agent = *running.first()?;
+    let (path, pane) = (agent.path.clone(), agent.pane.clone());
+    let Some(hypr) = hypr else {
+        die("notifi: no Hyprland to focus a window in");
+    };
+    let shown = desktop::focus(&pane, &hypr, found.servers.get_mut(&pane.socket)?, false);
+    // The counts are as they were: waybar needs no telling.
+    let mut state = state::read(&path).unwrap_or_default();
+    state.insert("visited".into(), state::now().into());
+    state::write(&path, &state);
     shown.finish();
     Some(pane.title)
 }

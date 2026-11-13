@@ -45,12 +45,12 @@ pub fn visible(pane: &Pane, hypr: &Hyprland, clients: &[Client]) -> bool {
 /// focuses that client's Hyprland window. Opens a new Ghostty only when no
 /// attached client lives in a Hyprland window. All of it is worked out now,
 /// not when the notification was sent. `server` is the pane's, asked to
-/// stay.
+/// stay. With `seen`, the pane then says its agent is seen.
 ///
 /// Returns the tmux that is told to show the pane. The server then draws
 /// the client again, which takes it 1 to 2 ms, before that tmux exits.
 #[must_use]
-pub fn focus(pane: &Pane, hypr: &Hyprland, server: &mut Server) -> Running {
+pub fn focus(pane: &Pane, hypr: &Hyprland, server: &mut Server, seen: bool) -> Running {
     // Prefer a client already on the pane's session, then the most recently
     // used one.
     let attached = attached(hypr, &server.clients);
@@ -62,7 +62,7 @@ pub fn focus(pane: &Pane, hypr: &Hyprland, server: &mut Server) -> Running {
     // tmux and Hyprland are told one after the other, and work at once.
     let elsewhere = |client: &&Client| client.session_id != pane.session_id;
     let switched = best.map(|attached| attached.client).filter(elsewhere);
-    tmux::show(&mut server.asked, pane, switched, true);
+    tmux::show(&mut server.asked, pane, switched, seen);
     match best {
         None => open_terminal(hypr, pane),
         // With several windows in one process, assume the client is in the

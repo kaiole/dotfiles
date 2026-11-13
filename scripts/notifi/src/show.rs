@@ -277,7 +277,7 @@ pub fn show(app: &str, event: &'static Event, force: bool) -> String {
     if let Some((pane, mut server)) = look.and_then(Look::finish) {
         let visible = hypr.as_ref().is_some_and(|hypr| {
             if acted {
-                desktop::focus(&pane, hypr, &mut server).finish();
+                desktop::focus(&pane, hypr, &mut server, true).finish();
             }
             desktop::visible(&pane, hypr, &server.clients)
         });
