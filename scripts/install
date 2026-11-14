@@ -44,6 +44,7 @@ links=(
   'all    zsh/themes/.dircolors             .dircolors'
   'all    claude/settings.json              .claude/settings.json'
   'all    claude/statusline.sh              .claude/statusline.sh'
+  'all    claude/keep-awake.sh              .claude/keep-awake.sh'
   'all    claude/CLAUDE.md                  .claude/CLAUDE.md'
   'all    claude/themes                     .claude/themes'
   'all    claude/agents                     .claude/agents'

@@ -54,6 +54,10 @@
           {
             "command": "command -v notifi >/dev/null || exit 0; notifi dismiss --app claude",
             "type": "command"
+          },
+          {
+            "command": "~/.claude/keep-awake.sh release",
+            "type": "command"
           }
         ]
       }
@@ -64,6 +68,10 @@
           {
             "async": true,
             "command": "command -v notifi >/dev/null || exit 0; notifi show --app claude",
+            "type": "command"
+          },
+          {
+            "command": "~/.claude/keep-awake.sh release",
             "type": "command"
           }
         ]
@@ -86,6 +94,10 @@
           {
             "async": true,
             "command": "command -v notifi >/dev/null || exit 0; notifi start --app claude --hook",
+            "type": "command"
+          },
+          {
+            "command": "~/.claude/keep-awake.sh hold",
             "type": "command"
           }
         ]
