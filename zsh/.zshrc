@@ -10,7 +10,7 @@ source "${${(%):-%x}:A:h}/shared/init.zsh"
 # Host-only secrets, completions, commands, and sessionizer entry.
 [[ -r ~/.local/state/pi/secrets.zsh ]] && source ~/.local/state/pi/secrets.zsh
 [[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
-alias qpi="pi --no-session --provider openai-codex --model gpt-6.1-sol --thinking low"
+alias qpi="pi --no-session --provider openai-codex --model gpt-6.2-sol --thinking low"
 alias wb="g++ -std=c++20 -O2 -Wall main.cpp -o test"
 # Run directly instead of inserting a command into the current input buffer.
 _tmux_sessionizer() {
