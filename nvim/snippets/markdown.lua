@@ -356,6 +356,13 @@ return {
 		i(0),
 	}),
 
+	s("paren", {
+		t("\\left( "),
+		i(1),
+		t(" \\right)"),
+		i(0),
+	}),
+
 	s("cardinality", {
 		t("\\left| "),
 		i(1),
