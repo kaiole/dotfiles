@@ -2,19 +2,29 @@
 # Keeps the machine from idle-suspending while Claude Code is working.
 #   keep-awake.sh hold     (UserPromptSubmit hook) take a sleep lock
 #   keep-awake.sh release  (Stop, SessionEnd hooks) drop it
+# Stop keeps the lock while background shells, subagents or scheduled wake-ups
+# are pending: the turn that runs when they finish ends in another Stop.
 # The hook JSON on stdin gives the session id, so each session holds its own
 # lock and the machine stays up until the last one finishes.
 #
 # Only sleep is blocked: the screen still blanks and locks on idle, and closing
 # the lid still suspends. Linux holds a logind block inhibitor, which makes
-# hypridle's `systemctl suspend` fail; macOS runs `caffeinate -i`. The lock also
-# ends when the claude process exits, in case no release hook runs.
+# hypridle's `systemctl suspend` fail (hypridle.conf's condition_cmd waits for
+# the lock to go); macOS runs `caffeinate -i`. The lock also ends when the
+# claude process exits, in case no release hook runs.
 set -u
 
-session=$(jq -r '.session_id // empty' 2>/dev/null)
+input=$(cat)
+session=$(jq -r '.session_id // empty' <<<"$input" 2>/dev/null)
 [[ -n $session ]] || exit 0
 dir=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/claude-keep-awake
 pidfile=$dir/$session.pid
+
+# Stop input lists work that will wake this session later; SessionEnd has none.
+pending() {
+  jq -e '((.background_tasks // []) + (.session_crons // [])) | length > 0' \
+    <<<"$input" >/dev/null 2>&1
+}
 
 release() {
   [[ -f $pidfile ]] || return 0
@@ -59,6 +69,6 @@ hold() {
 
 case ${1:-} in
   hold) hold ;;
-  release) release ;;
+  release) pending || release ;;
 esac
 exit 0

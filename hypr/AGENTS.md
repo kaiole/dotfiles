@@ -37,6 +37,10 @@ are live after a reload.
   the current wallpaper for the background) is the only thing that starts
   hyprlock, behind a `pidof` guard. Binds, timeouts and sleep call
   `loginctl lock-session`; running `hyprlock` directly skips the guard.
+- **Idle suspend** waits out blocking sleep inhibitors (`condition_cmd` in
+  `hypridle.conf`, needs hypridle 0.1.8+). `../claude/keep-awake.sh` holds one
+  while Claude Code works; without the wait the suspend is refused once and
+  never retried.
 - **Workspace 5 is the swap space**, numbered (not named) so waybar tracks it.
   It is hard-coded in `scripts/toggle_swap_space`, the Super+Shift+O bind and
   the Obsidian rule; change all three together.
