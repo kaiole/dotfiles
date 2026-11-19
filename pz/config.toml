@@ -4,4 +4,7 @@ folder = "~/Dropbox/Apps/pz-pdf"
 [picker]
 inbox = "i"
 red = "r"
-gone = "x"
+
+[ui]
+font = "CaskaydiaCove Nerd Font"
+font_size = 10
