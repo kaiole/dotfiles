@@ -39,9 +39,9 @@ pi loads code in two ways:
 | `split-editor/` | package | Edit the prompt in a tmux split (`nvim`) | submodule |
 | `sub-agents/` | package | Background subagents in tmux windows; definitions in `agents/` | submodule |
 
-`../skills/` (submodule) is the skills directory pi loads: `brainstorm`, `cpp`,
-`handoff`, `socratic-tutor` (Socratic lessons to mastery; also linked
-into Claude Code as `~/.claude/skills/socratic-tutor`), and
+pi loads every skill in the top-level `../skills/` (submodule, shared with
+other harnesses): `brainstorm`, `cpp`, `handoff`, `socratic-tutor` (Socratic
+lessons to mastery; the only one also linked into Claude Code), and
 manual-only `gcmsg` (`/skill:gcmsg`).
 
 ## Conventions

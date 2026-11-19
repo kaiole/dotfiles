@@ -5,7 +5,7 @@
 	path = pi/picosystem/pdf-reader
 	url = git@github.com:kyleqbnguyen/pdf-reader.git
 [submodule "pi/skills"]
-	path = pi/skills
+	path = skills
 	url = git@github.com:kaiole/skills.git
 [submodule "pi/picosystem/sub-agents"]
 	path = pi/picosystem/sub-agents
