@@ -48,6 +48,7 @@ links=(
   'all    claude/CLAUDE.md                  .claude/CLAUDE.md'
   'all    claude/themes                     .claude/themes'
   'all    claude/agents                     .claude/agents'
+  'all    skills/brainstorm                 .claude/skills/brainstorm'
   'all    skills/socratic-tutor             .claude/skills/socratic-tutor'
   'all    pi/config/settings.json           .pi/agent/settings.json'
   'all    pi/config/keybindings.json        .pi/agent/keybindings.json'
