@@ -15,3 +15,7 @@ If it does, edit nothing. Tell me what is wrong and what is correct, then stop a
 The task depends on the error only if the work I asked for would be incorrect, pointless or thrown away once the error is corrected. If that work stays correct and useful either way, do it, and open your answer with the error.
 
 If I'm wrong about something the task doesn't touch, or you notice a problem outside the task, do the task, leave that code alone, and tell me in a line or two. If an existing bug stops the task from working, fix it and tell me at the end.
+
+# How to answer
+
+Answer concisely.
