@@ -30,11 +30,12 @@ which language or workflow they configure.
 | C++ project starter | `:Cpp [directory]` → `lua/config/actions/cpp_project.lua`: writes the files above from the saved snippets plus `.gitignore`, then expands `cm` into `CMakeLists.txt` |
 | C++ single-library project | `:CppSolo[!] [directory]` → `create_solo` in `lua/config/actions/cpp_project.lua`: `:Cpp`'s files plus `include/<name>/<name>.hpp`, source (not with `!`), `tests/`; expands `cmsolo` (`!`: `cmsoloh`) into `CMakeLists.txt`. For a project that is one library; use `:Cpp` + `:CppLib` when it holds several or an app |
 | C++ library starter | `:CppLib[!] <directory>` → `lua/config/actions/cpp_lib.lua`: header, source (not with `!`), `tests/`; expands `cmlib` (`!`: `cmlibh`); puts the parent's `add_subdirectory(...)` line in the unnamed register instead of editing it |
-| Competitive-programming starter | `:Whitebox <directory>` → `lua/config/actions/comp_prog.lua`: creates and opens `main.cpp` |
+| Competitive-programming starter | `:Whitebox <directory>` → `lua/config/actions/comp_prog.lua`: creates and opens `main.cpp`, then changes Neovim's cwd to its directory |
 
 The starters are registered in `lua/config/cmds.lua` and share
 `lua/config/actions/scaffold.lua`: they only create missing files (an existing
-path or modified buffer is skipped) and never touch Git, the build, or cwd.
+path or modified buffer is skipped) and never touch Git or the build.
+Only `:Whitebox` changes cwd.
 
 ## Editor behavior and tool connections
 

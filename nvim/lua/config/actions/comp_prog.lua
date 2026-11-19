@@ -20,6 +20,7 @@ local function create(directory_argument)
 		error("main.cpp already exists: " .. path, 0)
 	end
 	vim.cmd.edit(vim.fn.fnameescape(path))
+	vim.cmd.cd(vim.fn.fnameescape(directory))
 end
 
 function M.create(directory_argument)
