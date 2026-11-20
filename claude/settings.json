@@ -12,6 +12,7 @@
     "typescript-lsp@claude-plugins-official": true
   },
   "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_CODE_MODE": "1",
     "CLAUDE_CODE_TMUX_TRUECOLOR": "1"
   },
   "hooks": {
