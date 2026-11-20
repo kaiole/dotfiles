@@ -31,6 +31,7 @@ pi loads code in two ways:
 | `firecrawl/` | package | Web search and page fetch tools | in-repo |
 | `footer/` | package | Custom TUI footer | in-repo |
 | `log/` | package | Logs conversations to Markdown | in-repo |
+| `browse/` | package | Vim-style keyboard browse/copy of the fullscreen transcript (`ctrl+b`); `viewport.ts` reaches TuiAltScreen privates | in-repo |
 | `woke/` | package | Inhibits sleep while pi works (systemd, hypridle) | in-repo |
 | `immortalize/` | bare extension | Session snapshot / branch persistence | in-repo |
 | `tmux-sessionizer/` | bare extension | `ctrl+f` sessionizer launcher | in-repo |
@@ -63,6 +64,6 @@ manual-only `gcmsg` (`/skill:gcmsg`).
 ## Verify
 
 - Run `/reload` in a running pi, or restart it.
-- Packages with tests: `npm test` in `firecrawl/`, `notifi/`, `woke/`,
+- Packages with tests: `npm test` in `browse/`, `firecrawl/`, `notifi/`, `woke/`,
   `sub-agents/`; `npm run check` in `immortalize/`. `typecheck` also exists in
   `firecrawl/` and `sub-agents/`.

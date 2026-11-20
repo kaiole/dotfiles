@@ -11,13 +11,14 @@
     "~/dotfiles/pi/picosystem/notifi",
     "~/dotfiles/pi/picosystem/log",
     "~/dotfiles/pi/picosystem/sub-agents",
-    "~/dotfiles/pi/picosystem/woke"
+    "~/dotfiles/pi/picosystem/woke",
+    "~/dotfiles/pi/picosystem/browse"
   ],
   "skills": [
     "~/dotfiles/skills/"
   ],
   "theme": "palette",
-  "tuiMode": "regular",
+  "tuiMode": "fullscreen",
   "showHardwareCursor": true,
   "hideThinkingBlock": true,
   "enableInstallTelemetry": false,

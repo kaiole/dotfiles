@@ -1,0 +1,22 @@
+{
+	"name": "pi-browse",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Vim-style keyboard browsing and copying of the fullscreen transcript",
+	"type": "module",
+	"keywords": [
+		"pi-package"
+	],
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"scripts": {
+		"test": "node --experimental-strip-types --test test/*.test.ts"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-tui": "*"
+	}
+}

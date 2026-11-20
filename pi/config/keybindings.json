@@ -4,5 +4,6 @@
   "tui.input.tab": ["tab", "ctrl+y"],
   "app.model.cycleForward": [],
   "app.model.cycleBackward": [],
-  "tui.editor.cursorRight": ["right"]
+  "tui.editor.cursorRight": ["right"],
+  "tui.editor.cursorLeft": ["left"]
 }
