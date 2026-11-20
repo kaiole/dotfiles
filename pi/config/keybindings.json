@@ -3,5 +3,6 @@
   "tui.select.down": ["down", "ctrl+n"],
   "tui.input.tab": ["tab", "ctrl+y"],
   "app.model.cycleForward": [],
-  "app.model.cycleBackward": []
+  "app.model.cycleBackward": [],
+  "tui.editor.cursorRight": ["right"]
 }

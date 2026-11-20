@@ -13,6 +13,7 @@ links below point into this repo; `scripts/install` makes them.
 | `~/.pi/agent/themes` | `themes/` | Generated `palette.json`; pi watches it, so `theme set` reloads pi live |
 | `~/.pi/agent/prompts` | `prompts/` | Prompt templates: direct `.md` children become `/` commands |
 | `~/.pi/agent/extensions/immortalize` | `picosystem/immortalize/` | Loaded as a bare extension, not a package |
+| `~/.pi/agent/extensions/tmux-sessionizer` | `picosystem/tmux-sessionizer/` | Bare extension: `ctrl+f` → `~/.local/bin/tmux-sessionizer` |
 | `~/.pi/agent/extensions/split-editor.json` | `config/split-editor.json` | Settings for the split-editor package |
 | `~/.pi/agent/AGENTS.md` | `config/global.md` | User's global instructions for pi, not pi docs; pi-only; Claude Code's are `../claude/CLAUDE.md` |
 
@@ -32,6 +33,7 @@ pi loads code in two ways:
 | `log/` | package | Logs conversations to Markdown | in-repo |
 | `woke/` | package | Inhibits sleep while pi works (systemd, hypridle) | in-repo |
 | `immortalize/` | bare extension | Session snapshot / branch persistence | in-repo |
+| `tmux-sessionizer/` | bare extension | `ctrl+f` sessionizer launcher | in-repo |
 | `notifi/` | package | Desktop notification when pi finishes, and a record that it runs until then; calls the `notifi` command (`../scripts/notifi/README.md`), which does the work | in-repo |
 | `pdf-reader/` | package | Read, search, render and OCR PDFs; ships its own skills | submodule |
 | `split-editor/` | package | Edit the prompt in a tmux split (`nvim`) | submodule |
