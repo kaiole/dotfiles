@@ -40,7 +40,9 @@ are live after a reload.
 - **Idle suspend** waits out blocking sleep inhibitors (`condition_cmd` in
   `hypridle.conf`, needs hypridle 0.1.8+). `../claude/keep-awake.sh` holds one
   while Claude Code works; without the wait the suspend is refused once and
-  never retried.
+  never retried. The same check holds off while any transcript under
+  `~/.claude/projects` is under 10 minutes old, because a turn continued by a
+  Stop hook (`/goal`) runs without the lock.
 - **Workspace 5 is the swap space**, numbered (not named) so waybar tracks it.
   It is hard-coded in `scripts/toggle_swap_space`, the Super+Shift+O bind and
   the Obsidian rule; change all three together.
