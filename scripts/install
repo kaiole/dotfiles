@@ -56,7 +56,6 @@ links=(
   'all    pi/themes                         .pi/agent/themes'
   'all    pi/prompts                        .pi/agent/prompts'
   'all    pi/picosystem/immortalize         .pi/agent/extensions/immortalize'
-  'all    pi/picosystem/tmux-sessionizer    .pi/agent/extensions/tmux-sessionizer'
   'all    pi/config/split-editor.json       .pi/agent/extensions/split-editor.json'
   'all    scripts/clang/cfmt                .local/bin/cfmt'
   'all    scripts/clang/tidy                .local/bin/tidy'
