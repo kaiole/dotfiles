@@ -20,6 +20,9 @@ vim.keymap.set("x", "K", "<Esc><Cmd>'<,'>move '<-2<CR>gv=gv")
 vim.keymap.set({ "n", "x" }, "<leader>y", [["+y]])
 vim.keymap.set("n", "<leader>Y", [["+Y]])
 vim.keymap.set({ "n", "x" }, "<leader>d", '"_d')
+vim.keymap.set("n", "<leader>w", function()
+	vim.wo.wrap = not vim.wo.wrap
+end, { desc = "Toggle line wrap" })
 vim.keymap.set("n", "<leader>c", function()
 	if not vim.env.TMUX or not vim.env.TMUX_PANE then
 		vim.notify("The floating shell requires tmux", vim.log.levels.WARN)
