@@ -3,6 +3,7 @@
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-6.2-sol",
   "defaultThinkingLevel": "low",
+  "defaultTools": ["+codemode"],
   "packages": [
     "~/dotfiles/pi/picosystem/pdf-reader",
     "~/dotfiles/pi/picosystem/firecrawl",
