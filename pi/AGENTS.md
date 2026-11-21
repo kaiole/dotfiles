@@ -41,10 +41,8 @@ pi loads code in two ways:
 | `sub-agents/` | package | Background subagents in tmux windows; definitions in `agents/` | submodule |
 
 pi loads every skill in the top-level `../skills/` (submodule, shared with
-other harnesses): `brainstorm` (also linked into Claude Code), `cpp`,
-`handoff`, `socratic-tutor` (Socratic lessons to mastery; also linked into
-Claude Code), and
-manual-only `gcmsg` (`/skill:gcmsg`).
+other harnesses): `brainstorm` (also linked into Claude Code), `cpp`, and
+`socratic-tutor` (Socratic lessons to mastery; also linked into Claude Code).
 
 ## Conventions
 
