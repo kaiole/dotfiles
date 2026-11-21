@@ -7,7 +7,8 @@
 --   cache variables don't concatenate.
 -- - lint runs clang-tidy on every compiled file with findings as errors, so
 --   .clang-tidy is enforced, not just shown in the editor. A workflow can't
---   span configure presets; the check script (sh.lua) runs lint, dev and tsan.
+--   span configure presets; the check script (sh.lua) runs lint, dev, tsan
+--   and release (GCC, NDEBUG, optimized: what the Clang debug presets miss).
 -- - Header verification compiles each public header alone (a header that
 --   relies on its includer's includes fails). Its target is outside "all", so
 --   every build preset names it.

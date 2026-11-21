@@ -25,7 +25,7 @@ which language or workflow they configure.
 | Library `CMakeLists.txt` | `snippets/cmake.lua`: `cmlib` (STATIC), `cmlibh` (header-only). Name defaults to the buffer's directory in snake_case, namespace to the nearest `project()` (`lua/config/cmake.lua`) |
 | Dependencies and test/bench executables | `snippets/cmake.lua`: `cmfetch` (system package, else pinned, hashed download), `cmgt`/`cmgb` (GoogleTest/Benchmark that way), `cmgtx`/`cmgbx` (executables in `<lib>/tests`, `<lib>/bench`, linking the alias in the parent's saved `CMakeLists.txt`); `cmapp` (executable in `apps/CMakeLists.txt`: target `<project>_<name>`, binary `<name>`, main in `apps/<name>.cpp`) |
 | CMake presets | `snippets/json.lua`: `cmpresets` (`dev` ASan/UBSan, `tsan`, `lint` clang-tidy, `release`/`release-clang`; warnings as errors, header self-containment check) |
-| C++ gate script | `snippets/sh.lua`: `check` (clang-format, then the `lint`, `dev`, `tsan` workflows) |
+| C++ gate script | `snippets/sh.lua`: `check` (clang-format, then the `lint`, `dev`, `tsan`, `release` workflows) |
 | Markdown prompt drafts and notes | `snippets/markdown.lua`: `draft` (coding prompt), `frontmatter`, wiki `link`, `sol`, math/LaTeX and more |
 | C++ project starter | `:Cpp [directory]` → `lua/config/actions/cpp_project.lua`: writes the files above from the saved snippets plus `.gitignore`, then expands `cm` into `CMakeLists.txt` |
 | C++ single-library project | `:CppSolo[!] [directory]` → `create_solo` in `lua/config/actions/cpp_project.lua`: `:Cpp`'s files plus `include/<name>/<name>.hpp`, source (not with `!`), `tests/`; expands `cmsolo` (`!`: `cmsoloh`) into `CMakeLists.txt`. For a project that is one library; use `:Cpp` + `:CppLib` when it holds several or an app |
