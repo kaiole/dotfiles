@@ -22,6 +22,12 @@
   "showHardwareCursor": true,
   "hideThinkingBlock": true,
   "enableInstallTelemetry": false,
+  "compaction": {
+    "modelOverrides": {
+      "openai-codex/gpt-6.2-sol": { "reserveTokens": 340000 },
+      "openai-codex/gpt-6.2-astra": { "reserveTokens": 112000 }
+    }
+  },
   "subagents": {
     "maxConcurrent": 4
   }
