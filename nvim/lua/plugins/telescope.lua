@@ -38,8 +38,21 @@ for _, extension in ipairs(binary_extensions) do
 	vim.list_extend(find_command, { "--exclude", "*." .. glob })
 end
 
--- Directories only; selecting one :edits it, which opens oil.
-local find_dirs_command = { fd, "--type", "d", "--color", "never", "--hidden", "--exclude", ".git" }
+-- Directories only; selecting one :edits it, which opens oil. fd never lists the
+-- search root itself, so print "./" first to offer the cwd too.
+local find_dirs_command = {
+	"sh",
+	"-c",
+	'echo ./; exec "$0" "$@"',
+	fd,
+	"--type",
+	"d",
+	"--color",
+	"never",
+	"--hidden",
+	"--exclude",
+	".git",
+}
 
 local dropdown = { theme = "dropdown", borderchars = square_borders }
 
