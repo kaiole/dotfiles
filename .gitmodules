@@ -1,9 +1,9 @@
 [submodule "pi/picosystem/split-editor"]
 	path = pi/picosystem/split-editor
-	url = https://github.com/kyleqbnguyen/split-editor
+	url = git@github.com:kaiole/split-editor.git
 [submodule "pi/picosystem/pdf-reader"]
 	path = pi/picosystem/pdf-reader
-	url = git@github.com:kyleqbnguyen/pdf-reader.git
+	url = git@github.com:kaiole/pdf-reader.git
 [submodule "pi/skills"]
 	path = skills
 	url = git@github.com:kaiole/skills.git
