@@ -23,45 +23,5 @@ vim.keymap.set({ "n", "x" }, "<leader>d", '"_d')
 vim.keymap.set("n", "<leader>w", function()
 	vim.wo.wrap = not vim.wo.wrap
 end, { desc = "Toggle line wrap" })
-vim.keymap.set("n", "<leader>c", function()
-	if not vim.env.TMUX or not vim.env.TMUX_PANE then
-		vim.notify("The floating shell requires tmux", vim.log.levels.WARN)
-		return
-	end
-
-	vim.system({
-		"tmux",
-		"new-pane",
-		"-O",
-		"-A",
-		"-B",
-		"single",
-		"-t",
-		vim.env.TMUX_PANE,
-		"-c",
-		vim.fn.getcwd(),
-		"-x",
-		"85%",
-		"-y",
-		"80%",
-		-- Resolve the themed popup styles at draw time, including after theme reloads.
-		"-S",
-		"#{popup-border-style}",
-		"-R",
-		"#{popup-border-style}",
-		"-s",
-		"#{popup-style}",
-		";",
-		"move-pane",
-		"-P",
-		"centre",
-	}, { text = true }, function(result)
-		if result.code ~= 0 then
-			vim.schedule(function()
-				vim.notify("tmux floating shell failed: " .. vim.trim(result.stderr or ""), vim.log.levels.ERROR)
-			end)
-		end
-	end)
-end, { desc = "Open tmux floating shell" })
 
 require("config.sessionizer").setup()
