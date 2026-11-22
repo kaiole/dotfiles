@@ -9,6 +9,7 @@ local screenshot = home .. "/.config/hypr/scripts/screenshot"
 local wall_select = home .. "/.local/bin/wall_select"
 -- Built from scripts/notifi by scripts/install.
 local notifi = home .. "/.local/bin/notifi"
+local balance = require("config/balance")
 
 hl.bind(main_mod .. " + Q", hl.dsp.window.close())
 hl.bind(main_mod .. " + M", hl.dsp.exit())
@@ -74,19 +75,28 @@ hl.bind(
 hl.bind(main_mod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true })
 hl.bind(main_mod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
 
+-- Super+R: resize mode. Plain keys resize (hold to repeat), Super moves focus
+-- as it does outside, Shift swaps, = evens out every split on the workspace.
 hl.bind(main_mod .. " + R", hl.dsp.submap("fastedit"))
 hl.define_submap("fastedit", function()
-	hl.bind("L", hl.dsp.window.resize({ x = 20, y = 0, relative = true }))
-	hl.bind("H", hl.dsp.window.resize({ x = -20, y = 0, relative = true }))
-	hl.bind("K", hl.dsp.window.resize({ x = 0, y = -20, relative = true }))
-	hl.bind("J", hl.dsp.window.resize({ x = 0, y = 20, relative = true }))
+	hl.bind("L", hl.dsp.window.resize({ x = 20, y = 0, relative = true }), { repeating = true })
+	hl.bind("H", hl.dsp.window.resize({ x = -20, y = 0, relative = true }), { repeating = true })
+	hl.bind("K", hl.dsp.window.resize({ x = 0, y = -20, relative = true }), { repeating = true })
+	hl.bind("J", hl.dsp.window.resize({ x = 0, y = 20, relative = true }), { repeating = true })
 	hl.bind("R", hl.dsp.layout("togglesplit"))
-	hl.bind("equal", hl.dsp.layout("splitratio 1.0 exact"))
+	hl.bind("equal", function()
+		balance()
+	end)
 
-	hl.bind(main_mod .. " + H", hl.dsp.window.swap({ direction = "l" }))
-	hl.bind(main_mod .. " + L", hl.dsp.window.swap({ direction = "r" }))
-	hl.bind(main_mod .. " + K", hl.dsp.window.swap({ direction = "u" }))
-	hl.bind(main_mod .. " + J", hl.dsp.window.swap({ direction = "d" }))
+	hl.bind(main_mod .. " + H", hl.dsp.focus({ direction = "l" }))
+	hl.bind(main_mod .. " + J", hl.dsp.focus({ direction = "d" }))
+	hl.bind(main_mod .. " + K", hl.dsp.focus({ direction = "u" }))
+	hl.bind(main_mod .. " + L", hl.dsp.focus({ direction = "r" }))
+
+	hl.bind("SHIFT + H", hl.dsp.window.swap({ direction = "l" }))
+	hl.bind("SHIFT + L", hl.dsp.window.swap({ direction = "r" }))
+	hl.bind("SHIFT + K", hl.dsp.window.swap({ direction = "u" }))
+	hl.bind("SHIFT + J", hl.dsp.window.swap({ direction = "d" }))
 
 	hl.bind(main_mod .. " + R", hl.dsp.submap("reset"))
 	hl.bind("escape", hl.dsp.submap("reset"))

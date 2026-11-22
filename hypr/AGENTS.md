@@ -26,6 +26,7 @@ are live after a reload.
 | `config/autostart.lua` | `hyprland.start` hook: daemons, apps, Hyprcast plugin (dev build) |
 | `config/input.lua` | Keyboard, pointer, per-device settings |
 | `config/keybindings.lua` | All binds, the `fastedit` submap, media keys |
+| `config/balance.lua` | Evens out every dwindle split on a workspace (`=` in `fastedit`) |
 | `config/window-rules.lua` | App → workspace assignments, per-app rules |
 | `scripts/` | Bind targets, called by absolute `~/.config/hypr/scripts/...` path |
 | `hypridle.conf` | Lock, DPMS off, suspend timeouts |
