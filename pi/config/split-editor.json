@@ -1,6 +1,4 @@
 {
   "editor": "nvim",
-  "size": "50%",
-  "direction": "horizontal",
-  "showIndicator": false
+  "size": "50%"
 }
