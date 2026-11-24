@@ -2,8 +2,9 @@
 folder = "~/Dropbox/Apps/pz-pdf"
 
 [picker]
-inbox = "i"
-red = "r"
+answers = "a"
+skim = "s"
+revisit = "r"
 
 [ui]
 font = "CaskaydiaCove Nerd Font"
