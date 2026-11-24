@@ -11,7 +11,7 @@
     "~/dotfiles/pi/picosystem/footer",
     "~/dotfiles/pi/picosystem/notifi",
     "~/dotfiles/pi/picosystem/log",
-    "~/dotfiles/pi/picosystem/sub-agents",
+    "~/dotfiles/pi/picosystem/delegate",
     "~/dotfiles/pi/picosystem/woke",
     "~/dotfiles/pi/picosystem/browse"
   ],

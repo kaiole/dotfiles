@@ -38,7 +38,8 @@ pi loads code in two ways:
 | `notifi/` | package | Desktop notification when pi finishes, and a record that it runs until then; calls the `notifi` command (`../scripts/notifi/README.md`), which does the work | in-repo |
 | `pdf-reader/` | package | Read, search, render and OCR PDFs; ships its own skills | submodule |
 | `split-editor/` | package | Edit the prompt in a tmux split (`nvim`) | submodule |
-| `sub-agents/` | package | Background subagents in tmux windows; definitions in `agents/` | submodule |
+| `delegate/` | package | Headless subagents (`subagent`, `subagent_continue`, `subagent_cancel`, `/subagents`): each worker is a `pi --mode json` process whose final answer is the tool result; profiles in `agents/`; settings `subagents.concurrency` (8) and `subagents.inactivityTimeout` (seconds, 600); task dirs in `~/.pi/agent/subagents/` | in-repo |
+| `sub-agents/` | not loaded | The tmux subagents `delegate/` replaced; same tool names, so load only one | submodule |
 
 pi loads every skill in the top-level `../skills/` (submodule, shared with
 other harnesses): `brainstorm` (also linked into Claude Code), `cpp`, and
@@ -62,6 +63,6 @@ other harnesses): `brainstorm` (also linked into Claude Code), `cpp`, and
 ## Verify
 
 - Run `/reload` in a running pi, or restart it.
-- Packages with tests: `npm test` in `browse/`, `firecrawl/`, `notifi/`, `woke/`,
-  `sub-agents/`; `npm run check` in `immortalize/`. `typecheck` also exists in
-  `firecrawl/` and `sub-agents/`.
+- Packages with tests: `npm test` in `browse/`, `delegate/`, `firecrawl/`,
+  `notifi/`, `woke/`, `sub-agents/`; `npm run check` in `immortalize/`.
+  `typecheck` also exists in `delegate/`, `firecrawl/` and `sub-agents/`.
